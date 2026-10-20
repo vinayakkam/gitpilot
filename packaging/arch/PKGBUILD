@@ -18,7 +18,7 @@ provides=('gitpilot')
 conflicts=('gitpilot')
 options=('!strip' '!debug')
 source=("GitPilot_${pkgver}_amd64.deb")
-sha256sums=('28dc011558a984df7be359b02386775995a8b82aad7b3c6d71e896bf68fa542a')
+sha256sums=('285d83f9f8c5f25d6d599b86fb88a85d2eb1e500639e59ab4220e1056a7bf458')
 
 package() {
   bsdtar -xf "${srcdir}/data.tar.gz" -C "${pkgdir}"
