@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-<<<<<<< HEAD
 import { Copy, FileClock, GitCommitHorizontal, GitMerge, Undo2, X } from "lucide-react";
-=======
-import { Copy, FileClock, GitCommitHorizontal, GitMerge, X } from "lucide-react";
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import type { AppError } from "@/bindings/AppError";
 import type { CommitDetail } from "@/bindings/CommitDetail";
@@ -11,10 +7,7 @@ import type { CommitFile } from "@/bindings/CommitFile";
 import type { CommitSummary } from "@/bindings/CommitSummary";
 import type { FileDiff } from "@/bindings/FileDiff";
 import { Button } from "@/components/ui/Button";
-<<<<<<< HEAD
 import { ConfirmDialog } from "@/components/ui/Dialog";
-=======
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 import { cx } from "@/components/ui/cx";
 import { IconButton } from "@/components/ui/IconButton";
 import { Menu, type MenuItem } from "@/components/ui/Menu";
@@ -28,10 +21,7 @@ import { api } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
 import { absoluteTime, plural, relativeTime, splitPath } from "@/lib/format";
 import { useDebounced } from "@/lib/useAsync";
-<<<<<<< HEAD
 import { useIntegrate } from "@/lib/useIntegrate";
-=======
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 import { useStore } from "@/store/AppStore";
 
 const PAGE = 100;
@@ -96,11 +86,8 @@ export function HistoryView() {
   const [diffLoading, setDiffLoading] = useState(false);
   const [diffErr, setDiffErr] = useState<AppError | null>(null);
   const [menu, setMenu] = useState<{ at: { x: number; y: number }; items: MenuItem[] } | null>(null);
-<<<<<<< HEAD
   const [revert, setRevert] = useState<CommitSummary | null>(null);
   const integrate = useIntegrate();
-=======
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
   const seq = useRef(0);
 
   useEffect(() => {
@@ -247,11 +234,8 @@ export function HistoryView() {
                   items: [
                     { label: "Copy commit hash", icon: <Copy size={14} />, onSelect: () => copy(c.hash, "Hash") },
                     { label: "Copy message", icon: <Copy size={14} />, onSelect: () => copy(c.subject, "Message") },
-<<<<<<< HEAD
                     { type: "separator" },
                     { label: "Revert this commit…", icon: <Undo2 size={14} />, disabled: status?.state !== "normal", onSelect: () => setRevert(c) },
-=======
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
                   ],
                 });
               }}
@@ -281,10 +265,7 @@ export function HistoryView() {
                     <span className="font-mono">{detail.summary.shortHash}</span>
                   </Button>
                   <IconButton size="sm" label="Copy full message" icon={<Copy size={13} />} onClick={() => copy(detail.message, "Message")} />
-<<<<<<< HEAD
                   <IconButton size="sm" label="Revert this commit…" icon={<Undo2 size={13} />} disabled={status?.state !== "normal"} onClick={() => setRevert(detail.summary)} />
-=======
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
                 </div>
               </div>
               {detail.message.includes("\n") && (
@@ -361,7 +342,6 @@ export function HistoryView() {
         )}
       </div>
       {menu && <Menu at={menu.at} items={menu.items} onClose={() => setMenu(null)} />}
-<<<<<<< HEAD
       <ConfirmDialog
         open={revert !== null}
         onClose={() => setRevert(null)}
@@ -378,8 +358,6 @@ export function HistoryView() {
         {revert && revert.parents.length > 1 && <p className="mt-2">This is a merge commit: its changes are undone relative to its first parent.</p>}
         <p className="mt-2">If later commits changed the same lines, Git stops so you can resolve the conflicts.</p>
       </ConfirmDialog>
-=======
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
     </div>
   );
 }

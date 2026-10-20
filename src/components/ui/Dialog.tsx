@@ -27,7 +27,6 @@ export function Dialog({ open, onClose, title, description, children, footer, wi
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
-<<<<<<< HEAD
     if (open && !d.open) {
       d.showModal();
       // showModal() focuses the first focusable element (the close button). Move focus to the
@@ -37,9 +36,6 @@ export function Dialog({ open, onClose, title, description, children, footer, wi
         d.querySelector<HTMLElement>("input:not([type=hidden]):not([disabled]):not([readonly]), textarea:not([disabled]), select:not([disabled])");
       target?.focus();
     }
-=======
-    if (open && !d.open) d.showModal();
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
     if (!open && d.open) d.close();
   }, [open]);
 

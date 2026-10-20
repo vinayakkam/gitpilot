@@ -151,18 +151,13 @@ libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev build-essential file`.
 See `DEVELOPMENT.md` → "Feature tracker", "Current implementation details" and "Known issues" for
 the authoritative status. In short (end of session 1): all core features are implemented and verified
 on Linux; Linux deb/AppImage build; Windows has never been built; AI providers were not called live;
-<<<<<<< HEAD
 see DEVELOPMENT.md for what's verified per release.
-=======
-partial staging is hunk-level only; no cancellation for network operations; no CI.
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 
 Environment notes: `cargo test`/`cargo clippy` rebuild `target/debug/gitpilot` in dev-server mode (it
 loads http://localhost:1420), so for manual runs use `npm run tauri dev` or a `tauri build` output.
 
 Key decisions:
 - Repo ids instead of paths across IPC (security boundary).
-<<<<<<< HEAD
 - Hunk- and line-level partial staging with `git apply --cached [--recount]` on patches the
   backend regenerates itself, byte-exact (frontend sends the hunk header + selected line indices).
 - Network git (clone/fetch/push) runs in its own process group so cancellation stops helpers too.
@@ -174,10 +169,6 @@ Key decisions:
   The app version shown in the UI comes from `package_info()` (same value the updater compares).
 - Windows installer art lives in `packaging/windows/` (regenerate with `art-src/make-art.sh`).
 - Dialogs: use `autoFocus` on the intended control; `Dialog` moves focus there after `showModal()`.
-=======
-- Hunk-level (not line-level) partial staging, done with `git apply --cached` on patches
-  the backend regenerates itself, byte-exact (frontend only sends the hunk header to identify it).
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 - Discarding untracked files moves them to the OS trash; discarding tracked changes first
   copies the current file to `<app_data_dir>/discard-backups/<timestamp>/`.
 - Pull defaults to `--ff-only`; merge/rebase are explicit settings.

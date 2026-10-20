@@ -35,10 +35,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       type={type}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-<<<<<<< HEAD
       data-autofocus={rest.autoFocus ? "" : undefined}
-=======
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
       className={cx(
         "inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded font-medium transition-colors duration-100",
         "disabled:pointer-events-none disabled:opacity-50",

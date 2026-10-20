@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="9e2d2404-0808-4891-84a4-ea8e7e54d678" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.github/workflows/build-installers.yml" beforeDir="false" afterPath="$PROJECT_DIR$/.github/workflows/build-installers.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/gitpilot.iml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/CLAUDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/CLAUDE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DEVELOPMENT.md" beforeDir="false" afterPath="$PROJECT_DIR$/DEVELOPMENT.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/INSTALL.md" beforeDir="false" afterPath="$PROJECT_DIR$/INSTALL.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packaging/arch/PKGBUILD" beforeDir="false" afterPath="$PROJECT_DIR$/packaging/arch/PKGBUILD" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src-tauri/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/Cargo.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src-tauri/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src-tauri/capabilities/default.json" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/capabilities/default.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src-tauri/src/commands/app.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/commands/app.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src-tauri/src/commands/changes.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/commands/changes.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src-tauri/src/commands/history.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/commands/history.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src-tauri/src/commands/remotes.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/commands/remotes.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src-tauri/src/commands/repos.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/commands/repos.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src-tauri/src/error.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/error.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src-tauri/src/git/diff.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/git/diff.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src-tauri/src/git/errors.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/git/errors.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src-tauri/src/git/repo.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/git/repo.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src-tauri/src/git/runner.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/git/runner.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src-tauri/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/lib.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src-tauri/src/settings.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/settings.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src-tauri/src/state.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/state.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src-tauri/tauri.conf.json" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/tauri.conf.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src-tauri/tests/git_workflow.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/tests/git_workflow.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/App.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/App.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/bindings/ErrorKind.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/bindings/ErrorKind.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/bindings/Settings.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/bindings/Settings.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/layout/RepoToolbar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/layout/RepoToolbar.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/layout/Sidebar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/layout/Sidebar.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/ui/Button.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/ui/Button.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/ui/Dialog.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/ui/Dialog.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/ui/Field.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/ui/Field.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/ui/ui.test.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/ui/ui.test.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/features/branches/BranchesView.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/features/branches/BranchesView.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/features/changes/ChangesView.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/features/changes/ChangesView.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/features/diff/DiffViewer.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/features/diff/DiffViewer.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/features/history/HistoryView.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/features/history/HistoryView.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/features/onboarding/RepoActions.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/features/onboarding/RepoActions.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/features/settings/SettingsView.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/features/settings/SettingsView.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lib/api.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/api.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lib/errors.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/errors.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/store/AppStore.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/store/AppStore.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/test/fixtures.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/fixtures.ts" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "vinayakkam"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/vinayakkam/gitpilot.git",
+    "accountId": "6370cbf5-e6ca-4742-89e1-099983f9604d"
+  }
+}]]></component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 5
+}]]></component>
+  <component name="ProjectId" id="3Kxsgtza00HRvQYKv4FhTTyawa2" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "main",
+    "ignore.virus.scanning.warn.message": "true",
+    "junie.onboarding.icon.badge.shown": "true",
+    "last_opened_file_path": "D:/gitpilot-0.2.0-source (1)/gitpilot",
+    "settings.editor.selected.configurable": "preferences.pathVariables",
+    "to.speed.mode.migration.done": "true"
+  }
+}]]></component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-python-sdk-ce6832f46686-7b97d883f26b-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-252.25557.178" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="9e2d2404-0808-4891-84a4-ea8e7e54d678" name="Changes" comment="" />
+      <created>1792510668135</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1792510668135</updated>
+    </task>
+    <servers />
+  </component>
+</project>

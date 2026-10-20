@@ -1,9 +1,5 @@
 use serde::Serialize;
-<<<<<<< HEAD
 use tauri::{AppHandle, State};
-=======
-use tauri::State;
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 use ts_rs::TS;
 
 use crate::error::{AppError, AppResult};
@@ -26,11 +22,7 @@ pub struct AppInfo {
 }
 
 #[tauri::command]
-<<<<<<< HEAD
 pub async fn app_info(app: AppHandle, state: State<'_, AppState>) -> AppResult<AppInfo> {
-=======
-pub async fn app_info(state: State<'_, AppState>) -> AppResult<AppInfo> {
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
     let (git_path, git_version, git_error, global_identity) = match state.git() {
         Ok(g) => match repo::git_version(&g).await {
             Ok(v) => {
@@ -42,12 +34,8 @@ pub async fn app_info(state: State<'_, AppState>) -> AppResult<AppInfo> {
         Err(e) => (None, None, Some(e), None),
     };
     Ok(AppInfo {
-<<<<<<< HEAD
         // Same source the updater compares against (tauri.conf.json "version").
         version: app.package_info().version.to_string(),
-=======
-        version: env!("CARGO_PKG_VERSION").to_string(),
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
         os: std::env::consts::OS.to_string(),
         git_path,
         git_version,
@@ -86,11 +74,8 @@ pub fn secret_clear(provider: AiProviderKind) -> AppResult<KeyStatus> {
     secrets::clear(provider)?;
     Ok(secrets::status(provider))
 }
-<<<<<<< HEAD
 
 #[tauri::command]
 pub fn update_support() -> crate::updates::UpdateSupport {
     crate::updates::support()
 }
-=======
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854

@@ -166,7 +166,6 @@ pub async fn files_search(
     repo!(state, id, git, root, r);
     r.search_files(&query, 40).await
 }
-<<<<<<< HEAD
 
 #[tauri::command]
 pub async fn lines_apply(
@@ -182,5 +181,3 @@ pub async fn lines_apply(
     repo!(state, id, git, root, r);
     r.apply_lines(&path, &header, &lines, unstage).await
 }
-=======
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854

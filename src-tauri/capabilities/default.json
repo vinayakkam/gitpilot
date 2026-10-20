@@ -2,24 +2,16 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Minimal permissions for the main window. Git and filesystem work happens in Rust commands, not via plugins.",
-<<<<<<< HEAD
   "windows": [
     "main"
   ],
-=======
-  "windows": ["main"],
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
   "permissions": [
     "core:default",
     "dialog:allow-open",
     "dialog:allow-ask",
     "clipboard-manager:allow-write-text",
-<<<<<<< HEAD
     "opener:allow-open-url",
     "updater:default",
     "process:allow-restart"
-=======
-    "opener:allow-open-url"
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
   ]
 }

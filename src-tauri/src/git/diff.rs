@@ -330,7 +330,6 @@ pub fn patch_for_hunk(raw: &[u8], hunk_header: &str) -> Option<Vec<u8>> {
     Some(patch)
 }
 
-<<<<<<< HEAD
 /// Builds a one-hunk patch that contains only the selected lines (indices into the hunk's lines).
 ///
 /// Forward (staging from the unstaged diff): unselected additions are dropped and unselected
@@ -467,8 +466,6 @@ pub fn patch_for_lines(
     Some(patch)
 }
 
-=======
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 /// Builds a diff for an untracked file by reading it, without invoking git.
 pub fn untracked_file_diff(path: &str, content: &[u8]) -> FileDiff {
     let mut f = FileDiff {
@@ -651,7 +648,6 @@ mod tests {
     }
 
     #[test]
-<<<<<<< HEAD
     fn builds_line_patches() {
         // Hunk 1 lines: 0 " line one", 1 "-line two", 2 "+line 2", 3 "+line 2b", 4 " line three"
         let p = String::from_utf8(
@@ -691,8 +687,6 @@ mod tests {
     }
 
     #[test]
-=======
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
     fn detects_binary_and_rename() {
         let raw = b"diff --git a/a.png b/b.png\nsimilarity index 90%\nrename from a.png\nrename to b.png\nBinary files a/a.png and b/b.png differ\n";
         let f = &parse(raw)[0];

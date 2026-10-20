@@ -14,10 +14,7 @@ export const settings: Settings = {
   claudeCode: { path: "", terminal: "", sendPromptOnLaunch: true },
   reopenLastRepo: true,
   successNotifications: true,
-<<<<<<< HEAD
   checkForUpdates: true,
-=======
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
   lastRepoId: 1,
 };
 

@@ -36,7 +36,6 @@ describe("DiffViewer", () => {
     expect(screen.getByText("Select a file")).toBeInTheDocument();
   });
 });
-<<<<<<< HEAD
 
 describe("Dialog focus", () => {
   beforeAll(() => {
@@ -62,5 +61,3 @@ describe("Dialog focus", () => {
     expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
   });
 });
-=======
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854

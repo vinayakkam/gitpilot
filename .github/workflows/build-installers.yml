@@ -1,13 +1,9 @@
 # Builds GitPilot installers on real Windows and Linux machines.
-<<<<<<< HEAD
 # Run it from the Actions tab ("Run workflow"), or push a tag like v0.2.0 to also publish a GitHub Release.
 #
 # Optional repository secrets:
 #   TAURI_SIGNING_PRIVATE_KEY / TAURI_SIGNING_PRIVATE_KEY_PASSWORD  → signed update packages + latest.json (in-app updates)
 #   WINDOWS_CERTIFICATE / WINDOWS_CERTIFICATE_PASSWORD              → Authenticode-signed Windows installers
-=======
-# Run it from the Actions tab ("Run workflow"), or push a tag like v0.1.0 to also publish a GitHub Release.
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 name: Build installers
 
 on:
@@ -38,7 +34,6 @@ jobs:
         continue-on-error: true
         run: cargo test
       - name: Build MSI and NSIS installers
-<<<<<<< HEAD
         shell: pwsh
         env:
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
@@ -72,21 +67,14 @@ jobs:
           $config | ConvertTo-Json -Depth 6 -Compress | Set-Content -Path $file
           npm run tauri build -- --bundles msi,nsis --config "$file"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-=======
-        run: npm run tauri build -- --bundles msi,nsis
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
       - uses: actions/upload-artifact@v4
         with:
           name: gitpilot-windows
           path: |
             src-tauri/target/release/bundle/msi/*.msi
-<<<<<<< HEAD
             src-tauri/target/release/bundle/msi/*.msi.sig
             src-tauri/target/release/bundle/nsis/*.exe
             src-tauri/target/release/bundle/nsis/*.exe.sig
-=======
-            src-tauri/target/release/bundle/nsis/*.exe
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
           if-no-files-found: error
 
   linux:
@@ -113,7 +101,6 @@ jobs:
       - working-directory: src-tauri
         run: cargo test
       - name: Build deb and AppImage
-<<<<<<< HEAD
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -124,9 +111,6 @@ jobs:
             echo "::warning::TAURI_SIGNING_PRIVATE_KEY is not set, so no update packages are produced."
             npm run tauri build -- --bundles deb,appimage
           fi
-=======
-        run: npm run tauri build -- --bundles deb,appimage
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
       - name: Build Arch/CachyOS package
         run: |
           mkdir -p arch && cp packaging/arch/PKGBUILD arch/
@@ -139,7 +123,6 @@ jobs:
           name: gitpilot-linux
           path: |
             src-tauri/target/release/bundle/deb/*.deb
-<<<<<<< HEAD
             src-tauri/target/release/bundle/deb/*.deb.sig
             src-tauri/target/release/bundle/appimage/*.AppImage
             src-tauri/target/release/bundle/appimage/*.AppImage.sig
@@ -186,23 +169,10 @@ jobs:
             echo "::error::Tag ${GITHUB_REF_NAME} doesn't match version ${VERSION} in tauri.conf.json"
             exit 1
           fi
-=======
-            src-tauri/target/release/bundle/appimage/*.AppImage
-            arch/*.pkg.tar.zst
-          if-no-files-found: error
-
-  release:
-    name: Publish release
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [windows, linux]
-    runs-on: ubuntu-24.04
-    steps:
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
-<<<<<<< HEAD
       # Installed copies look for updates at releases/latest/download/latest.json, which GitHub
       # serves only from the newest non-pre-release. Publish as a full release for updates to reach users.
       - uses: softprops/action-gh-release@v2
@@ -215,8 +185,3 @@ jobs:
             dist/**/*.AppImage
             dist/**/*.pkg.tar.zst
             dist/**/latest.json
-=======
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: dist/**/*
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854

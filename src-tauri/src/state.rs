@@ -17,10 +17,7 @@ pub struct AppState {
     settings_path: PathBuf,
     pub data_dir: PathBuf,
     locks: Mutex<HashMap<i64, Arc<tokio::sync::Mutex<()>>>>,
-<<<<<<< HEAD
     cancels: Mutex<HashMap<String, Arc<tokio::sync::Notify>>>,
-=======
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 }
 
 impl AppState {
@@ -36,10 +33,7 @@ impl AppState {
             settings_path,
             data_dir,
             locks: Mutex::new(HashMap::new()),
-<<<<<<< HEAD
             cancels: Mutex::new(HashMap::new()),
-=======
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
         })
     }
 
@@ -115,7 +109,6 @@ impl AppState {
     pub fn backup_dir(&self) -> PathBuf {
         self.data_dir.join("discard-backups")
     }
-<<<<<<< HEAD
 
     /// Registers a cancellable operation under `key` ("clone" or "repo:<id>").
     /// The returned guard unregisters it when the operation ends.
@@ -165,6 +158,4 @@ impl Drop for CancelGuard<'_> {
             map.remove(&self.key);
         }
     }
-=======
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 }

@@ -1,9 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-<<<<<<< HEAD
 import { CircleCheck } from "lucide-react";
-=======
-import { CircleCheck, GitMerge } from "lucide-react";
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import type { AppError } from "@/bindings/AppError";
 import type { FileDiff } from "@/bindings/FileDiff";
@@ -19,10 +15,7 @@ import { plural } from "@/lib/format";
 import { useStore } from "@/store/AppStore";
 import { CommitComposer } from "./CommitComposer";
 import { FileList, keyOf, type FileListActions } from "./FileList";
-<<<<<<< HEAD
 import { OperationBanner } from "./OperationBanner";
-=======
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 
 export function ChangesView() {
   const { activeRepo, status, statusError, settings, saveSettings, run, busy, notify, revision, setSection, setHistoryPath, info } = useStore();
@@ -114,7 +107,6 @@ export function ChangesView() {
   const discardTracked = discard?.filter((f) => f.area === "unstaged") ?? [];
   const discardUntracked = discard?.filter((f) => f.area === "untracked") ?? [];
 
-<<<<<<< HEAD
   const lineAction =
     focused?.area === "unstaged" || focused?.area === "staged"
       ? {
@@ -125,8 +117,6 @@ export function ChangesView() {
         }
       : undefined;
 
-=======
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
   const hunkAction =
     focused?.area === "unstaged"
       ? { label: "Stage hunk", icon: stageHunkIcon, run: (h: { header: string }) => void run("Stage hunk", () => api.hunkApply(id, focused.path, h.header, false)) }
@@ -136,25 +126,7 @@ export function ChangesView() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-<<<<<<< HEAD
       {status && <OperationBanner status={status} />}
-=======
-      {status?.state && status.state !== "normal" && (
-        <div className="flex shrink-0 items-center gap-2 border-b border-border bg-conflict-bg px-3 py-2 text-base">
-          <GitMerge size={15} className="shrink-0 text-conflict" />
-          <span>
-            {status.state === "merging" &&
-              (conflicts.length
-                ? `Merge in progress with ${plural(conflicts.length, "conflicted file")}. Resolve each one, mark it resolved, then commit to finish the merge.`
-                : "Merge in progress. All conflicts are resolved — commit to finish the merge.")}
-            {status.state === "rebasing" && "A rebase is in progress. Resolve conflicts and stage files here, then continue or abort it from a terminal (git rebase --continue / --abort)."}
-            {status.state === "cherryPicking" && "A cherry-pick is in progress. Resolve conflicts, then continue or abort it from a terminal."}
-            {status.state === "reverting" && "A revert is in progress. Resolve conflicts, then continue or abort it from a terminal."}
-            {status.state === "bisecting" && "A bisect session is active in this repository."}
-          </span>
-        </div>
-      )}
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
       <div className="flex min-h-0 flex-1">
         <div className="flex min-h-0 shrink-0 flex-col bg-surface" style={{ width }}>
           {files.length > 0 && (
@@ -193,10 +165,7 @@ export function ChangesView() {
             onModeChange={(m) => void saveSettings({ diffMode: m })}
             highlight={settings?.syntaxHighlighting ?? true}
             hunkAction={hunkAction}
-<<<<<<< HEAD
             lineAction={lineAction}
-=======
->>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
             busy={!!busy}
             emptyTitle={files.length ? "Select a file to see its changes" : "Working tree clean"}
             emptyBody={files.length ? undefined : "Edit files in your editor and they'll appear here."}
