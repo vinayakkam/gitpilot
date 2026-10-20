@@ -1,5 +1,5 @@
 use serde::Serialize;
-use tauri::State;
+use tauri::{AppHandle, State};
 use ts_rs::TS;
 
 use crate::error::{AppError, AppResult};
@@ -22,7 +22,7 @@ pub struct AppInfo {
 }
 
 #[tauri::command]
-pub async fn app_info(state: State<'_, AppState>) -> AppResult<AppInfo> {
+pub async fn app_info(app: AppHandle, state: State<'_, AppState>) -> AppResult<AppInfo> {
     let (git_path, git_version, git_error, global_identity) = match state.git() {
         Ok(g) => match repo::git_version(&g).await {
             Ok(v) => {
@@ -34,7 +34,8 @@ pub async fn app_info(state: State<'_, AppState>) -> AppResult<AppInfo> {
         Err(e) => (None, None, Some(e), None),
     };
     Ok(AppInfo {
-        version: env!("CARGO_PKG_VERSION").to_string(),
+        // Same source the updater compares against (tauri.conf.json "version").
+        version: app.package_info().version.to_string(),
         os: std::env::consts::OS.to_string(),
         git_path,
         git_version,
@@ -72,4 +73,9 @@ pub fn secret_set(provider: AiProviderKind, key: String) -> AppResult<KeyStatus>
 pub fn secret_clear(provider: AiProviderKind) -> AppResult<KeyStatus> {
     secrets::clear(provider)?;
     Ok(secrets::status(provider))
+}
+
+#[tauri::command]
+pub fn update_support() -> crate::updates::UpdateSupport {
+    crate::updates::support()
 }

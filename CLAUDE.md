@@ -162,6 +162,12 @@ Key decisions:
   backend regenerates itself, byte-exact (frontend sends the hunk header + selected line indices).
 - Network git (clone/fetch/push) runs in its own process group so cancellation stops helpers too.
 - `GIT_EDITOR=:` for every git call: GitPilot never opens an editor.
+- Updates: `tauri-plugin-updater`, endpoint `releases/latest/download/latest.json`, minisign public key in
+  `tauri.conf.json`. `createUpdaterArtifacts` is false in the config and switched on by CI only when
+  `TAURI_SIGNING_PRIVATE_KEY` exists. `scripts/make-latest-json.mjs` builds the manifest. The Arch package
+  writes `/usr/share/gitpilot/package-manager` so the app defers to pacman (`src-tauri/src/updates.rs`).
+  The app version shown in the UI comes from `package_info()` (same value the updater compares).
+- Windows installer art lives in `packaging/windows/` (regenerate with `art-src/make-art.sh`).
 - Dialogs: use `autoFocus` on the intended control; `Dialog` moves focus there after `showModal()`.
 - Discarding untracked files moves them to the OS trash; discarding tracked changes first
   copies the current file to `<app_data_dir>/discard-backups/<timestamp>/`.

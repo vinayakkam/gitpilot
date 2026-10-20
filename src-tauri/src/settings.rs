@@ -121,6 +121,8 @@ pub struct Settings {
     pub reopen_last_repo: bool,
     /// Show a notification when operations succeed (errors are always shown).
     pub success_notifications: bool,
+    /// Look for a new version on startup (at most once a day).
+    pub check_for_updates: bool,
     #[ts(type = "number | null")]
     pub last_repo_id: Option<i64>,
 }
@@ -140,6 +142,7 @@ impl Default for Settings {
             claude_code: ClaudeCodeSettings::default(),
             reopen_last_repo: true,
             success_notifications: true,
+            check_for_updates: true,
             last_repo_id: None,
         }
     }

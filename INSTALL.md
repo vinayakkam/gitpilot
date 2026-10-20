@@ -74,6 +74,15 @@ GitPilot uses Microsoft Edge WebView2, which is built into Windows 11 and curren
 
 ---
 
+## Updating
+
+You never need to uninstall first.
+
+- **Windows, AppImage, Debian/Ubuntu:** when a new version is out, **Update to x.y.z** appears at the bottom of GitPilot's sidebar. Click it, then **Update now**. Your repositories and settings are kept. You can also check by hand in **Settings → General → Updates**. On Windows, running a newer installer over the old one also upgrades in place.
+- **CachyOS / Arch:** GitPilot tells you a new version exists. Download the new `.pkg.tar.zst` and run `sudo pacman -U gitpilot-bin-<version>-1-x86_64.pkg.tar.zst`. pacman replaces the old version.
+
+---
+
 ## Getting the Windows installers built
 
 Windows installers have to be built on Windows (the MSI tool, WiX, only runs there). The project includes a GitHub Actions workflow that does this for free on GitHub's Windows machines:

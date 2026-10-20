@@ -9,6 +9,7 @@ pub mod git;
 pub mod secrets;
 pub mod settings;
 pub mod state;
+pub mod updates;
 
 use tauri::Manager;
 
@@ -18,6 +19,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let data = app.path().app_data_dir()?;
             let config = app.path().app_config_dir()?;
@@ -33,6 +36,7 @@ pub fn run() {
             commands::app::secret_status,
             commands::app::secret_set,
             commands::app::secret_clear,
+            commands::app::update_support,
             commands::repos::repo_list,
             commands::repos::repo_inspect_path,
             commands::repos::repo_add,

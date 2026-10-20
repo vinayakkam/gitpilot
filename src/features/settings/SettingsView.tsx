@@ -13,6 +13,7 @@ import { api } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
 import { useAsync } from "@/lib/useAsync";
 import { useStore } from "@/store/AppStore";
+import { UpdateSettings } from "@/features/updates/UpdateSettings";
 import { open } from "@tauri-apps/plugin-dialog";
 
 type Tab = "appearance" | "git" | "ai" | "claude" | "general";
@@ -287,6 +288,9 @@ function General({ settings, set }: PaneProps) {
   const { info, repos } = useStore();
   return (
     <>
+      <Group title="Updates">
+        <UpdateSettings />
+      </Group>
       <Group title="Startup">
         <Switch label="Reopen the last repository" checked={settings.reopenLastRepo} onChange={(reopenLastRepo) => void set({ reopenLastRepo })} />
       </Group>

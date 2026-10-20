@@ -23,6 +23,7 @@ import type { RepoStatus } from "@/bindings/RepoStatus";
 import type { Settings } from "@/bindings/Settings";
 import type { SequenceAction } from "@/bindings/SequenceAction";
 import type { Stash } from "@/bindings/Stash";
+import type { UpdateSupport } from "@/bindings/UpdateSupport";
 
 export const api = {
   // app
@@ -32,6 +33,7 @@ export const api = {
   secretStatus: (provider: AiProviderKind) => invoke<KeyStatus>("secret_status", { provider }),
   secretSet: (provider: AiProviderKind, key: string) => invoke<KeyStatus>("secret_set", { provider, key }),
   secretClear: (provider: AiProviderKind) => invoke<KeyStatus>("secret_clear", { provider }),
+  updateSupport: () => invoke<UpdateSupport>("update_support"),
 
   // repositories
   repoList: () => invoke<RepoRecord[]>("repo_list"),

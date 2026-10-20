@@ -23,4 +23,8 @@ reopenLastRepo: boolean,
 /**
  * Show a notification when operations succeed (errors are always shown).
  */
-successNotifications: boolean, lastRepoId: number | null, };
+successNotifications: boolean, 
+/**
+ * Look for a new version on startup (at most once a day).
+ */
+checkForUpdates: boolean, lastRepoId: number | null, };

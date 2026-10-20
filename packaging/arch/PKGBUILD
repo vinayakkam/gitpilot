@@ -23,6 +23,9 @@ sha256sums=('285d83f9f8c5f25d6d599b86fb88a85d2eb1e500639e59ab4220e1056a7bf458')
 package() {
   bsdtar -xf "${srcdir}/data.tar.gz" -C "${pkgdir}"
   chmod 755 "${pkgdir}/usr/bin/gitpilot"
+  # Tells GitPilot it is managed by pacman, so it points to pacman instead of updating itself.
+  install -Dm644 /dev/null "${pkgdir}/usr/share/gitpilot/package-manager"
+  echo pacman > "${pkgdir}/usr/share/gitpilot/package-manager"
   # Tauri names this icon size "256x256@2"; hicolor expects "256x256@2x".
   if [[ -d "${pkgdir}/usr/share/icons/hicolor/256x256@2" ]]; then
     mv "${pkgdir}/usr/share/icons/hicolor/256x256@2" "${pkgdir}/usr/share/icons/hicolor/256x256@2x"

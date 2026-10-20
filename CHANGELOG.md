@@ -9,6 +9,8 @@
 - **Cherry-pick** commits from the Compare dialog (commits that exist only on the other branch).
 - **Revert** a commit from History (context menu or the button in the commit details). Creates a new commit; history isn't rewritten.
 - **Continue / Skip / Abort** for paused merges, rebases, cherry-picks and reverts, right in the Changes view. Abort and Skip ask for confirmation. Continue is disabled until every conflict is marked resolved.
+- **In-app updates.** GitPilot checks GitHub Releases (at most once a day, or on demand in Settings → General) and updates itself in place: "Update to x.y.z" in the sidebar → Update now → Restart. Works for the Windows installers, AppImage and .deb; the CachyOS/Arch package points you to pacman instead. Updates are signature-checked before installing. See `docs/UPDATES.md`.
+- **Branded Windows installers.** The setup EXE and MSI now show GitPilot artwork on the welcome, finish and inner pages, and list OLIT Technologies as the publisher.
 - **Optional Windows code signing** in the build workflow: add a certificate as repository secrets and installers are signed automatically. See `docs/CODE_SIGNING.md`.
 
 ### Changed
