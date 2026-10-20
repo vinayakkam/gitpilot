@@ -146,7 +146,7 @@ export function FileList({ files, selected, focusKey, onSelect, actions, disable
         aria-multiselectable
         tabIndex={0}
         onKeyDown={onKey}
-        className="min-h-0 flex-1 overflow-y-auto pb-2 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40"
+        className="group/list min-h-0 flex-1 overflow-y-auto pb-2 outline-none"
       >
         {groups.map((g) => {
           const isCollapsed = collapsed.has(g.area);
@@ -196,7 +196,7 @@ export function FileList({ files, selected, focusKey, onSelect, actions, disable
                       className={cx(
                         "group mx-1 flex items-center gap-2 rounded pl-5 pr-1",
                         isSel ? "bg-selection" : "hover:bg-surface-2",
-                        focusKey === k && "ring-1 ring-inset ring-accent/40",
+                        focusKey === k && "group-focus-visible/list:ring-2 group-focus-visible/list:ring-inset group-focus-visible/list:ring-accent/50",
                       )}
                       style={{ height: "var(--row-h)" }}
                       title={f.origPath ? `${f.origPath} → ${f.path}` : f.path}

@@ -18,7 +18,7 @@ import { StatusGlyph } from "@/components/ui/StatusGlyph";
 import { DiffViewer } from "@/features/diff/DiffViewer";
 import { api } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
-import { absoluteTime, relativeTime, splitPath } from "@/lib/format";
+import { absoluteTime, plural, relativeTime, splitPath } from "@/lib/format";
 import { useDebounced } from "@/lib/useAsync";
 import { useStore } from "@/store/AppStore";
 
@@ -290,7 +290,7 @@ export function HistoryView() {
             </div>
             <div className="flex min-h-0 flex-1">
               <div className="w-[260px] shrink-0 overflow-y-auto border-r border-border py-1" role="listbox" aria-label="Files in this commit">
-                <p className="px-3 pb-1 pt-1 text-xs text-faint">{detail.files.length} files changed</p>
+                <p className="px-3 pb-1 pt-1 text-xs text-faint">{plural(detail.files.length, "file")} changed</p>
                 {detail.files.map((f) => {
                   const { name, dir } = splitPath(f.path);
                   return (

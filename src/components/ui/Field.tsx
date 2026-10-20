@@ -91,7 +91,7 @@ export function Switch({
       >
         <span
           className={cx(
-            "absolute top-[2px] h-[14px] w-[14px] rounded-full bg-white shadow transition-transform",
+            "absolute left-0 top-[2px] h-[14px] w-[14px] rounded-full bg-white shadow transition-transform",
             checked ? "translate-x-[16px]" : "translate-x-[2px]",
           )}
         />

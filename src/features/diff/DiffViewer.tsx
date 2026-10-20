@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowRight, Columns2, FileWarning, Minus, Plus, Rows3 } from "lucide-react";
 import type { AppError } from "@/bindings/AppError";
@@ -90,11 +90,11 @@ const Code = memo(function Code({ text, lang }: { text: string; lang: string | n
 });
 
 function LineCells({ line, lang, showEol, side }: { line: DiffLine | null; lang: string | null; showEol: boolean; side?: "left" | "right" }) {
-  if (!line) return <div className="h-full flex-1 bg-surface-2/50" />;
+  if (!line) return <div className="min-h-5 flex-1 bg-surface-2/50" />;
   const t = tone[line.kind];
   const no = side === "left" ? line.oldNo : side === "right" ? line.newNo : null;
   return (
-    <div className={cx("flex h-full min-w-0 flex-1", t.row)}>
+    <div className={cx("flex min-h-5 min-w-0 flex-1", t.row)}>
       {side ? (
         <span className={cx("w-12 shrink-0 select-none pr-2 text-right", t.gutter)}>{no ?? ""}</span>
       ) : (
@@ -106,7 +106,7 @@ function LineCells({ line, lang, showEol, side }: { line: DiffLine | null; lang:
       <span className={cx("w-5 shrink-0 select-none text-center", t.gutter.replace(/bg-\S+/g, ""))} aria-hidden>
         {t.sign}
       </span>
-      <span className={cx("selectable whitespace-pre pr-4", line.kind === "noNewline" && "italic text-faint")}>
+      <span className={cx("selectable pr-4", side ? "min-w-0 flex-1 whitespace-pre-wrap break-all" : "whitespace-pre", line.kind === "noNewline" && "italic text-faint")}>
         {line.kind === "noNewline" ? "No newline at end of file" : <Code text={line.content} lang={lang} />}
         {showEol && line.crlf && (
           <span className="ml-1 select-none rounded-sm bg-surface-3 px-0.5 text-[10px] text-faint" title="Line ends with CRLF">
@@ -146,7 +146,24 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
     getScrollElement: () => scrollRef.current,
     estimateSize: (i) => (rows[i]?.t === "hunk" ? HUNK_H : LINE_H),
     overscan: 24,
+    // Side-by-side wraps long lines, so rows are measured; unified rows have a fixed height.
+    measureElement: effectiveMode === "split" && !diff?.conflictView ? (el) => el.getBoundingClientRect().height : undefined,
   });
+  const split = effectiveMode === "split";
+  // Hunk headers stay pinned to the visible width while the code scrolls horizontally.
+  const [viewportW, setViewportW] = useState(0);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setViewportW(el.clientWidth));
+    ro.observe(el);
+    setViewportW(el.clientWidth);
+    return () => ro.disconnect();
+  }, [diff]);
+  // Measured heights from one layout must not leak into the other.
+  useEffect(() => {
+    virt.measure();
+  }, [split, rows, virt]);
 
   if (error) return <div className="p-4"><ErrorNotice error={error} /></div>;
   if (!diff) {
@@ -156,7 +173,7 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
 
   const renamed = diff.renamed && diff.oldPath && diff.newPath && diff.oldPath !== diff.newPath;
   const modeChanged = diff.oldMode && diff.newMode && diff.oldMode !== diff.newMode && !diff.newFile && !diff.deletedFile;
-  const contentWidth = effectiveMode === "split" ? `calc(2 * (${maxLen}ch + 5.5rem))` : `calc(${maxLen}ch + 8.5rem)`;
+  const contentWidth = split ? "100%" : `calc(${maxLen}ch + 8.5rem)`;
 
   let body: ReactNode;
   if (diff.binary) {
@@ -176,43 +193,41 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
     );
   } else {
     body = (
-      <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-auto font-mono text-[12.5px] leading-5" style={{ tabSize: 4 }}>
+      <div ref={scrollRef} className={cx("hl relative min-h-0 flex-1 font-mono text-[12.5px] leading-5", split ? "overflow-y-auto overflow-x-hidden" : "overflow-auto")} style={{ tabSize: 4 }}>
         <div style={{ height: virt.getTotalSize(), minWidth: contentWidth, width: "100%", position: "relative" }}>
           {virt.getVirtualItems().map((vi) => {
             const r = rows[vi.index]!;
-            const style = { position: "absolute" as const, top: vi.start, left: 0, right: 0, height: vi.size };
+            const style = split
+              ? { position: "absolute" as const, top: 0, left: 0, right: 0, transform: `translateY(${vi.start}px)` }
+              : { position: "absolute" as const, top: vi.start, left: 0, right: 0, height: vi.size };
+            const measure = split ? { ref: virt.measureElement, "data-index": vi.index } : {};
             if (r.t === "hunk")
               return (
                 <div
                   key={r.key}
-                  style={style}
-                  className="flex items-center gap-3 border-y border-border bg-surface-2 pl-3 pr-2 font-sans text-sm text-muted"
+                  style={split ? { ...style, height: HUNK_H } : style}
+                  {...measure}
+                  className="border-y border-border bg-surface-2 font-sans text-sm text-muted"
                 >
-                  <span className="font-mono text-xs text-faint">{r.hunk.header.match(/^@@[^@]*@@/)?.[0]}</span>
-                  {r.hunk.section && <span className="truncate font-mono text-xs">{r.hunk.section}</span>}
-                  <span className="flex-1" />
-                  {hunkAction && diff.hunkActions && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      icon={hunkAction.icon}
-                      disabled={busy}
-                      onClick={() => hunkAction.run(r.hunk)}
-                      className="sticky right-2"
-                    >
-                      {hunkAction.label}
-                    </Button>
-                  )}
+                  <div className="sticky left-0 flex h-full items-center gap-3 pl-3 pr-2" style={{ width: viewportW || "100%" }}>
+                    <span className="shrink-0 whitespace-nowrap font-mono text-xs text-faint">{r.hunk.header.match(/^@@[^@]*@@/)?.[0]}</span>
+                    <span className="min-w-0 flex-1 truncate font-mono text-xs">{r.hunk.section}</span>
+                    {hunkAction && diff.hunkActions && (
+                      <Button size="sm" variant="ghost" icon={hunkAction.icon} disabled={busy} onClick={() => hunkAction.run(r.hunk)} className="shrink-0">
+                        {hunkAction.label}
+                      </Button>
+                    )}
+                  </div>
                 </div>
               );
             if (r.t === "line")
               return (
-                <div key={r.key} style={style} className="flex">
+                <div key={r.key} style={style} {...measure} className="flex">
                   <LineCells line={r.line} lang={lang} showEol={mixedEol} />
                 </div>
               );
             return (
-              <div key={r.key} style={style} className="flex">
+              <div key={r.key} style={style} {...measure} className="flex">
                 <div className="flex w-1/2 min-w-0 border-r border-border">
                   <LineCells side="left" line={r.left?.kind === "add" ? null : r.left} lang={lang} showEol={mixedEol} />
                 </div>

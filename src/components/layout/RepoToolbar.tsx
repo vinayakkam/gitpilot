@@ -282,7 +282,7 @@ export function RepoToolbar() {
           </Tooltip>
           <Tooltip content={hasUpstream ? `Bring in commits from ${b?.upstream}` : "This branch has no upstream to pull from"}>
             <span>
-              <Button size="md" icon={<ArrowDownToLine size={13} />} onClick={pull} disabled={!!busy || !hasUpstream} loading={busy === "Pull"}>
+              <Button size="md" variant={behind > 0 ? "primary" : "secondary"} icon={<ArrowDownToLine size={13} />} onClick={pull} disabled={!!busy || !hasUpstream} loading={busy === "Pull"}>
                 Pull{behind ? ` ${behind}` : ""}
               </Button>
             </span>
@@ -291,7 +291,7 @@ export function RepoToolbar() {
             <span>
               <Button
                 size="md"
-                variant={(b?.ahead ?? 0) > 0 || (!hasUpstream && canPush) ? "primary" : "secondary"}
+                variant={((b?.ahead ?? 0) > 0 && behind === 0) || (!hasUpstream && canPush) ? "primary" : "secondary"}
                 icon={hasUpstream ? <ArrowUpFromLine size={13} /> : <CloudUpload size={13} />}
                 disabled={!!busy || !canPush}
                 loading={busy === "Push"}

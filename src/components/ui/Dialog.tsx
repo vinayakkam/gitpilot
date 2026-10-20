@@ -113,7 +113,7 @@ export function ConfirmDialog({ open, onClose, title, children, confirmLabel, da
       onSubmit={() => !blocked && run()}
       footer={
         <>
-          <Button onClick={onClose} disabled={busy}>
+          <Button onClick={onClose} disabled={busy} autoFocus={danger}>
             Cancel
           </Button>
           <Button type="submit" variant={danger ? "danger" : "primary"} loading={busy} disabled={blocked} autoFocus={!danger}>
