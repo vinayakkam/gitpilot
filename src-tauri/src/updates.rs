@@ -25,9 +25,11 @@ pub fn support() -> UpdateSupport {
         let pm = pm.trim().to_string();
         return UpdateSupport {
             can_install: false,
-            note: Some(format!(
-                "GitPilot was installed with {pm}. Download the new package from the release page and install it with {pm} (for pacman: sudo pacman -U <file>)."
-            )),
+            note: Some(if pm == "pacman" {
+                "GitPilot was installed with pacman, so pacman updates it. Download the new package from the release page, then run: sudo pacman -U <file>".to_string()
+            } else {
+                format!("GitPilot was installed with {pm}. Download the new package from the release page and install it with {pm}.")
+            }),
             install_kind: pm,
         };
     }
