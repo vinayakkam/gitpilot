@@ -16,6 +16,8 @@ export interface Toast {
   title: string;
   error?: AppError;
   body?: string;
+  /** Optional button, e.g. "Pull" on a rejected push. */
+  action?: { label: string; run: () => void };
 }
 
 interface RunOptions {

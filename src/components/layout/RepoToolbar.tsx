@@ -25,6 +25,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { NewBranchDialog } from "@/features/branches/NewBranchDialog";
 import { useBranchSwitch } from "@/features/branches/useBranchSwitch";
+import { usePull } from "@/features/sync/usePull";
 import { api } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
 import { plural, relativeTime } from "@/lib/format";
@@ -148,13 +149,16 @@ function SyncStrip({ fetchError }: { fetchError: AppError | null }) {
   if (status.state !== "normal") return <span className="text-sm text-conflict">{ops[status.state]} in progress</span>;
   if (b.unborn) return <span className="text-sm text-faint">No commits yet</span>;
   if (b.detached) return <span className="text-sm text-warning">Detached HEAD at {b.oid?.slice(0, 7)}</span>;
-  if (!b.upstream) return <span className="text-sm text-faint">Not published to a remote</span>;
+  const twin = status.remoteTwin;
+  if (!b.upstream && !twin) return <span className="text-sm text-faint">Not published to a remote</span>;
 
-  const ahead = b.ahead ?? 0;
-  const behind = b.behind ?? 0;
+  const target = b.upstream ?? twin!.name;
+  const ahead = b.upstream ? (b.ahead ?? 0) : twin!.ahead;
+  const behind = b.upstream ? (b.behind ?? 0) : twin!.behind;
   const fetched = status.lastFetch ? `fetched ${relativeTime(status.lastFetch)}` : "never fetched";
   let state: { text: string; tone: string };
-  if (ahead && behind) state = { text: "Diverged", tone: "text-warning" };
+  if (!b.upstream && twin?.unrelated) state = { text: "Unrelated history", tone: "text-warning" };
+  else if (ahead && behind) state = { text: "Diverged", tone: "text-warning" };
   else if (ahead) state = { text: `${plural(ahead, "commit")} to push`, tone: "text-accent-text" };
   else if (behind) state = { text: `${plural(behind, "commit")} to pull`, tone: "text-accent-text" };
   else state = { text: status.lastFetch ? "Up to date" : "Not yet fetched", tone: "text-muted" };
@@ -163,11 +167,12 @@ function SyncStrip({ fetchError }: { fetchError: AppError | null }) {
     <Tooltip
       content={
         <span>
-          Comparing with {b.upstream} as of the last fetch ({fetched}). Fetch to check for newer remote commits.
+          Comparing with {target} as of the last fetch ({fetched}).
+          {!b.upstream && " Your branch isn't linked to it yet; Pull or Push links it."} Fetch to check for newer remote commits.
         </span>
       }
     >
-      <div className="flex min-w-0 items-center gap-2 text-sm" tabIndex={0} aria-label={`${state.text}, ${b.upstream}, ${fetched}`}>
+      <div className="flex min-w-0 items-center gap-2 text-sm" tabIndex={0} aria-label={`${state.text}, ${target}, ${fetched}`}>
         <span className="h-px w-4 shrink-0 bg-border-strong" aria-hidden />
         <span className="flex shrink-0 items-center gap-1.5 rounded-sm border border-border px-1.5 font-mono text-xs leading-[18px] text-muted">
           <span className={cx("flex items-center", ahead ? "text-text" : "text-faint")}>
@@ -180,7 +185,8 @@ function SyncStrip({ fetchError }: { fetchError: AppError | null }) {
           </span>
         </span>
         <span className="h-px w-4 shrink-0 bg-border-strong" aria-hidden />
-        <span className="truncate font-mono text-xs text-muted">{b.upstream}</span>
+        <span className="truncate font-mono text-xs text-muted">{target}</span>
+        {!b.upstream && <span className="shrink-0 rounded-sm bg-surface-3 px-1 text-[10px] text-muted">not linked</span>}
         <span className={cx("shrink-0", fetchError ? "text-danger" : state.tone)}>{fetchError ? "Fetch failed" : state.text}</span>
         <span className="hidden shrink-0 text-faint xl:inline">{fetched}</span>
       </div>
@@ -189,7 +195,8 @@ function SyncStrip({ fetchError }: { fetchError: AppError | null }) {
 }
 
 export function RepoToolbar() {
-  const { activeRepo, status, busy, progress, run, revision, refreshStatus, statusLoading } = useStore();
+  const { activeRepo, status, busy, progress, run, revision, refreshStatus, statusLoading, notify } = useStore();
+  const { pull, dialog: pullDialog } = usePull();
   const [picker, setPicker] = useState<DOMRect | null>(null);
   const [newBranch, setNewBranch] = useState(false);
   const [remotes, setRemotes] = useState<Remote[]>([]);
@@ -219,9 +226,12 @@ export function RepoToolbar() {
   if (!activeRepo || id == null) return null;
   const b = status?.branch;
   const hasUpstream = Boolean(b?.upstream);
+  const twin = status?.remoteTwin ?? null;
+  const canPull = hasUpstream || !!twin;
   const midOperation = status?.state !== undefined && status.state !== "normal";
   const canPush = Boolean(b && !b.unborn && !b.detached && !midOperation && (hasUpstream || remotes.length > 0));
-  const behind = b?.behind ?? 0;
+  const behind = (hasUpstream ? b?.behind : twin?.behind) ?? 0;
+  const aheadCount = (hasUpstream ? b?.ahead : twin?.ahead) ?? 0;
 
   const fetch = () =>
     run(
@@ -237,13 +247,26 @@ export function RepoToolbar() {
       },
       { success: "Fetched from all remotes" },
     );
-  const pull = () => run("Pull", () => api.pull(id), { success: "Pulled latest changes" });
-  const push = (remote?: string) =>
-    run("Push", () => api.push(id, { remote: remote ?? null, setUpstream: !hasUpstream }), {
-      success: hasUpstream ? "Pushed" : `Published ${b?.head ?? "branch"}`,
-    });
+  const push = async (remote?: string) => {
+    try {
+      await run("Push", () => api.push(id, { remote: remote ?? twin?.remote ?? null, setUpstream: !hasUpstream }), {
+        rethrow: true,
+        quiet: true,
+        success: hasUpstream ? "Pushed" : twin ? `Pushed and linked ${b?.head} to ${twin.name}` : `Published ${b?.head ?? "branch"}`,
+      });
+    } catch (e) {
+      const err = toAppError(e);
+      if (err.kind === "cancelled") return;
+      notify({
+        tone: "error",
+        title: "Push failed",
+        error: err,
+        action: err.kind === "pushRejected" && (hasUpstream || twin) ? { label: "Pull now", run: () => void pull() } : undefined,
+      });
+    }
+  };
 
-  const pushLabel = hasUpstream ? "Push" : "Publish branch";
+  const pushLabel = hasUpstream || twin ? "Push" : "Publish branch";
   const pushHint = !b
     ? ""
     : midOperation
@@ -258,6 +281,8 @@ export function RepoToolbar() {
             ? `The remote has ${plural(behind, "commit")} you don't have. Pull first, or the push will be rejected.`
             : hasUpstream
               ? `Push commits to ${b.upstream}`
+              : twin
+                ? `Push to ${twin.name} and link ${b.head} to it`
               : `Publish ${b.head} to ${remotes[0]?.name ?? "a remote"} and track it`;
 
   const pushItems: MenuItem[] = remotes.map((r) => ({ label: `Publish to ${r.name}`, onSelect: () => void push(r.name) }));
@@ -297,9 +322,17 @@ export function RepoToolbar() {
               </Button>
             </span>
           </Tooltip>
-          <Tooltip content={hasUpstream ? `Bring in commits from ${b?.upstream}` : "This branch has no upstream to pull from"}>
+          <Tooltip
+            content={
+              hasUpstream
+                ? `Bring in commits from ${b?.upstream}`
+                : twin
+                  ? `Bring in commits from ${twin.name} and link ${b?.head} to it`
+                  : "This branch has no remote branch to pull from. Fetch first, or publish it."
+            }
+          >
             <span>
-              <Button size="md" variant={behind > 0 ? "primary" : "secondary"} icon={<ArrowDownToLine size={13} />} onClick={pull} disabled={!!busy || !hasUpstream || midOperation} loading={busy === "Pull"}>
+              <Button size="md" variant={behind > 0 ? "primary" : "secondary"} icon={<ArrowDownToLine size={13} />} onClick={() => void pull()} disabled={!!busy || !canPull || midOperation} loading={busy === "Pull"}>
                 Pull{behind ? ` ${behind}` : ""}
               </Button>
             </span>
@@ -308,19 +341,19 @@ export function RepoToolbar() {
             <span>
               <Button
                 size="md"
-                variant={((b?.ahead ?? 0) > 0 && behind === 0) || (!hasUpstream && canPush) ? "primary" : "secondary"}
-                icon={hasUpstream ? <ArrowUpFromLine size={13} /> : <CloudUpload size={13} />}
+                variant={(aheadCount > 0 && behind === 0) || (!hasUpstream && !twin && canPush) ? "primary" : "secondary"}
+                icon={hasUpstream || twin ? <ArrowUpFromLine size={13} /> : <CloudUpload size={13} />}
                 disabled={!!busy || !canPush}
                 loading={busy === "Push"}
                 onClick={(e) => {
-                  if (!hasUpstream && remotes.length > 1) {
+                  if (!hasUpstream && !twin && remotes.length > 1) {
                     const r = e.currentTarget.getBoundingClientRect();
                     setPushMenu({ x: r.right - 200, y: r.bottom + 4 });
                   } else void push();
                 }}
               >
                 {pushLabel}
-                {hasUpstream && b?.ahead ? ` ${b.ahead}` : ""}
+                {(hasUpstream || twin) && aheadCount ? ` ${aheadCount}` : ""}
               </Button>
             </span>
           </Tooltip>
@@ -345,6 +378,7 @@ export function RepoToolbar() {
       )}
       {picker && <BranchPicker anchor={picker} onClose={() => setPicker(null)} onNew={() => setNewBranch(true)} />}
       <NewBranchDialog open={newBranch} onClose={() => setNewBranch(false)} />
+      {pullDialog}
       {pushMenu && <Menu at={pushMenu} items={pushItems} onClose={() => setPushMenu(null)} />}
     </div>
   );

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.1 — 2026-10-20
+
+### Fixed
+- **Push rejected with no way to pull.** When a local branch wasn't linked to its remote copy (for example `main` vs. `origin/main` after adding a remote to an existing folder), Push was rejected with "Pull first", but Pull was disabled. Pull now works in that case and links the branch to its remote copy.
+- **Branches that can't be fast-forwarded.** Instead of failing and pointing you to Settings, Pull now asks whether to **Merge** or **Rebase** this time.
+- **Branches with unrelated histories** (for example, one side started from downloaded files and the other from files uploaded on GitHub) are now explained, with an option to **Combine histories** after you confirm.
+
+### Changed
+- The toolbar shows how an unlinked branch compares with its remote copy, marked **not linked**, including "Unrelated history" when the two share no commits.
+- A rejected push shows a **Pull now** button in the error message.
+- Push for an unlinked branch says "Push" and links the branch, instead of "Publish branch".
+
 ## 0.2.0 — 2026-10-20
 
 ### Added

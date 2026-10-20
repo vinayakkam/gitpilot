@@ -23,6 +23,7 @@ import { SECTIONS } from "@/components/layout/Sidebar";
 import { Spinner } from "@/components/ui/Spinner";
 import { NewBranchDialog } from "@/features/branches/NewBranchDialog";
 import { useBranchSwitch } from "@/features/branches/useBranchSwitch";
+import { usePull } from "@/features/sync/usePull";
 import { useRepoActions } from "@/features/onboarding/RepoActions";
 import { api } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
@@ -44,6 +45,7 @@ export function CommandPalette() {
   const { paletteOpen, setPaletteOpen, activeRepo, status, repos, run } = store;
   const { addExisting, startClone, createNew } = useRepoActions();
   const { request: switchTo, dialog: switchDialog } = useBranchSwitch();
+  const { pull, dialog: pullDialog } = usePull();
   const [q, setQ] = useState("");
   const dq = useDebounced(q, 180);
   const [active, setActive] = useState(0);
@@ -112,7 +114,8 @@ export function CommandPalette() {
     if (activeRepo && id != null) {
       for (const s of SECTIONS) out.push({ id: `go-${s.id}`, group: "Go to", label: s.label, hint: `${modKey}+${s.key}`, icon: s.icon, run: () => store.setSection(s.id) });
       if (remotes.length) out.push({ id: "fetch", group: "Actions", label: "Fetch", icon: <RefreshCw size={15} />, run: () => void run("Fetch", () => api.fetch(id, null), { success: "Fetched from all remotes" }) });
-      if (b?.upstream) out.push({ id: "pull", group: "Actions", label: `Pull from ${b.upstream}`, icon: <ArrowDownToLine size={15} />, run: () => void run("Pull", () => api.pull(id), { success: "Pulled latest changes" }) });
+      const pullFrom = b?.upstream ?? status?.remoteTwin?.name;
+      if (pullFrom) out.push({ id: "pull", group: "Actions", label: `Pull from ${pullFrom}`, icon: <ArrowDownToLine size={15} />, run: () => void pull() });
       if (b && !b.unborn && !b.detached && (b.upstream || remotes.length))
         out.push({ id: "push", group: "Actions", label: b.upstream ? `Push to ${b.upstream}` : "Publish branch", icon: <ArrowUpFromLine size={15} />, run: () => void run("Push", () => api.push(id, { setUpstream: !b.upstream }), { success: "Pushed" }) });
       if (b && !b.unborn) out.push({ id: "new-branch", group: "Actions", label: "Create branch…", icon: <GitBranchPlus size={15} />, run: () => setNewBranch(true) });
@@ -135,7 +138,7 @@ export function CommandPalette() {
       filtered.push({ id: `c-${c.hash}`, group: "Commits", label: c.subject, hint: c.shortHash, icon: <GitCommitHorizontal size={15} />, run: () => { store.setHistoryPath(null); store.setHistoryJump(c.hash); store.setSection("history"); } });
     return filtered;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, activeRepo, id, b, remotes, branches, claudeFound, repos, files, commits]);
+  }, [q, activeRepo, id, b, remotes, branches, claudeFound, repos, files, commits, status?.remoteTwin]);
 
   useEffect(() => setActive(0), [q]);
 
@@ -222,6 +225,7 @@ export function CommandPalette() {
       </dialog>
       <NewBranchDialog open={newBranch} onClose={() => setNewBranch(false)} />
       {switchDialog}
+      {pullDialog}
     </>
   );
 }

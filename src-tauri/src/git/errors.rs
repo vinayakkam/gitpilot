@@ -6,7 +6,20 @@ pub fn classify(stderr: &str) -> AppError {
     let s = stderr.to_ascii_lowercase();
     let has = |needle: &str| s.contains(needle);
 
-    let (kind, message) = if has("not a git repository") {
+    let (kind, message) = if has("refusing to merge unrelated histories") {
+        (
+            ErrorKind::UnrelatedHistories,
+            "Your branch and the remote branch don't share any history (for example, one was started from a copy of the files). Git won't combine them unless you choose to.",
+        )
+    } else if has("not possible to fast-forward")
+        || has("diverging branches")
+        || has("need to specify how to reconcile divergent branches")
+    {
+        (
+            ErrorKind::Diverged,
+            "Your branch and the remote both have new commits, so they can't simply be fast-forwarded. Choose whether to merge or rebase.",
+        )
+    } else if has("not a git repository") {
         (
             ErrorKind::NotARepository,
             "This folder is not a Git repository (or it was moved or deleted).",
@@ -78,11 +91,6 @@ pub fn classify(stderr: &str) -> AppError {
         (
             ErrorKind::NoUpstream,
             "This branch isn't connected to a remote branch yet. Publish it or set an upstream.",
-        )
-    } else if has("not possible to fast-forward") || has("diverging branches") {
-        (
-            ErrorKind::Conflict,
-            "Your branch and the remote have diverged, so a fast-forward pull isn't possible. Choose merge or rebase in Settings → Git, or resolve from a terminal.",
         )
     } else if has("authentication failed")
         || has("could not read username")
@@ -180,6 +188,18 @@ mod tests {
         assert_eq!(
             classify("error: The branch 'x' is not fully merged.").kind,
             ErrorKind::BranchNotMerged
+        );
+    }
+
+    #[test]
+    fn classifies_pull_divergence() {
+        assert_eq!(
+            classify("fatal: refusing to merge unrelated histories").kind,
+            ErrorKind::UnrelatedHistories
+        );
+        assert_eq!(
+            classify("hint: ...\nfatal: Not possible to fast-forward, aborting.").kind,
+            ErrorKind::Diverged
         );
     }
 

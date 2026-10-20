@@ -4,7 +4,7 @@ import type { ErrorKind } from "@/bindings/ErrorKind";
 const KINDS = new Set<string>([
   "gitNotFound", "notARepository", "pathNotFound", "invalidInput", "missingIdentity", "nothingToCommit",
   "emptyMessage", "hookFailed", "signingFailed", "conflict", "locked", "authFailed", "networkFailed",
-  "pushRejected", "noUpstream", "localChangesWouldBeOverwritten", "branchNotMerged", "alreadyExists",
+  "pushRejected", "noUpstream", "diverged", "unrelatedHistories", "localChangesWouldBeOverwritten", "branchNotMerged", "alreadyExists",
   "permissionDenied", "timeout", "cancelled", "database", "settings", "aiNotConfigured", "aiFailed",
   "claudeCodeNotFound", "launchFailed", "keychain", "git", "internal",
 ]);

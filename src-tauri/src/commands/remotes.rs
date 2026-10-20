@@ -4,6 +4,7 @@ use super::changes::{repo, require_confirmation};
 use super::{ctx, progress};
 use crate::error::AppResult;
 use crate::git::refs::Remote;
+use crate::git::repo::PullOptions;
 use crate::git::Repo;
 use crate::state::AppState;
 
@@ -73,12 +74,22 @@ pub async fn sync_fetch(
 }
 
 #[tauri::command]
-pub async fn sync_pull(app: AppHandle, state: State<'_, AppState>, id: i64) -> AppResult<()> {
+pub async fn sync_pull(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+    options: Option<PullOptions>,
+) -> AppResult<()> {
     let lock = state.repo_lock(id);
     let _g = lock.lock().await;
     let strategy = state.settings().pull_strategy;
     repo!(state, id, git, root, r);
-    r.pull(strategy, progress(&app, Some(id), "pull")).await
+    let opts = options.unwrap_or(PullOptions {
+        strategy: None,
+        allow_unrelated: false,
+    });
+    r.pull(strategy, opts, progress(&app, Some(id), "pull"))
+        .await
 }
 
 #[tauri::command]

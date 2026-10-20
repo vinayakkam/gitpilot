@@ -7,7 +7,7 @@ use gitpilot_lib::error::ErrorKind;
 use gitpilot_lib::git::diff::LineKind;
 use gitpilot_lib::git::locate::locate_git;
 use gitpilot_lib::git::log::LogQuery;
-use gitpilot_lib::git::repo::{self, PullStrategy, RepoState, SequenceAction};
+use gitpilot_lib::git::repo::{self, PullOptions, PullStrategy, RepoState, SequenceAction};
 use gitpilot_lib::git::status::{Area, ChangeType};
 use gitpilot_lib::git::{Git, Repo};
 use tempfile::TempDir;
@@ -404,7 +404,16 @@ async fn remotes_push_pull_fetch_with_local_bare_remote() {
     let st = rb.status().await.unwrap();
     assert_eq!(st.branch.behind, Some(1));
     assert!(st.last_fetch.is_some());
-    rb.pull(PullStrategy::FfOnly, |_| {}).await.unwrap();
+    rb.pull(
+        PullStrategy::FfOnly,
+        PullOptions {
+            strategy: None,
+            allow_unrelated: false,
+        },
+        |_| {},
+    )
+    .await
+    .unwrap();
     assert_eq!(std::fs::read_to_string(b.join("x.txt")).unwrap(), "1\n2\n");
 
     // Divergence: B commits, A pushes → B's push is rejected (never forced).
@@ -418,8 +427,27 @@ async fn remotes_push_pull_fetch_with_local_bare_remote() {
     let err = rb.push(None, false, false, None, |_| {}).await.unwrap_err();
     assert_eq!(err.kind, ErrorKind::PushRejected);
     // ff-only pull refuses to merge diverged history.
-    assert!(rb.pull(PullStrategy::FfOnly, |_| {}).await.is_err());
-    rb.pull(PullStrategy::Merge, |_| {}).await.unwrap();
+    assert!(rb
+        .pull(
+            PullStrategy::FfOnly,
+            PullOptions {
+                strategy: None,
+                allow_unrelated: false
+            },
+            |_| {}
+        )
+        .await
+        .is_err());
+    rb.pull(
+        PullStrategy::Merge,
+        PullOptions {
+            strategy: None,
+            allow_unrelated: false,
+        },
+        |_| {},
+    )
+    .await
+    .unwrap();
     rb.push(None, false, false, None, |_| {}).await.unwrap();
 
     // Remote branch listing and deletion.
@@ -839,4 +867,139 @@ fn which_sleep() -> std::path::PathBuf {
         .map(std::path::PathBuf::from)
         .find(|p| p.exists())
         .expect("sleep binary")
+}
+
+/// The 0.2.0 dead end: a local branch that was never linked to `origin/main`, with unrelated history.
+#[tokio::test]
+async fn unlinked_branch_with_unrelated_history_can_be_pulled_and_linked() {
+    let g = git();
+    let bare = tempfile::tempdir().unwrap();
+    g.run(
+        bare.path(),
+        ["init", "--bare", "-b", "main"],
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    let url = bare.path().display().to_string();
+
+    // "web upload" side
+    let (_w, web) = new_repo(&g).await;
+    let rw = Repo {
+        git: &g,
+        path: &web,
+    };
+    write(&web, "README.md", "from web\n");
+    rw.stage_all().await.unwrap();
+    rw.commit("Add files via upload").await.unwrap();
+    rw.remote_add("origin", &url).await.unwrap();
+    rw.push(None, false, false, None, |_| {}).await.unwrap();
+
+    // local folder started separately, remote added later, fetched, never linked
+    let (_l, local) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &local,
+    };
+    write(&local, "app.txt", "local\n");
+    r.stage_all().await.unwrap();
+    r.commit("Initial from zip").await.unwrap();
+    r.remote_add("origin", &url).await.unwrap();
+    r.fetch(None, None, |_| {}).await.unwrap();
+
+    let st = r.status().await.unwrap();
+    assert!(st.branch.upstream.is_none());
+    let twin = st.remote_twin.expect("origin/main detected");
+    assert_eq!(twin.name, "origin/main");
+    assert_eq!((twin.ahead, twin.behind, twin.unrelated), (1, 1, true));
+
+    // Publishing is rejected (remote has other commits).
+    assert_eq!(
+        r.push(None, false, false, None, |_| {})
+            .await
+            .unwrap_err()
+            .kind,
+        ErrorKind::PushRejected
+    );
+
+    // A normal pull explains the unrelated histories instead of failing vaguely.
+    let none = PullOptions {
+        strategy: None,
+        allow_unrelated: false,
+    };
+    let err = r
+        .pull(PullStrategy::FfOnly, none, |_| {})
+        .await
+        .unwrap_err();
+    assert_eq!(
+        err.kind,
+        ErrorKind::UnrelatedHistories,
+        "ff-only pull should name the real problem"
+    );
+    let err = r.pull(PullStrategy::Merge, none, |_| {}).await.unwrap_err();
+    assert_eq!(err.kind, ErrorKind::UnrelatedHistories);
+
+    // Combining explicitly works, links the branch, and then push succeeds.
+    let combine = PullOptions {
+        strategy: Some(PullStrategy::Merge),
+        allow_unrelated: true,
+    };
+    r.pull(PullStrategy::FfOnly, combine, |_| {}).await.unwrap();
+    assert!(local.join("README.md").exists() && local.join("app.txt").exists());
+    let st = r.status().await.unwrap();
+    assert_eq!(st.branch.upstream.as_deref(), Some("origin/main"));
+    assert!(st.remote_twin.is_none());
+    r.push(None, false, false, None, |_| {}).await.unwrap();
+    assert_eq!(r.status().await.unwrap().branch.ahead, Some(0));
+}
+
+#[tokio::test]
+async fn diverged_pull_reports_choice_and_merge_override_works() {
+    let g = git();
+    let bare = tempfile::tempdir().unwrap();
+    g.run(
+        bare.path(),
+        ["init", "--bare", "-b", "main"],
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    let url = bare.path().display().to_string();
+    let (_a, a) = new_repo(&g).await;
+    let ra = Repo { git: &g, path: &a };
+    write(&a, "x.txt", "1\n");
+    ra.stage_all().await.unwrap();
+    ra.commit("one").await.unwrap();
+    ra.remote_add("origin", &url).await.unwrap();
+    ra.push(None, false, false, None, |_| {}).await.unwrap();
+    let parent = tempfile::tempdir().unwrap();
+    let b = repo::clone(&g, &url, &parent.path().join("b"), None, |_| {})
+        .await
+        .unwrap();
+    let rb = Repo { git: &g, path: &b };
+    write(&a, "a.txt", "a\n");
+    ra.stage_all().await.unwrap();
+    ra.commit("from a").await.unwrap();
+    ra.push(None, false, false, None, |_| {}).await.unwrap();
+    write(&b, "b.txt", "b\n");
+    rb.stage_all().await.unwrap();
+    rb.commit("from b").await.unwrap();
+
+    let none = PullOptions {
+        strategy: None,
+        allow_unrelated: false,
+    };
+    assert_eq!(
+        rb.pull(PullStrategy::FfOnly, none, |_| {})
+            .await
+            .unwrap_err()
+            .kind,
+        ErrorKind::Diverged
+    );
+    let merge = PullOptions {
+        strategy: Some(PullStrategy::Merge),
+        allow_unrelated: false,
+    };
+    rb.pull(PullStrategy::FfOnly, merge, |_| {}).await.unwrap();
+    assert!(b.join("a.txt").exists() && b.join("b.txt").exists());
 }

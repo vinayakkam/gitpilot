@@ -55,6 +55,23 @@ pub struct RepoStatus {
     #[ts(type = "number | null")]
     pub last_fetch: Option<i64>,
     pub stash_count: u32,
+    /// When the branch has no upstream but a remote branch with the same name exists
+    /// (e.g. `origin/main`), how the two compare. Lets the UI offer Pull and linking.
+    pub remote_twin: Option<RemoteTwin>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RemoteTwin {
+    /// Short name, e.g. "origin/main".
+    pub name: String,
+    pub remote: String,
+    pub branch: String,
+    pub ahead: u32,
+    pub behind: u32,
+    /// The two branches share no commits at all.
+    pub unrelated: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, TS)]
@@ -73,6 +90,16 @@ pub enum SequenceAction {
     Continue,
     Skip,
     Abort,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PullOptions {
+    /// Overrides the saved pull strategy for this pull only.
+    pub strategy: Option<PullStrategy>,
+    /// Allow combining branches that share no history (`--allow-unrelated-histories`).
+    pub allow_unrelated: bool,
 }
 
 #[derive(Debug, Clone, Serialize, TS)]
@@ -312,13 +339,103 @@ impl Repo<'_> {
                 RepoState::Normal
             };
         let stash_count = self.stash_list().await.map(|s| s.len() as u32).unwrap_or(0);
+        let remote_twin = match (
+            &parsed.branch.head,
+            &parsed.branch.upstream,
+            parsed.branch.unborn,
+        ) {
+            (Some(head), None, _) => self.remote_twin(head, parsed.branch.unborn).await,
+            _ => None,
+        };
         Ok(RepoStatus {
             branch: parsed.branch,
             files: parsed.files,
             state,
             last_fetch: mtime_secs(&common.join("FETCH_HEAD")),
             stash_count,
+            remote_twin,
         })
+    }
+
+    /// Finds `<remote>/<branch>` for a branch without upstream, preferring "origin".
+    async fn remote_twin(&self, branch: &str, unborn: bool) -> Option<RemoteTwin> {
+        let remotes: Vec<String> = self
+            .read(["remote"])
+            .await
+            .ok()?
+            .lines()
+            .map(String::from)
+            .collect();
+        let mut ordered: Vec<&String> = remotes.iter().filter(|r| r.as_str() == "origin").collect();
+        ordered.extend(remotes.iter().filter(|r| r.as_str() != "origin"));
+        for remote in ordered {
+            let full = format!("refs/remotes/{remote}/{branch}");
+            if self
+                .git
+                .run(
+                    self.path,
+                    ["rev-parse", "--verify", "--quiet", &full],
+                    RunOpts::read(),
+                )
+                .await
+                .is_err()
+            {
+                continue;
+            }
+            let name = format!("{remote}/{branch}");
+            if unborn {
+                let behind = self
+                    .read(["rev-list", "--count", &full])
+                    .await
+                    .ok()
+                    .and_then(|s| s.trim().parse().ok())
+                    .unwrap_or(0);
+                return Some(RemoteTwin {
+                    name,
+                    remote: remote.clone(),
+                    branch: branch.into(),
+                    ahead: 0,
+                    behind,
+                    unrelated: false,
+                });
+            }
+            let counts = self
+                .read([
+                    "rev-list",
+                    "--left-right",
+                    "--count",
+                    &format!("HEAD...{full}"),
+                ])
+                .await
+                .ok()?;
+            let mut it = counts
+                .split_whitespace()
+                .map(|n| n.parse::<u32>().unwrap_or(0));
+            let (ahead, behind) = (it.next().unwrap_or(0), it.next().unwrap_or(0));
+            let unrelated = self
+                .git
+                .run(
+                    self.path,
+                    ["merge-base", "HEAD", &full],
+                    RunOpts {
+                        ok_codes: &[1],
+                        read_only: true,
+                        ..RunOpts::default()
+                    },
+                )
+                .await
+                .map(|o| o.code == 1)
+                .unwrap_or(false);
+            return Some(RemoteTwin {
+                name,
+                remote: remote.clone(),
+                branch: branch.into(),
+                ahead,
+                behind,
+                unrelated,
+            });
+        }
+        None
     }
 
     /// Diff for one file in the working tree / index. Read-only.
@@ -1030,9 +1147,12 @@ impl Repo<'_> {
         Ok(())
     }
 
+    /// Pulls into the current branch. Without an upstream, pulls from the same-named remote
+    /// branch (if one exists) and links the branch to it once the pull succeeds.
     pub async fn pull<F: FnMut(String) + Send>(
         &self,
-        strategy: PullStrategy,
+        default_strategy: PullStrategy,
+        opts: PullOptions,
         on: F,
     ) -> AppResult<()> {
         let st = self.status().await?;
@@ -1041,12 +1161,17 @@ impl Repo<'_> {
                 "You're not on a branch (detached HEAD), so there's nothing to pull into.",
             ));
         }
-        if st.branch.upstream.is_none() {
-            return Err(AppError::new(
-                ErrorKind::NoUpstream,
-                "This branch isn't connected to a remote branch yet. Publish it or set an upstream first.",
-            ));
-        }
+        let twin = if st.branch.upstream.is_none() {
+            Some(st.remote_twin.clone().ok_or_else(|| {
+                AppError::new(
+                    ErrorKind::NoUpstream,
+                    "This branch isn't connected to a remote branch, and the remote has no branch with the same name. Fetch first, or publish this branch.",
+                )
+            })?)
+        } else {
+            None
+        };
+        let strategy = opts.strategy.unwrap_or(default_strategy);
         let mut args: Vec<String> = NO_EXT.iter().map(|s| s.to_string()).collect();
         args.extend(["pull".into(), "--progress".into(), "--no-edit".into()]);
         args.push(match strategy {
@@ -1054,10 +1179,61 @@ impl Repo<'_> {
             PullStrategy::Merge => "--no-rebase".into(),
             PullStrategy::Rebase => "--rebase".into(),
         });
-        self.git
+        if opts.allow_unrelated {
+            args.push("--allow-unrelated-histories".into());
+        }
+        if let Some(t) = &twin {
+            args.push(v::remote_name(&t.remote)?.to_string());
+            args.push(v::ref_name(&t.branch)?.to_string());
+        }
+        let mut result = self
+            .git
             .run_streaming(self.path, &args, NETWORK_TIMEOUT, None, on)
-            .await?;
-        Ok(())
+            .await;
+        // Fast-forward-only pulls report "diverged" even when the branches share no history at all.
+        // Say what's really going on so the user gets the right choice straight away.
+        if let Err(e) = &result {
+            if e.kind == ErrorKind::Diverged && !opts.allow_unrelated {
+                let target = twin
+                    .as_ref()
+                    .map(|t| t.name.clone())
+                    .unwrap_or_else(|| "@{upstream}".into());
+                let no_base = self
+                    .git
+                    .run(
+                        self.path,
+                        ["merge-base", "HEAD", &target],
+                        RunOpts {
+                            ok_codes: &[1],
+                            read_only: true,
+                            ..RunOpts::default()
+                        },
+                    )
+                    .await
+                    .map(|o| o.code == 1)
+                    .unwrap_or(false);
+                if no_base {
+                    result = Err(super::errors::classify(
+                        "fatal: refusing to merge unrelated histories",
+                    ));
+                }
+            }
+        }
+        // Link the branch even if the pull stopped for conflicts: the remote branch is now part of it.
+        if let Some(t) = &twin {
+            let linked =
+                result.is_ok() || matches!(&result, Err(e) if e.kind == ErrorKind::Conflict);
+            if linked {
+                let _ = self
+                    .write([
+                        "branch",
+                        &format!("--set-upstream-to={}", t.name),
+                        &t.branch,
+                    ])
+                    .await;
+            }
+        }
+        result.map(|_| ())
     }
 
     /// Pushes the current branch. `set_upstream` publishes it; `force_with_lease` is only

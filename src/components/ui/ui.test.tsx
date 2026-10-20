@@ -61,3 +61,21 @@ describe("Dialog focus", () => {
     expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
   });
 });
+
+describe("Toast actions", () => {
+  it("renders an action button that runs and dismisses", async () => {
+    const { Toaster } = await import("@/components/layout/Toaster");
+    const run = vi.fn();
+    const dismiss = vi.fn();
+    vi.doMock("@/store/AppStore", () => ({
+      useStore: () => ({ toasts: [{ id: 1, tone: "error", title: "Push failed", action: { label: "Pull now", run } }], dismiss }),
+    }));
+    vi.resetModules();
+    const mod = await import("@/components/layout/Toaster");
+    render(<mod.Toaster />);
+    fireEvent.click(screen.getByRole("button", { name: "Pull now" }));
+    expect(run).toHaveBeenCalled();
+    expect(dismiss).toHaveBeenCalledWith(1);
+    void Toaster;
+  });
+});

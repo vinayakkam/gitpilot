@@ -1,55 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
   <component name="ChangeListManager">
-    <list default="true" id="9e2d2404-0808-4891-84a4-ea8e7e54d678" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.github/workflows/build-installers.yml" beforeDir="false" afterPath="$PROJECT_DIR$/.github/workflows/build-installers.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/gitpilot.iml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/CLAUDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/CLAUDE.md" afterDir="false" />
+    <list default="true" id="9e2d2404-0808-4891-84a4-ea8e7e54d678" name="Changes" comment="changes">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/CHANGELOG.md" beforeDir="false" afterPath="$PROJECT_DIR$/CHANGELOG.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/DEVELOPMENT.md" beforeDir="false" afterPath="$PROJECT_DIR$/DEVELOPMENT.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/INSTALL.md" beforeDir="false" afterPath="$PROJECT_DIR$/INSTALL.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/packaging/arch/PKGBUILD" beforeDir="false" afterPath="$PROJECT_DIR$/packaging/arch/PKGBUILD" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src-tauri/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/Cargo.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src-tauri/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/Cargo.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src-tauri/capabilities/default.json" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/capabilities/default.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src-tauri/src/commands/app.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/commands/app.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src-tauri/src/commands/changes.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/commands/changes.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src-tauri/src/commands/history.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/commands/history.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src-tauri/src/commands/remotes.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/commands/remotes.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src-tauri/src/commands/repos.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/commands/repos.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src-tauri/src/error.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/error.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src-tauri/src/git/diff.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/git/diff.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src-tauri/src/git/errors.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/git/errors.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src-tauri/src/git/repo.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/git/repo.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src-tauri/src/git/runner.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/git/runner.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src-tauri/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/lib.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src-tauri/src/settings.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/settings.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src-tauri/src/state.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/src/state.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src-tauri/tauri.conf.json" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/tauri.conf.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src-tauri/tests/git_workflow.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src-tauri/tests/git_workflow.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/App.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/App.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/bindings/ErrorKind.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/bindings/ErrorKind.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/bindings/Settings.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/bindings/Settings.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/bindings/RepoStatus.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/bindings/RepoStatus.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/components/layout/RepoToolbar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/layout/RepoToolbar.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/components/layout/Sidebar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/layout/Sidebar.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/components/ui/Button.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/ui/Button.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/components/ui/Dialog.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/ui/Dialog.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/components/ui/Field.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/ui/Field.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/layout/Toaster.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/layout/Toaster.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/components/ui/ui.test.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/ui/ui.test.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/features/branches/BranchesView.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/features/branches/BranchesView.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/features/changes/ChangesView.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/features/changes/ChangesView.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/features/diff/DiffViewer.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/features/diff/DiffViewer.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/features/history/HistoryView.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/features/history/HistoryView.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/features/onboarding/RepoActions.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/features/onboarding/RepoActions.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/features/settings/SettingsView.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/features/settings/SettingsView.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/features/palette/CommandPalette.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/features/palette/CommandPalette.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/lib/api.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/api.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/lib/errors.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/errors.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/store/AppStore.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/store/AppStore.tsx" afterDir="false" />
@@ -112,6 +86,19 @@
       <option name="presentableId" value="Default" />
       <updated>1792510668135</updated>
     </task>
+    <task id="LOCAL-00001" summary="changes">
+      <option name="closed" value="true" />
+      <created>1792511209213</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1792511209213</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="changes" />
+    <option name="LAST_COMMIT_MESSAGE" value="changes" />
   </component>
 </project>

@@ -25,6 +25,8 @@ pub enum ErrorKind {
     NetworkFailed,
     PushRejected,
     NoUpstream,
+    Diverged,
+    UnrelatedHistories,
     LocalChangesWouldBeOverwritten,
     BranchNotMerged,
     AlreadyExists,

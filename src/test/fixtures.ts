@@ -27,5 +27,6 @@ export function status(files: RepoStatus["files"] = []): RepoStatus {
     state: "normal",
     lastFetch: null,
     stashCount: 0,
+    remoteTwin: null,
   };
 }

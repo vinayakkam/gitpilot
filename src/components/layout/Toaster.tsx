@@ -1,4 +1,5 @@
 import { CircleAlert, CircleCheck, Info, X } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import { cx } from "@/components/ui/cx";
 import { ErrorNotice } from "@/components/ui/Misc";
 import { useStore } from "@/store/AppStore";
@@ -22,6 +23,20 @@ export function Toaster() {
             </button>
           </div>
           {t.error && <ErrorNotice compact className="mt-2" error={t.error} />}
+          {t.action && (
+            <div className="mt-2 flex justify-end">
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() => {
+                  dismiss(t.id);
+                  t.action?.run();
+                }}
+              >
+                {t.action.label}
+              </Button>
+            </div>
+          )}
         </div>
       ))}
     </div>
