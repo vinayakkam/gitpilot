@@ -117,7 +117,16 @@ pub async fn repo_clone(
     }
     let dest = parent.join(name);
     let git = state.git()?;
-    let root = repo::clone(&git, &url, &dest, progress(&app, None, "clone")).await?;
+    let guard = state.begin_cancellable("clone".into());
+    let root = repo::clone(
+        &git,
+        &url,
+        &dest,
+        Some(&guard.notify),
+        progress(&app, None, "clone"),
+    )
+    .await?;
+    drop(guard);
     let root_s = root.display().to_string();
     state.db(|c| db::add(c, &root_s, &name_of(&root)))
 }

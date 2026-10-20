@@ -10,6 +10,7 @@ use std::time::Duration;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
+use tokio::sync::Notify;
 
 use super::errors::classify;
 use crate::error::{AppError, AppResult, ErrorKind};
@@ -83,6 +84,8 @@ impl Git {
             .env("GIT_LITERAL_PATHSPECS", "1")
             .env("GIT_PAGER", "cat")
             .env("GIT_MERGE_AUTOEDIT", "no")
+            // ":" tells git not to launch an editor (rebase/cherry-pick/revert --continue keep the prepared message).
+            .env("GIT_EDITOR", ":")
             .env("LC_ALL", "C")
             .env("LANGUAGE", "C")
             .stdout(Stdio::piped())
@@ -165,11 +168,15 @@ impl Git {
 
     /// Runs git, streaming progress lines (split on `\r` and `\n`) from stderr to `on_line`.
     /// Used for clone/fetch/pull/push so the UI can show progress.
+    ///
+    /// When `cancel` is notified, git is asked to stop (SIGTERM on Unix, so it can remove its own
+    /// lock files), given a few seconds, then killed. The result is an `ErrorKind::Cancelled` error.
     pub async fn run_streaming<I, S, F>(
         &self,
         cwd: &Path,
         args: I,
         timeout: Duration,
+        cancel: Option<&Notify>,
         mut on_line: F,
     ) -> AppResult<Output>
     where
@@ -179,7 +186,11 @@ impl Git {
     {
         let mut cmd = self.command(cwd, false);
         cmd.args(args).stdin(Stdio::null());
+        // Own process group, so cancelling also stops helpers git starts (ssh, credential helpers).
+        #[cfg(unix)]
+        cmd.process_group(0);
         let mut child = cmd.spawn().map_err(|e| spawn_error(&self.exe, e))?;
+        let pid = child.id();
         let mut stderr = child
             .stderr
             .take()
@@ -226,16 +237,27 @@ impl Git {
             let stdout = stdout_task.await.unwrap_or_default();
             Ok::<_, std::io::Error>((status, stdout, all))
         };
+        tokio::pin!(work);
 
-        let (status, stdout, stderr_bytes) = match tokio::time::timeout(timeout, work).await {
-            Ok(r) => r.map_err(AppError::from)?,
-            Err(_) => {
-                return Err(AppError::new(
-                    ErrorKind::Timeout,
-                    "The network operation took too long and was stopped.",
-                ))
+        let result = tokio::select! {
+            r = tokio::time::timeout(timeout, &mut work) => match r {
+                Ok(r) => r.map_err(AppError::from)?,
+                Err(_) => {
+                    return Err(AppError::new(
+                        ErrorKind::Timeout,
+                        "The network operation took too long and was stopped.",
+                    ))
+                }
+            },
+            _ = wait_for(cancel) => {
+                terminate(pid, false);
+                // Give git a moment to clean up its lock files, then make sure nothing is left.
+                let _ = tokio::time::timeout(Duration::from_secs(5), &mut work).await;
+                terminate(pid, true);
+                return Err(AppError::new(ErrorKind::Cancelled, "Cancelled."));
             }
         };
+        let (status, stdout, stderr_bytes) = result;
         let code = status.code().unwrap_or(-1);
         let output = Output {
             stdout,
@@ -248,6 +270,42 @@ impl Git {
             Err(classify(&output.stderr))
         }
     }
+}
+
+/// Resolves when `cancel` is notified; never resolves when there is no cancel handle.
+async fn wait_for(cancel: Option<&Notify>) {
+    match cancel {
+        Some(n) => n.notified().await,
+        None => std::future::pending().await,
+    }
+}
+
+/// Stops git and everything it started. `force` = SIGKILL, otherwise SIGTERM so git can remove its
+/// lock files. On Windows there is no graceful signal for console-less processes, so the process
+/// tree is ended with `taskkill /T` (git itself is also killed when its handle is dropped).
+fn terminate(pid: Option<u32>, force: bool) {
+    let Some(pid) = pid else { return };
+    #[cfg(unix)]
+    {
+        let sig = if force { libc::SIGKILL } else { libc::SIGTERM };
+        // SAFETY: kill(2) on the process group we created for this child (negative pid = group).
+        unsafe {
+            libc::kill(-(pid as libc::pid_t), sig);
+        }
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let _ = force;
+        let _ = std::process::Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .creation_flags(0x0800_0000)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+    #[cfg(not(any(unix, windows)))]
+    let _ = (pid, force);
 }
 
 fn spawn_error(exe: &Path, e: std::io::Error) -> AppError {

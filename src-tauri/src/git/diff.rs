@@ -330,6 +330,142 @@ pub fn patch_for_hunk(raw: &[u8], hunk_header: &str) -> Option<Vec<u8>> {
     Some(patch)
 }
 
+/// Builds a one-hunk patch that contains only the selected lines (indices into the hunk's lines).
+///
+/// Forward (staging from the unstaged diff): unselected additions are dropped and unselected
+/// deletions become context. Reverse (unstaging from the staged diff, applied with `--reverse`):
+/// unselected additions become context and unselected deletions are dropped.
+pub fn patch_for_lines(
+    raw: &[u8],
+    hunk_header: &str,
+    selected: &[u32],
+    reverse: bool,
+) -> Option<Vec<u8>> {
+    let (header, hunks) = split_raw_hunks(raw)?;
+    let wanted = hunk_header.trim_end();
+    let hunk = hunks.into_iter().find(|h| {
+        let first = h.split(|&b| b == b'\n').next().unwrap_or(&[]);
+        String::from_utf8_lossy(first).trim_end() == wanted
+    })?;
+    let mut parts = hunk.split(|&b| b == b'\n');
+    let head_line = parts.next()?;
+    let mut body: Vec<&[u8]> = parts.collect();
+    if body.last().is_some_and(|l| l.is_empty()) {
+        body.pop();
+    }
+
+    let sel: std::collections::HashSet<u32> = selected.iter().copied().collect();
+
+    // A diff line plus the "\ No newline at end of file" marker that may follow it.
+    struct Item<'a> {
+        idx: u32,
+        line: &'a [u8],
+        marker: Option<&'a [u8]>,
+    }
+    let mut items: Vec<Item> = Vec::new();
+    for (i, line) in body.iter().enumerate() {
+        if line.first() == Some(&b'\\') {
+            if let Some(last) = items.last_mut() {
+                last.marker = Some(line);
+            }
+            continue;
+        }
+        items.push(Item {
+            idx: i as u32,
+            line,
+            marker: None,
+        });
+    }
+
+    let mut out: Vec<Vec<u8>> = Vec::new();
+    let (mut old_n, mut new_n, mut picked) = (0u32, 0u32, 0u32);
+    let emit = |item: &Item, as_context: bool, out: &mut Vec<Vec<u8>>| {
+        let mut l = item.line.to_vec();
+        if as_context {
+            l[0] = b' ';
+        }
+        out.push(l);
+        if let Some(m) = item.marker {
+            out.push(m.to_vec());
+        }
+    };
+
+    // Walk change blocks (runs of - and + lines). Within a block, deletion k pairs with addition k,
+    // so keeping a deletion while staging a replacement leaves lines in their natural order.
+    let mut i = 0;
+    while i < items.len() {
+        let first = items[i].line.first().copied().unwrap_or(b' ');
+        if first != b'-' && first != b'+' {
+            old_n += 1;
+            new_n += 1;
+            emit(&items[i], false, &mut out);
+            i += 1;
+            continue;
+        }
+        let mut dels = Vec::new();
+        let mut adds = Vec::new();
+        while i < items.len() {
+            match items[i].line.first() {
+                Some(b'-') => dels.push(i),
+                Some(b'+') => adds.push(i),
+                _ => break,
+            }
+            i += 1;
+        }
+        for k in 0..dels.len().max(adds.len()) {
+            if let Some(&d) = dels.get(k) {
+                if sel.contains(&items[d].idx) {
+                    picked += 1;
+                    old_n += 1;
+                    emit(&items[d], false, &mut out);
+                } else if !reverse {
+                    // Not staging this deletion: the line stays.
+                    old_n += 1;
+                    new_n += 1;
+                    emit(&items[d], true, &mut out);
+                }
+            }
+            if let Some(&a) = adds.get(k) {
+                if sel.contains(&items[a].idx) {
+                    picked += 1;
+                    new_n += 1;
+                    emit(&items[a], false, &mut out);
+                } else if reverse {
+                    // Not unstaging this addition: it stays in the index.
+                    old_n += 1;
+                    new_n += 1;
+                    emit(&items[a], true, &mut out);
+                }
+            }
+        }
+    }
+    if picked == 0 {
+        return None;
+    }
+
+    // Rewrite the counts in "@@ -a,b +c,d @@ section" (git apply --recount also tolerates them).
+    let head = String::from_utf8_lossy(head_line);
+    let h = parse_hunk_header(head.trim_end_matches('\r'))?;
+    let section = if h.section.is_empty() {
+        String::new()
+    } else {
+        format!(" {}", h.section)
+    };
+    let new_head = format!(
+        "@@ -{},{} +{},{} @@{}",
+        h.old_start, old_n, h.new_start, new_n, section
+    );
+
+    let mut patch = header.to_vec();
+    patch.extend_from_slice(new_head.as_bytes());
+    patch.push(b'\n');
+    for l in out {
+        patch.extend_from_slice(&l);
+        patch.push(b'\n');
+    }
+    Some(patch)
+}
+
 /// Builds a diff for an untracked file by reading it, without invoking git.
 pub fn untracked_file_diff(path: &str, content: &[u8]) -> FileDiff {
     let mut f = FileDiff {
@@ -509,6 +645,45 @@ mod tests {
         assert!(s.contains("-eleven\r\n"));
         assert!(!s.contains("line two"));
         assert!(patch_for_hunk(SAMPLE, "@@ -99 +99 @@").is_none());
+    }
+
+    #[test]
+    fn builds_line_patches() {
+        // Hunk 1 lines: 0 " line one", 1 "-line two", 2 "+line 2", 3 "+line 2b", 4 " line three"
+        let p = String::from_utf8(
+            patch_for_lines(SAMPLE, "@@ -1,3 +1,4 @@ fn main() {", &[3], false).unwrap(),
+        )
+        .unwrap();
+        assert!(p.contains("@@ -1,3 +1,4 @@ fn main() {\n"));
+        assert!(
+            p.contains("\n line two\n"),
+            "unselected deletion becomes context"
+        );
+        assert!(!p.contains("+line 2\n"), "unselected addition dropped");
+        assert!(p.contains("+line 2b\n"));
+
+        let r = String::from_utf8(
+            patch_for_lines(SAMPLE, "@@ -1,3 +1,4 @@ fn main() {", &[1], true).unwrap(),
+        )
+        .unwrap();
+        assert!(r.contains("-line two\n"));
+        assert!(
+            r.contains("\n line 2\n") && r.contains("\n line 2b\n"),
+            "reverse: unselected additions become context"
+        );
+        assert!(
+            r.contains("@@ -1,5 +1,4 @@"),
+            "two additions became context on the old side"
+        );
+
+        // Only context selected → nothing to apply.
+        assert!(patch_for_lines(SAMPLE, "@@ -1,3 +1,4 @@ fn main() {", &[0], false).is_none());
+        // CRLF preserved; "no newline" marker follows its kept line.
+        let c =
+            String::from_utf8(patch_for_lines(SAMPLE, "@@ -10,2 +11,2 @@", &[2], false).unwrap())
+                .unwrap();
+        assert!(c.contains("+ELEVEN\r\n\\ No newline"));
+        assert!(c.contains(" eleven\r\n"));
     }
 
     #[test]

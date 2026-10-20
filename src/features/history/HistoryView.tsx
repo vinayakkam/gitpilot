@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Copy, FileClock, GitCommitHorizontal, GitMerge, X } from "lucide-react";
+import { Copy, FileClock, GitCommitHorizontal, GitMerge, Undo2, X } from "lucide-react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import type { AppError } from "@/bindings/AppError";
 import type { CommitDetail } from "@/bindings/CommitDetail";
@@ -7,6 +7,7 @@ import type { CommitFile } from "@/bindings/CommitFile";
 import type { CommitSummary } from "@/bindings/CommitSummary";
 import type { FileDiff } from "@/bindings/FileDiff";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/Dialog";
 import { cx } from "@/components/ui/cx";
 import { IconButton } from "@/components/ui/IconButton";
 import { Menu, type MenuItem } from "@/components/ui/Menu";
@@ -20,6 +21,7 @@ import { api } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
 import { absoluteTime, plural, relativeTime, splitPath } from "@/lib/format";
 import { useDebounced } from "@/lib/useAsync";
+import { useIntegrate } from "@/lib/useIntegrate";
 import { useStore } from "@/store/AppStore";
 
 const PAGE = 100;
@@ -84,6 +86,8 @@ export function HistoryView() {
   const [diffLoading, setDiffLoading] = useState(false);
   const [diffErr, setDiffErr] = useState<AppError | null>(null);
   const [menu, setMenu] = useState<{ at: { x: number; y: number }; items: MenuItem[] } | null>(null);
+  const [revert, setRevert] = useState<CommitSummary | null>(null);
+  const integrate = useIntegrate();
   const seq = useRef(0);
 
   useEffect(() => {
@@ -230,6 +234,8 @@ export function HistoryView() {
                   items: [
                     { label: "Copy commit hash", icon: <Copy size={14} />, onSelect: () => copy(c.hash, "Hash") },
                     { label: "Copy message", icon: <Copy size={14} />, onSelect: () => copy(c.subject, "Message") },
+                    { type: "separator" },
+                    { label: "Revert this commit…", icon: <Undo2 size={14} />, disabled: status?.state !== "normal", onSelect: () => setRevert(c) },
                   ],
                 });
               }}
@@ -259,6 +265,7 @@ export function HistoryView() {
                     <span className="font-mono">{detail.summary.shortHash}</span>
                   </Button>
                   <IconButton size="sm" label="Copy full message" icon={<Copy size={13} />} onClick={() => copy(detail.message, "Message")} />
+                  <IconButton size="sm" label="Revert this commit…" icon={<Undo2 size={13} />} disabled={status?.state !== "normal"} onClick={() => setRevert(detail.summary)} />
                 </div>
               </div>
               {detail.message.includes("\n") && (
@@ -335,6 +342,22 @@ export function HistoryView() {
         )}
       </div>
       {menu && <Menu at={menu.at} items={menu.items} onClose={() => setMenu(null)} />}
+      <ConfirmDialog
+        open={revert !== null}
+        onClose={() => setRevert(null)}
+        title={`Revert “${revert?.subject ?? ""}”?`}
+        confirmLabel="Revert commit"
+        onConfirm={async () => {
+          if (revert && activeRepo) await integrate("Revert", () => api.commitRevert(activeRepo.id, revert.hash), `Reverted ${revert.shortHash}`);
+        }}
+      >
+        <p>
+          Git creates a new commit that undoes the changes from <span className="font-mono">{revert?.shortHash}</span>. History isn't rewritten, so
+          this is safe even if the commit was already pushed.
+        </p>
+        {revert && revert.parents.length > 1 && <p className="mt-2">This is a merge commit: its changes are undone relative to its first parent.</p>}
+        <p className="mt-2">If later commits changed the same lines, Git stops so you can resolve the conflicts.</p>
+      </ConfirmDialog>
     </div>
   );
 }

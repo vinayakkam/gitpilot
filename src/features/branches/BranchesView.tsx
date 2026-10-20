@@ -4,8 +4,11 @@ import {
   ArrowLeftRight,
   Check,
   CloudOff,
+  CopyPlus,
   Download,
   GitBranch,
+  GitMerge,
+  GitPullRequestArrow,
   GitBranchPlus,
   Link2,
   MoreHorizontal,
@@ -30,6 +33,7 @@ import { api } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
 import { plural, relativeTime } from "@/lib/format";
 import { useAsync } from "@/lib/useAsync";
+import { useIntegrate } from "@/lib/useIntegrate";
 import { useStore } from "@/store/AppStore";
 import { branchNameProblem, NewBranchDialog } from "./NewBranchDialog";
 import { useBranchSwitch } from "./useBranchSwitch";
@@ -41,6 +45,8 @@ type Pending =
   | { kind: "upstream"; b: Branch }
   | { kind: "checkoutRemote"; b: Branch }
   | { kind: "compare"; b: Branch }
+  | { kind: "merge"; b: Branch }
+  | { kind: "rebase"; b: Branch }
   | { kind: "dropStash"; s: Stash }
   | null;
 
@@ -67,6 +73,7 @@ export function BranchesView() {
   const [pending, setPending] = useState<Pending>(null);
   const [menu, setMenu] = useState<{ at: { x: number; y: number }; items: MenuItem[] } | null>(null);
   const { request: switchTo, dialog: switchDialog } = useBranchSwitch();
+  const integrate = useIntegrate();
 
   const { local, remote } = useMemo(() => {
     const all = branches.data ?? [];
@@ -77,12 +84,22 @@ export function BranchesView() {
 
   if (!activeRepo || id == null) return null;
   const current = status?.branch.head ?? null;
+  const canIntegrate = !!current && status?.state === "normal" && !status.branch.unborn;
+  const integrateItems = (b: Branch): MenuItem[] =>
+    b.isCurrent
+      ? []
+      : [
+          { type: "separator" },
+          { label: `Merge into ${current ?? "current branch"}…`, icon: <GitMerge size={14} />, disabled: !canIntegrate, onSelect: () => setPending({ kind: "merge", b }) },
+          { label: `Rebase ${current ?? "current branch"} onto this…`, icon: <GitPullRequestArrow size={14} />, disabled: !canIntegrate, onSelect: () => setPending({ kind: "rebase", b }) },
+        ];
 
   const itemsFor = (b: Branch): MenuItem[] =>
     b.isRemote
       ? [
           { label: "Check out as local branch…", icon: <Download size={14} />, onSelect: () => setPending({ kind: "checkoutRemote", b }) },
           { label: `Compare with ${current ?? "HEAD"}`, icon: <ArrowLeftRight size={14} />, onSelect: () => setPending({ kind: "compare", b }) },
+          ...integrateItems(b),
           { type: "separator" },
           { label: `Delete from ${b.remote}…`, icon: <CloudOff size={14} />, danger: true, onSelect: () => setPending({ kind: "deleteRemote", b }) },
         ]
@@ -94,6 +111,7 @@ export function BranchesView() {
           ...(b.upstream
             ? [{ label: "Stop tracking upstream", icon: <Unlink size={14} />, onSelect: () => void run("Unset upstream", () => api.branchSetUpstream(id, b.name, null), { success: `${b.name} no longer tracks ${b.upstream}` }) }]
             : []),
+          ...integrateItems(b),
           { type: "separator" },
           { label: "Delete…", icon: <Trash2 size={14} />, danger: true, disabled: b.isCurrent, onSelect: () => setPending({ kind: "delete", b }) },
         ];
@@ -263,6 +281,51 @@ export function BranchesView() {
         />
       )}
       {pending?.kind === "compare" && current && <CompareDialog base={current} head={pending.b.name} onClose={() => setPending(null)} />}
+
+      <ConfirmDialog
+        open={pending?.kind === "merge"}
+        onClose={() => setPending(null)}
+        title={`Merge ${pending?.kind === "merge" ? pending.b.name : ""} into ${current ?? ""}?`}
+        confirmLabel="Merge"
+        onConfirm={async () => {
+          if (pending?.kind !== "merge") return;
+          const b = pending.b;
+          await integrate("Merge", () => api.branchMerge(id, b.name), `Merged ${b.name} into ${current}`);
+        }}
+      >
+        <p>
+          Brings the commits from <span className="font-mono">{pending?.kind === "merge" ? pending.b.name : ""}</span> into{" "}
+          <span className="font-mono">{current}</span>. Git fast-forwards when it can, otherwise it creates a merge commit. If both branches
+          changed the same lines, Git stops so you can resolve the conflicts, or abort.
+        </p>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={pending?.kind === "rebase"}
+        onClose={() => setPending(null)}
+        danger
+        title={`Rebase ${current ?? ""} onto ${pending?.kind === "rebase" ? pending.b.name : ""}?`}
+        confirmLabel="Rebase"
+        acknowledge={status?.branch.upstream ? `I understand ${current} will need a force push afterwards` : undefined}
+        onConfirm={async () => {
+          if (pending?.kind !== "rebase") return;
+          const b = pending.b;
+          await integrate("Rebase", () => api.branchRebase(id, b.name), `Rebased ${current} onto ${b.name}`);
+        }}
+      >
+        <p>
+          Replays the commits on <span className="font-mono">{current}</span> on top of{" "}
+          <span className="font-mono">{pending?.kind === "rebase" ? pending.b.name : ""}</span>, creating new commits with new ids. This rewrites
+          the history of <span className="font-mono">{current}</span>; <span className="font-mono">{pending?.kind === "rebase" ? pending.b.name : ""}</span> isn't changed.
+        </p>
+        {status?.branch.upstream && (
+          <p className="mt-2 text-warning">
+            {current} is published to {status.branch.upstream}. After rebasing, pushing will require a force push, which affects anyone else using that
+            branch.
+          </p>
+        )}
+        <p className="mt-2">Commit or stash your uncommitted changes first. If a commit conflicts, Git pauses; you can resolve it, skip it, or abort to get your branch back exactly as it was.</p>
+      </ConfirmDialog>
     </div>
   );
 }
@@ -365,11 +428,13 @@ function CheckoutRemoteDialog({ b, existing, onClose, onCheckout }: { b: Branch;
 }
 
 function CompareDialog({ base, head, onClose }: { base: string; head: string; onClose: () => void }) {
-  const { activeRepo } = useStore();
+  const { activeRepo, status, busy } = useStore();
+  const integrate = useIntegrate();
   const [swap, setSwap] = useState(false);
   const [b, h] = swap ? [head, base] : [base, head];
   const cmp = useAsync<BranchComparison>(() => api.branchCompare(activeRepo!.id, b, h), [b, h], !!activeRepo);
-  const list = (title: string, items: BranchComparison["ahead"]) => (
+  const current = status?.branch.head;
+  const list = (title: string, items: BranchComparison["ahead"], pickable = false) => (
     <div className="min-w-0 flex-1">
       <h4 className="mb-1 text-sm font-semibold text-muted">{title}</h4>
       {items.length === 0 ? (
@@ -377,9 +442,25 @@ function CompareDialog({ base, head, onClose }: { base: string; head: string; on
       ) : (
         <ul className="max-h-64 overflow-y-auto rounded border border-border">
           {items.map((c) => (
-            <li key={c.hash} className="flex gap-2 border-b border-border px-2 py-1 text-sm last:border-b-0">
+            <li key={c.hash} className="group flex items-center gap-2 border-b border-border px-2 py-1 text-sm last:border-b-0">
               <span className="font-mono text-xs text-faint">{c.shortHash}</span>
-              <span className="truncate">{c.subject}</span>
+              <span className="min-w-0 flex-1 truncate">{c.subject}</span>
+              {pickable && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon={<CopyPlus size={12} />}
+                  disabled={!!busy || status?.state !== "normal"}
+                  className="opacity-0 group-hover:opacity-100 focus:opacity-100"
+                  title={`Apply this commit on top of ${current}`}
+                  onClick={async () => {
+                    if (activeRepo && (await integrate("Cherry-pick", () => api.commitCherryPick(activeRepo.id, c.hash), `Cherry-picked ${c.shortHash} onto ${current}`)))
+                      void cmp.reload();
+                  }}
+                >
+                  Cherry-pick
+                </Button>
+              )}
             </li>
           ))}
         </ul>
@@ -404,7 +485,7 @@ function CompareDialog({ base, head, onClose }: { base: string; head: string; on
             {cmp.data.ahead.length >= 200 || cmp.data.behind.length >= 200 ? " (lists are capped at 200)" : ""}.
           </p>
           <div className="flex gap-4">
-            {list(`Only on ${h}`, cmp.data.ahead)}
+            {list(`Only on ${h}`, cmp.data.ahead, b === current)}
             {list(`Only on ${b}`, cmp.data.behind)}
           </div>
         </>

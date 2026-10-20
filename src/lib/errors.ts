@@ -5,7 +5,7 @@ const KINDS = new Set<string>([
   "gitNotFound", "notARepository", "pathNotFound", "invalidInput", "missingIdentity", "nothingToCommit",
   "emptyMessage", "hookFailed", "signingFailed", "conflict", "locked", "authFailed", "networkFailed",
   "pushRejected", "noUpstream", "localChangesWouldBeOverwritten", "branchNotMerged", "alreadyExists",
-  "permissionDenied", "timeout", "database", "settings", "aiNotConfigured", "aiFailed",
+  "permissionDenied", "timeout", "cancelled", "database", "settings", "aiNotConfigured", "aiFailed",
   "claudeCodeNotFound", "launchFailed", "keychain", "git", "internal",
 ]);
 

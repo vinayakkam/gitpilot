@@ -63,8 +63,13 @@ pub async fn sync_fetch(
     let lock = state.repo_lock(id);
     let _g = lock.lock().await;
     repo!(state, id, git, root, r);
-    r.fetch(remote.as_deref(), progress(&app, Some(id), "fetch"))
-        .await
+    let guard = state.begin_cancellable(format!("repo:{id}"));
+    r.fetch(
+        remote.as_deref(),
+        Some(&guard.notify),
+        progress(&app, Some(id), "fetch"),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -92,11 +97,19 @@ pub async fn sync_push(
     let lock = state.repo_lock(id);
     let _g = lock.lock().await;
     repo!(state, id, git, root, r);
+    let guard = state.begin_cancellable(format!("repo:{id}"));
     r.push(
         remote.as_deref(),
         set_upstream,
         force_with_lease,
+        Some(&guard.notify),
         progress(&app, Some(id), "push"),
     )
     .await
+}
+
+/// Cancels a running clone ("clone") or fetch/push ("repo:<id>").
+#[tauri::command]
+pub fn op_cancel(state: State<'_, AppState>, key: String) -> bool {
+    state.cancel(&key)
 }

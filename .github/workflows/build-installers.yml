@@ -29,8 +29,33 @@ jobs:
         working-directory: src-tauri
         continue-on-error: true
         run: cargo test
+      # Signs the installers when a certificate is stored in the repository secrets
+      # WINDOWS_CERTIFICATE (base64 of a .pfx) and WINDOWS_CERTIFICATE_PASSWORD. See docs/CODE_SIGNING.md.
       - name: Build MSI and NSIS installers
-        run: npm run tauri build -- --bundles msi,nsis
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if ($env:WINDOWS_CERTIFICATE) {
+            $pfx = Join-Path $env:RUNNER_TEMP "signing.pfx"
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+            $password = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+            $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+            Remove-Item $pfx
+            $config = @{ bundle = @{ windows = @{
+              certificateThumbprint = $cert.Thumbprint
+              digestAlgorithm = "sha256"
+              timestampUrl = "http://timestamp.digicert.com"
+            } } } | ConvertTo-Json -Depth 5 -Compress
+            Set-Content -Path "$env:RUNNER_TEMP\sign.json" -Value $config
+            Write-Host "Signing with certificate $($cert.Subject)"
+            npm run tauri build -- --bundles msi,nsis --config "$env:RUNNER_TEMP\sign.json"
+          } else {
+            Write-Host "::warning::No signing certificate configured, so the installers are unsigned (SmartScreen will warn)."
+            npm run tauri build -- --bundles msi,nsis
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         with:
           name: gitpilot-windows

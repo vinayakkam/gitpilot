@@ -166,3 +166,18 @@ pub async fn files_search(
     repo!(state, id, git, root, r);
     r.search_files(&query, 40).await
 }
+
+#[tauri::command]
+pub async fn lines_apply(
+    state: State<'_, AppState>,
+    id: i64,
+    path: String,
+    header: String,
+    lines: Vec<u32>,
+    unstage: bool,
+) -> AppResult<()> {
+    let lock = state.repo_lock(id);
+    let _g = lock.lock().await;
+    repo!(state, id, git, root, r);
+    r.apply_lines(&path, &header, &lines, unstage).await
+}

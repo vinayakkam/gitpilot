@@ -174,6 +174,7 @@ function CloneDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
   const [name, setName] = useState("");
   const [nameTouched, setNameTouched] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
 
   const reset = () => {
@@ -198,10 +199,18 @@ function CloneDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
       await openRepo(rec.id);
       notify({ tone: "success", title: `Cloned ${rec.name}` });
     } catch (e) {
-      setError(toAppError(e));
+      const err = toAppError(e);
+      if (err.kind === "cancelled") notify({ tone: "info", title: "Clone stopped", body: "The partly downloaded folder was removed." });
+      else setError(err);
     } finally {
       setBusy(false);
+      setCancelling(false);
     }
+  };
+
+  const cancelClone = () => {
+    setCancelling(true);
+    void api.opCancel("clone");
   };
 
   const isSsh = /^(ssh:\/\/|[\w.-]+@[\w.-]+:)/.test(url.trim());
@@ -217,9 +226,13 @@ function CloneDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
       onSubmit={submit}
       footer={
         <>
-          <Button onClick={onClose} disabled={busy}>
-            Cancel
-          </Button>
+          {busy ? (
+            <Button onClick={cancelClone} disabled={cancelling}>
+              {cancelling ? "Stopping…" : "Stop cloning"}
+            </Button>
+          ) : (
+            <Button onClick={onClose}>Cancel</Button>
+          )}
           <Button type="submit" variant="primary" loading={busy}>
             {busy ? "Cloning…" : "Clone"}
           </Button>

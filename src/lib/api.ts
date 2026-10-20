@@ -21,6 +21,7 @@ import type { Remote } from "@/bindings/Remote";
 import type { RepoRecord } from "@/bindings/RepoRecord";
 import type { RepoStatus } from "@/bindings/RepoStatus";
 import type { Settings } from "@/bindings/Settings";
+import type { SequenceAction } from "@/bindings/SequenceAction";
 import type { Stash } from "@/bindings/Stash";
 
 export const api = {
@@ -62,12 +63,21 @@ export const api = {
   identitySet: (id: number, name: string, email: string, global: boolean) =>
     invoke<void>("identity_set", { id, name, email, global }),
   filesSearch: (id: number, query: string) => invoke<string[]>("files_search", { id, query }),
+  linesApply: (id: number, path: string, header: string, lines: number[], unstage: boolean) =>
+    invoke<void>("lines_apply", { id, path, header, lines, unstage }),
 
   // history
   log: (id: number, query: LogQuery) => invoke<LogPage>("log_get", { id, query }),
   commitGet: (id: number, hash: string) => invoke<CommitDetail>("commit_get", { id, hash }),
   commitDiffFile: (id: number, hash: string, path: string, origPath: string | null) =>
     invoke<FileDiff>("commit_diff_file", { id, hash, path, origPath }),
+
+  // integrating changes
+  commitRevert: (id: number, hash: string) => invoke<void>("commit_revert", { id, hash }),
+  commitCherryPick: (id: number, hash: string) => invoke<void>("commit_cherry_pick", { id, hash }),
+  branchMerge: (id: number, branch: string) => invoke<void>("branch_merge", { id, branch }),
+  branchRebase: (id: number, onto: string) => invoke<void>("branch_rebase", { id, onto, confirmed: true }),
+  sequenceRun: (id: number, action: SequenceAction) => invoke<void>("sequence_run", { id, action, confirmed: true }),
 
   // branches & stashes
   branches: (id: number) => invoke<Branch[]>("branch_list", { id }),
@@ -106,6 +116,9 @@ export const api = {
       forceWithLease: opts.forceWithLease ?? false,
       confirmedForce: opts.forceWithLease ?? false,
     }),
+
+  /** Cancels a running clone ("clone") or a fetch/push in a repository ("repo:<id>"). */
+  opCancel: (key: string) => invoke<boolean>("op_cancel", { key }),
 
   // assistance
   aiSuggestCommit: (id: number) => invoke<AiSuggestions>("ai_suggest_commit", { id }),

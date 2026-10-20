@@ -4,9 +4,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Once;
 
 use gitpilot_lib::error::ErrorKind;
+use gitpilot_lib::git::diff::LineKind;
 use gitpilot_lib::git::locate::locate_git;
 use gitpilot_lib::git::log::LogQuery;
-use gitpilot_lib::git::repo::{self, PullStrategy, RepoState};
+use gitpilot_lib::git::repo::{self, PullStrategy, RepoState, SequenceAction};
 use gitpilot_lib::git::status::{Area, ChangeType};
 use gitpilot_lib::git::{Git, Repo};
 use tempfile::TempDir;
@@ -369,7 +370,7 @@ async fn remotes_push_pull_fetch_with_local_bare_remote() {
     ra.stage_all().await.unwrap();
     ra.commit("one").await.unwrap();
     // No upstream yet → push publishes and sets upstream.
-    ra.push(None, false, false, |_| {}).await.unwrap();
+    ra.push(None, false, false, None, |_| {}).await.unwrap();
     let st = ra.status().await.unwrap();
     assert_eq!(st.branch.upstream.as_deref(), Some("origin/main"));
     assert_eq!((st.branch.ahead, st.branch.behind), (Some(0), Some(0)));
@@ -377,16 +378,18 @@ async fn remotes_push_pull_fetch_with_local_bare_remote() {
     // Clone into a second working copy.
     let parent = tempfile::tempdir().unwrap();
     let mut lines = Vec::new();
-    let b = repo::clone(&g, &url, &parent.path().join("copy"), |l| lines.push(l))
-        .await
-        .unwrap();
+    let b = repo::clone(&g, &url, &parent.path().join("copy"), None, |l| {
+        lines.push(l)
+    })
+    .await
+    .unwrap();
     let rb = Repo { git: &g, path: &b };
     assert_eq!(
         rb.status().await.unwrap().branch.head.as_deref(),
         Some("main")
     );
     assert!(
-        repo::clone(&g, &url, &parent.path().join("copy"), |_| {})
+        repo::clone(&g, &url, &parent.path().join("copy"), None, |_| {})
             .await
             .is_err(),
         "won't clone into non-empty dir"
@@ -396,8 +399,8 @@ async fn remotes_push_pull_fetch_with_local_bare_remote() {
     write(&a, "x.txt", "1\n2\n");
     ra.stage_all().await.unwrap();
     ra.commit("two").await.unwrap();
-    ra.push(None, false, false, |_| {}).await.unwrap();
-    rb.fetch(None, |_| {}).await.unwrap();
+    ra.push(None, false, false, None, |_| {}).await.unwrap();
+    rb.fetch(None, None, |_| {}).await.unwrap();
     let st = rb.status().await.unwrap();
     assert_eq!(st.branch.behind, Some(1));
     assert!(st.last_fetch.is_some());
@@ -411,19 +414,21 @@ async fn remotes_push_pull_fetch_with_local_bare_remote() {
     write(&a, "a.txt", "a\n");
     ra.stage_all().await.unwrap();
     ra.commit("from a").await.unwrap();
-    ra.push(None, false, false, |_| {}).await.unwrap();
-    let err = rb.push(None, false, false, |_| {}).await.unwrap_err();
+    ra.push(None, false, false, None, |_| {}).await.unwrap();
+    let err = rb.push(None, false, false, None, |_| {}).await.unwrap_err();
     assert_eq!(err.kind, ErrorKind::PushRejected);
     // ff-only pull refuses to merge diverged history.
     assert!(rb.pull(PullStrategy::FfOnly, |_| {}).await.is_err());
     rb.pull(PullStrategy::Merge, |_| {}).await.unwrap();
-    rb.push(None, false, false, |_| {}).await.unwrap();
+    rb.push(None, false, false, None, |_| {}).await.unwrap();
 
     // Remote branch listing and deletion.
-    ra.fetch(Some("origin"), |_| {}).await.unwrap();
+    ra.fetch(Some("origin"), None, |_| {}).await.unwrap();
     ra.branch_create("topic", None, false).await.unwrap();
     ra.branch_switch("topic").await.unwrap();
-    ra.push(Some("origin"), true, false, |_| {}).await.unwrap();
+    ra.push(Some("origin"), true, false, None, |_| {})
+        .await
+        .unwrap();
     assert!(ra
         .branches()
         .await
@@ -431,7 +436,7 @@ async fn remotes_push_pull_fetch_with_local_bare_remote() {
         .iter()
         .any(|b| b.is_remote && b.name == "origin/topic"));
     ra.remote_branch_delete("origin", "topic").await.unwrap();
-    ra.fetch(None, |_| {}).await.unwrap();
+    ra.fetch(None, None, |_| {}).await.unwrap();
     let br = ra.branches().await.unwrap();
     assert!(!br.iter().any(|b| b.is_remote && b.name == "origin/topic"));
     assert!(br.iter().find(|b| b.name == "topic").unwrap().upstream_gone);
@@ -552,4 +557,267 @@ async fn non_repository_and_missing_paths() {
         std::fs::canonicalize(root).unwrap(),
         std::fs::canonicalize(d.path()).unwrap()
     );
+}
+
+#[tokio::test]
+async fn line_level_staging_and_unstaging() {
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    write(&root, "f.txt", "a\nb\nc\nd\n");
+    r.stage_all().await.unwrap();
+    r.commit("base").await.unwrap();
+
+    // One hunk: -b +B, -c +C, +new
+    write(&root, "f.txt", "a\nB\nC\nnew\nd\n");
+    let d = r.file_diff("f.txt", Area::Unstaged, None).await.unwrap();
+    assert_eq!(d.hunks.len(), 1);
+    let h = &d.hunks[0];
+    let idx = |kind: LineKind, text: &str| {
+        h.lines
+            .iter()
+            .position(|l| l.kind == kind && l.content == text)
+            .unwrap() as u32
+    };
+    // Stage only "-b" and "+B".
+    r.apply_lines(
+        "f.txt",
+        &h.header,
+        &[idx(LineKind::Del, "b"), idx(LineKind::Add, "B")],
+        false,
+    )
+    .await
+    .unwrap();
+    let index = g.read(&root, ["show", ":f.txt"]).await.unwrap();
+    assert_eq!(index, "a\nB\nc\nd\n");
+    assert_eq!(
+        std::fs::read_to_string(root.join("f.txt")).unwrap(),
+        "a\nB\nC\nnew\nd\n",
+        "working file untouched"
+    );
+
+    // Stage just the "+new" addition.
+    let d = r.file_diff("f.txt", Area::Unstaged, None).await.unwrap();
+    let h = &d.hunks[0];
+    let new_i = h.lines.iter().position(|l| l.content == "new").unwrap() as u32;
+    r.apply_lines("f.txt", &h.header, &[new_i], false)
+        .await
+        .unwrap();
+    assert_eq!(
+        g.read(&root, ["show", ":f.txt"]).await.unwrap(),
+        "a\nB\nc\nnew\nd\n"
+    );
+
+    // Unstage the "-b/+B" pair again from the staged diff.
+    let s = r.file_diff("f.txt", Area::Staged, None).await.unwrap();
+    let h = &s.hunks[0];
+    let sel: Vec<u32> = h
+        .lines
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| {
+            (l.kind == LineKind::Del && l.content == "b")
+                || (l.kind == LineKind::Add && l.content == "B")
+        })
+        .map(|(i, _)| i as u32)
+        .collect();
+    assert_eq!(sel.len(), 2);
+    r.apply_lines("f.txt", &h.header, &sel, true).await.unwrap();
+    assert_eq!(
+        g.read(&root, ["show", ":f.txt"]).await.unwrap(),
+        "a\nb\nc\nnew\nd\n"
+    );
+}
+
+#[tokio::test]
+async fn revert_cherry_pick_merge() {
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    write(&root, "a.txt", "1\n");
+    r.stage_all().await.unwrap();
+    r.commit("one").await.unwrap();
+    write(&root, "b.txt", "b\n");
+    r.stage_all().await.unwrap();
+    let bad = r.commit("add b").await.unwrap();
+
+    r.revert(&bad).await.unwrap();
+    assert!(!root.join("b.txt").exists());
+    let top = r
+        .log(&LogQuery {
+            rev: None,
+            skip: 0,
+            limit: 1,
+            search: None,
+            path: None,
+        })
+        .await
+        .unwrap();
+    assert!(top.commits[0].subject.starts_with("Revert \"add b\""));
+
+    r.branch_create("topic", None, true).await.unwrap();
+    write(&root, "t.txt", "t\n");
+    r.stage_all().await.unwrap();
+    let pick = r.commit("topic work").await.unwrap();
+    write(&root, "u.txt", "u\n");
+    r.stage_all().await.unwrap();
+    r.commit("more topic work").await.unwrap();
+    r.branch_switch("main").await.unwrap();
+
+    r.cherry_pick(&pick).await.unwrap();
+    assert!(root.join("t.txt").exists() && !root.join("u.txt").exists());
+
+    r.merge("topic").await.unwrap();
+    assert!(root.join("u.txt").exists());
+    assert_eq!(r.status().await.unwrap().state, RepoState::Normal);
+}
+
+#[tokio::test]
+async fn rebase_conflict_then_abort_or_continue() {
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    write(&root, "c.txt", "base\n");
+    r.stage_all().await.unwrap();
+    r.commit("base").await.unwrap();
+    r.branch_create("feature", None, true).await.unwrap();
+    write(&root, "c.txt", "feature\n");
+    r.stage_all().await.unwrap();
+    r.commit("feature change").await.unwrap();
+    r.branch_switch("main").await.unwrap();
+    write(&root, "c.txt", "main\n");
+    r.stage_all().await.unwrap();
+    r.commit("main change").await.unwrap();
+    r.branch_switch("feature").await.unwrap();
+
+    // Conflict → paused rebase; abort restores the branch exactly.
+    let before = g.read(&root, ["rev-parse", "HEAD"]).await.unwrap();
+    assert_eq!(
+        r.rebase("main").await.unwrap_err().kind,
+        ErrorKind::Conflict
+    );
+    assert_eq!(r.status().await.unwrap().state, RepoState::Rebasing);
+    r.sequence(SequenceAction::Abort).await.unwrap();
+    assert_eq!(r.status().await.unwrap().state, RepoState::Normal);
+    assert_eq!(g.read(&root, ["rev-parse", "HEAD"]).await.unwrap(), before);
+
+    // Again, resolve, continue (no editor opens), and the branch now sits on top of main.
+    assert!(r.rebase("main").await.is_err());
+    // Continuing with unresolved conflicts is refused.
+    assert!(r.sequence(SequenceAction::Continue).await.is_err());
+    write(&root, "c.txt", "resolved\n");
+    r.stage(&["c.txt".into()]).await.unwrap();
+    r.sequence(SequenceAction::Continue).await.unwrap();
+    let st = r.status().await.unwrap();
+    assert_eq!(st.state, RepoState::Normal);
+    assert_eq!(st.branch.head.as_deref(), Some("feature"));
+    let log = r
+        .log(&LogQuery {
+            rev: None,
+            skip: 0,
+            limit: 3,
+            search: None,
+            path: None,
+        })
+        .await
+        .unwrap();
+    let subjects: Vec<_> = log.commits.iter().map(|c| c.subject.as_str()).collect();
+    assert_eq!(subjects, vec!["feature change", "main change", "base"]);
+    assert!(
+        r.sequence(SequenceAction::Continue).await.is_err(),
+        "nothing in progress"
+    );
+}
+
+#[tokio::test]
+async fn cancelled_clone_leaves_nothing_behind() {
+    let g = git();
+    let (_d1, src) = new_repo(&g).await;
+    let rs = Repo {
+        git: &g,
+        path: &src,
+    };
+    write(&src, "x.txt", "x\n");
+    rs.stage_all().await.unwrap();
+    rs.commit("x").await.unwrap();
+
+    let parent = tempfile::tempdir().unwrap();
+    let dest = parent.path().join("copy");
+    let cancel = tokio::sync::Notify::new();
+    cancel.notify_one(); // cancel immediately
+    let url = format!("file://{}", src.display());
+    let err = repo::clone(&g, &url, &dest, Some(&cancel), |_| {})
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind, ErrorKind::Cancelled);
+    assert!(!dest.exists(), "partial clone removed");
+
+    // A pre-existing empty destination folder is kept (only its contents are removed).
+    std::fs::create_dir(&dest).unwrap();
+    let cancel = tokio::sync::Notify::new();
+    cancel.notify_one();
+    assert!(repo::clone(&g, &url, &dest, Some(&cancel), |_| {})
+        .await
+        .is_err());
+    assert!(dest.exists() && std::fs::read_dir(&dest).unwrap().next().is_none());
+
+    // Without cancellation it works.
+    repo::clone(&g, &url, &dest, None, |_| {}).await.unwrap();
+    assert!(dest.join("x.txt").exists());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn cancelling_a_hanging_fetch_stops_git_and_its_helpers() {
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo { git: &g, path: &root };
+    let marker = format!("gp-cancel-probe-{}", std::process::id());
+    // A fake ssh that never answers. The marker in its argv lets us find it afterwards.
+    let script = root.join(".git").join("fake-ssh.sh");
+    // Copy `sleep` under a unique name so the helper can be found by its process name.
+    let sleeper = root.join(".git").join(&marker);
+    std::fs::copy(which_sleep(), &sleeper).unwrap();
+    std::fs::write(&script, format!("#!/bin/sh\nexec {} 300\n", sleeper.display())).unwrap();
+    std::fs::set_permissions(&script, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+    g.run(&root, ["config", "core.sshCommand", script.to_str().unwrap()], Default::default())
+        .await
+        .unwrap();
+    r.remote_add("slow", "ssh://git@slow.invalid/x.git").await.unwrap();
+
+    let cancel = std::sync::Arc::new(tokio::sync::Notify::new());
+    let c2 = cancel.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+        c2.notify_one();
+    });
+    let started = std::time::Instant::now();
+    let err = r.fetch(Some("slow"), Some(&cancel), |_| {}).await.unwrap_err();
+    assert_eq!(err.kind, ErrorKind::Cancelled);
+    assert!(started.elapsed() < std::time::Duration::from_secs(10));
+
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    let ps = std::process::Command::new("ps").args(["-eo", "args"]).output().unwrap();
+    let leftover = String::from_utf8_lossy(&ps.stdout)
+        .lines()
+        .any(|l| l.contains(&marker));
+    assert!(!leftover, "ssh helper was left running");
+}
+
+#[cfg(unix)]
+fn which_sleep() -> std::path::PathBuf {
+    ["/usr/bin/sleep", "/bin/sleep"]
+        .iter()
+        .map(std::path::PathBuf::from)
+        .find(|p| p.exists())
+        .expect("sleep binary")
 }

@@ -17,6 +17,7 @@ pub struct AppState {
     settings_path: PathBuf,
     pub data_dir: PathBuf,
     locks: Mutex<HashMap<i64, Arc<tokio::sync::Mutex<()>>>>,
+    cancels: Mutex<HashMap<String, Arc<tokio::sync::Notify>>>,
 }
 
 impl AppState {
@@ -32,6 +33,7 @@ impl AppState {
             settings_path,
             data_dir,
             locks: Mutex::new(HashMap::new()),
+            cancels: Mutex::new(HashMap::new()),
         })
     }
 
@@ -106,5 +108,54 @@ impl AppState {
 
     pub fn backup_dir(&self) -> PathBuf {
         self.data_dir.join("discard-backups")
+    }
+
+    /// Registers a cancellable operation under `key` ("clone" or "repo:<id>").
+    /// The returned guard unregisters it when the operation ends.
+    pub fn begin_cancellable(&self, key: String) -> CancelGuard<'_> {
+        let notify = Arc::new(tokio::sync::Notify::new());
+        self.cancels
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(key.clone(), notify.clone());
+        CancelGuard {
+            state: self,
+            key,
+            notify,
+        }
+    }
+
+    /// Requests cancellation. Returns false when nothing cancellable is running under `key`.
+    pub fn cancel(&self, key: &str) -> bool {
+        match self
+            .cancels
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(key)
+        {
+            Some(n) => {
+                n.notify_one();
+                true
+            }
+            None => false,
+        }
+    }
+}
+
+pub struct CancelGuard<'a> {
+    state: &'a AppState,
+    key: String,
+    pub notify: Arc<tokio::sync::Notify>,
+}
+
+impl Drop for CancelGuard<'_> {
+    fn drop(&mut self) {
+        let mut map = self.state.cancels.lock().unwrap_or_else(|e| e.into_inner());
+        if map
+            .get(&self.key)
+            .is_some_and(|n| Arc::ptr_eq(n, &self.notify))
+        {
+            map.remove(&self.key);
+        }
     }
 }

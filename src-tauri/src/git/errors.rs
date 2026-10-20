@@ -33,6 +33,10 @@ pub fn classify(stderr: &str) -> AppError {
         || has("would be overwritten by merge")
         || has("your local changes to the following files would be overwritten")
         || has("untracked working tree files would be overwritten")
+        || has("your local changes would be overwritten")
+        || has("cannot rebase: you have unstaged changes")
+        || has("cannot rebase: your index contains uncommitted changes")
+        || has("please commit or stash them")
     {
         (
             ErrorKind::LocalChangesWouldBeOverwritten,

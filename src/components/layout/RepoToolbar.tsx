@@ -144,6 +144,8 @@ function SyncStrip({ fetchError }: { fetchError: AppError | null }) {
   const { status } = useStore();
   if (!status) return null;
   const b = status.branch;
+  const ops = { rebasing: "Rebase", merging: "Merge", cherryPicking: "Cherry-pick", reverting: "Revert", bisecting: "Bisect" } as const;
+  if (status.state !== "normal") return <span className="text-sm text-conflict">{ops[status.state]} in progress</span>;
   if (b.unborn) return <span className="text-sm text-faint">No commits yet</span>;
   if (b.detached) return <span className="text-sm text-warning">Detached HEAD at {b.oid?.slice(0, 7)}</span>;
   if (!b.upstream) return <span className="text-sm text-faint">Not published to a remote</span>;
@@ -193,6 +195,7 @@ export function RepoToolbar() {
   const [remotes, setRemotes] = useState<Remote[]>([]);
   const [fetchError, setFetchError] = useState<AppError | null>(null);
   const [pushMenu, setPushMenu] = useState<{ x: number; y: number } | null>(null);
+  const [cancelling, setCancelling] = useState(false);
   const id = activeRepo?.id;
 
   useEffect(() => {
@@ -202,10 +205,22 @@ export function RepoToolbar() {
     if (id != null) api.remotes(id).then(setRemotes, () => setRemotes([]));
   }, [id, revision]);
 
+  const cancellable = !!busy && /^(Fetch|Push|Force push)/.test(busy);
+  const cancel = async () => {
+    if (id == null) return;
+    setCancelling(true);
+    try {
+      await api.opCancel(`repo:${id}`);
+    } finally {
+      window.setTimeout(() => setCancelling(false), 800);
+    }
+  };
+
   if (!activeRepo || id == null) return null;
   const b = status?.branch;
   const hasUpstream = Boolean(b?.upstream);
-  const canPush = Boolean(b && !b.unborn && !b.detached && (hasUpstream || remotes.length > 0));
+  const midOperation = status?.state !== undefined && status.state !== "normal";
+  const canPush = Boolean(b && !b.unborn && !b.detached && !midOperation && (hasUpstream || remotes.length > 0));
   const behind = b?.behind ?? 0;
 
   const fetch = () =>
@@ -231,6 +246,8 @@ export function RepoToolbar() {
   const pushLabel = hasUpstream ? "Push" : "Publish branch";
   const pushHint = !b
     ? ""
+    : midOperation
+      ? "Finish or abort the operation in progress first."
     : b.unborn
       ? "Make a commit before pushing."
       : b.detached
@@ -282,7 +299,7 @@ export function RepoToolbar() {
           </Tooltip>
           <Tooltip content={hasUpstream ? `Bring in commits from ${b?.upstream}` : "This branch has no upstream to pull from"}>
             <span>
-              <Button size="md" variant={behind > 0 ? "primary" : "secondary"} icon={<ArrowDownToLine size={13} />} onClick={pull} disabled={!!busy || !hasUpstream} loading={busy === "Pull"}>
+              <Button size="md" variant={behind > 0 ? "primary" : "secondary"} icon={<ArrowDownToLine size={13} />} onClick={pull} disabled={!!busy || !hasUpstream || midOperation} loading={busy === "Pull"}>
                 Pull{behind ? ` ${behind}` : ""}
               </Button>
             </span>
@@ -314,9 +331,16 @@ export function RepoToolbar() {
           <div className="h-full w-1/3 bg-accent/70" style={{ animation: "gp-slide 1.1s ease-in-out infinite" }} />
         </div>
       )}
-      {busy && progress && (
-        <div className="selectable truncate border-t border-border bg-surface-2 px-3 py-1 font-mono text-xs text-muted" aria-live="polite">
-          {busy}: {progress}
+      {busy && (progress || cancellable) && (
+        <div className="flex items-center gap-2 border-t border-border bg-surface-2 py-1 pl-3 pr-2">
+          <span className="selectable min-w-0 flex-1 truncate font-mono text-xs text-muted" aria-live="polite">
+            {busy}: {progress ?? "connecting…"}
+          </span>
+          {cancellable && (
+            <Button size="sm" variant="ghost" disabled={cancelling} onClick={cancel}>
+              {cancelling ? "Cancelling…" : "Cancel"}
+            </Button>
+          )}
         </div>
       )}
       {picker && <BranchPicker anchor={picker} onClose={() => setPicker(null)} onNew={() => setNewBranch(true)} />}

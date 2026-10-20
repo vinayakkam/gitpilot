@@ -19,6 +19,22 @@ export interface HunkAction {
   run: (hunk: Hunk) => void;
 }
 
+/** Stage/unstage individual lines: `lines` are indices into `hunk.lines`. */
+export interface LineAction {
+  label: (count: number) => string;
+  icon: ReactNode;
+  run: (hunk: Hunk, lines: number[]) => void;
+}
+
+type Selection = { hunk: number; lines: Set<number>; anchor: number } | null;
+
+/** Everything a line row needs to be selectable. */
+interface Pick {
+  enabled: boolean;
+  isSelected: (hi: number, li: number) => boolean;
+  toggle: (hi: number, li: number, range: boolean) => void;
+}
+
 interface Props {
   diff: FileDiff | null;
   loading?: boolean;
@@ -27,15 +43,17 @@ interface Props {
   onModeChange: (m: DiffMode) => void;
   highlight: boolean;
   hunkAction?: HunkAction;
+  lineAction?: LineAction;
   busy?: boolean;
   emptyTitle?: string;
   emptyBody?: string;
 }
 
+type Ref = { line: DiffLine; li: number };
 type Row =
-  | { t: "hunk"; hunk: Hunk; key: string }
-  | { t: "line"; line: DiffLine; key: string }
-  | { t: "pair"; left: DiffLine | null; right: DiffLine | null; key: string };
+  | { t: "hunk"; hunk: Hunk; hi: number; key: string }
+  | { t: "line"; line: DiffLine; hi: number; li: number; key: string }
+  | { t: "pair"; left: Ref | null; right: Ref | null; hi: number; key: string };
 
 const LINE_H = 20;
 const HUNK_H = 30;
@@ -43,9 +61,9 @@ const HUNK_H = 30;
 function buildRows(diff: FileDiff, mode: DiffMode): Row[] {
   const rows: Row[] = [];
   diff.hunks.forEach((h, hi) => {
-    if (h.header) rows.push({ t: "hunk", hunk: h, key: `h${hi}` });
+    if (h.header) rows.push({ t: "hunk", hunk: h, hi, key: `h${hi}` });
     if (mode === "unified" || diff.conflictView) {
-      h.lines.forEach((l, li) => rows.push({ t: "line", line: l, key: `${hi}:${li}` }));
+      h.lines.forEach((l, li) => rows.push({ t: "line", line: l, hi, li, key: `${hi}:${li}` }));
       return;
     }
     // Side-by-side: pair each run of deletions with the following run of additions.
@@ -54,20 +72,20 @@ function buildRows(diff: FileDiff, mode: DiffMode): Row[] {
     while (i < L.length) {
       const l = L[i]!;
       if (l.kind === "context" || l.kind === "noNewline") {
-        rows.push({ t: "pair", left: l, right: l, key: `${hi}:${i}` });
+        rows.push({ t: "pair", left: { line: l, li: i }, right: { line: l, li: i }, hi, key: `${hi}:${i}` });
         i++;
         continue;
       }
-      const dels: DiffLine[] = [];
-      const adds: DiffLine[] = [];
-      while (i < L.length && L[i]!.kind === "del") dels.push(L[i++]!);
-      while (i < L.length && L[i]!.kind === "add") adds.push(L[i++]!);
+      const dels: Ref[] = [];
+      const adds: Ref[] = [];
+      while (i < L.length && L[i]!.kind === "del") dels.push({ line: L[i]!, li: i++ });
+      while (i < L.length && L[i]!.kind === "add") adds.push({ line: L[i]!, li: i++ });
       if (!dels.length && !adds.length) {
         i++;
         continue;
       }
       const n = Math.max(dels.length, adds.length);
-      for (let k = 0; k < n; k++) rows.push({ t: "pair", left: dels[k] ?? null, right: adds[k] ?? null, key: `${hi}:${i}:${k}` });
+      for (let k = 0; k < n; k++) rows.push({ t: "pair", left: dels[k] ?? null, right: adds[k] ?? null, hi, key: `${hi}:${i}:${k}` });
     }
   });
   return rows;
@@ -89,12 +107,31 @@ const Code = memo(function Code({ text, lang }: { text: string; lang: string | n
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
 });
 
-function LineCells({ line, lang, showEol, side }: { line: DiffLine | null; lang: string | null; showEol: boolean; side?: "left" | "right" }) {
+function LineCells({
+  line,
+  lang,
+  showEol,
+  side,
+  hi = 0,
+  li = 0,
+  pick,
+}: {
+  line: DiffLine | null;
+  lang: string | null;
+  showEol: boolean;
+  side?: "left" | "right";
+  hi?: number;
+  li?: number;
+  pick?: Pick;
+}) {
   if (!line) return <div className="min-h-5 flex-1 bg-surface-2/50" />;
   const t = tone[line.kind];
+  const selectable = !!pick?.enabled && (line.kind === "add" || line.kind === "del");
+  const selected = selectable && pick!.isSelected(hi, li);
+  const lineNo = line.kind === "del" ? line.oldNo : line.newNo;
   const no = side === "left" ? line.oldNo : side === "right" ? line.newNo : null;
   return (
-    <div className={cx("flex min-h-5 min-w-0 flex-1", t.row)}>
+    <div className={cx("flex min-h-5 min-w-0 flex-1", t.row, selected && "shadow-[inset_3px_0_0_var(--accent)]")}>
       {side ? (
         <span className={cx("w-12 shrink-0 select-none pr-2 text-right", t.gutter)}>{no ?? ""}</span>
       ) : (
@@ -103,9 +140,26 @@ function LineCells({ line, lang, showEol, side }: { line: DiffLine | null; lang:
           <span className={cx("w-11 shrink-0 select-none pr-2 text-right", t.gutter)}>{line.newNo ?? ""}</span>
         </>
       )}
-      <span className={cx("w-5 shrink-0 select-none text-center", t.gutter.replace(/bg-\S+/g, ""))} aria-hidden>
-        {t.sign}
-      </span>
+      {selectable ? (
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={selected}
+          aria-label={`${line.kind === "add" ? "Added" : "Removed"} line ${lineNo ?? ""}: select for staging`}
+          title="Select this line (Shift-click for a range)"
+          onClick={(e) => pick!.toggle(hi, li, e.shiftKey)}
+          className={cx(
+            "mx-0.5 my-[2px] flex h-4 w-4 shrink-0 select-none items-center justify-center rounded-sm text-[11px] font-semibold leading-none",
+            selected ? "bg-accent text-on-accent" : cx("hover:ring-1 hover:ring-current", t.gutter.replace(/bg-\S+/g, "")),
+          )}
+        >
+          {t.sign}
+        </button>
+      ) : (
+        <span className={cx("w-5 shrink-0 select-none text-center", t.gutter.replace(/bg-\S+/g, ""))} aria-hidden>
+          {t.sign}
+        </span>
+      )}
       <span className={cx("selectable pr-4", side ? "min-w-0 flex-1 whitespace-pre-wrap break-all" : "whitespace-pre", line.kind === "noNewline" && "italic text-faint")}>
         {line.kind === "noNewline" ? "No newline at end of file" : <Code text={line.content} lang={lang} />}
         {showEol && line.crlf && (
@@ -118,7 +172,29 @@ function LineCells({ line, lang, showEol, side }: { line: DiffLine | null; lang:
   );
 }
 
-export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight, hunkAction, busy, emptyTitle, emptyBody }: Props) {
+export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight, hunkAction, lineAction, busy, emptyTitle, emptyBody }: Props) {
+  const [sel, setSel] = useState<Selection>(null);
+  // A new diff (after staging, or another file) invalidates line indices.
+  useEffect(() => setSel(null), [diff]);
+  const pick: Pick = {
+    enabled: !!lineAction && !!diff?.hunkActions && !busy,
+    isSelected: (hi, li) => sel?.hunk === hi && sel.lines.has(li),
+    toggle: (hi, li, range) => {
+      const lines = diff?.hunks[hi]?.lines ?? [];
+      const changed = (i: number) => lines[i]?.kind === "add" || lines[i]?.kind === "del";
+      setSel((cur) => {
+        // Selections stay within one hunk: picking in another hunk starts over.
+        if (!cur || cur.hunk !== hi) return { hunk: hi, lines: new Set([li]), anchor: li };
+        const next = new Set(cur.lines);
+        if (range) {
+          const [a, b] = cur.anchor < li ? [cur.anchor, li] : [li, cur.anchor];
+          for (let i = a; i <= b; i++) if (changed(i)) next.add(i);
+        } else if (next.has(li)) next.delete(li);
+        else next.add(li);
+        return next.size ? { hunk: hi, lines: next, anchor: li } : null;
+      });
+    },
+  };
   const scrollRef = useRef<HTMLDivElement>(null);
   const path = diff?.newPath ?? diff?.oldPath ?? null;
   const lang = highlight ? languageFor(path) : null;
@@ -212,10 +288,29 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
                   <div className="sticky left-0 flex h-full items-center gap-3 pl-3 pr-2" style={{ width: viewportW || "100%" }}>
                     <span className="shrink-0 whitespace-nowrap font-mono text-xs text-faint">{r.hunk.header.match(/^@@[^@]*@@/)?.[0]}</span>
                     <span className="min-w-0 flex-1 truncate font-mono text-xs">{r.hunk.section}</span>
-                    {hunkAction && diff.hunkActions && (
-                      <Button size="sm" variant="ghost" icon={hunkAction.icon} disabled={busy} onClick={() => hunkAction.run(r.hunk)} className="shrink-0">
-                        {hunkAction.label}
-                      </Button>
+                    {lineAction && diff.hunkActions && sel?.hunk === r.hi ? (
+                      <>
+                        <Button size="sm" variant="ghost" disabled={busy} onClick={() => setSel(null)} className="shrink-0">
+                          Clear
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          icon={lineAction.icon}
+                          disabled={busy}
+                          onClick={() => lineAction.run(r.hunk, [...sel.lines].sort((a, b) => a - b))}
+                          className="shrink-0"
+                        >
+                          {lineAction.label(sel.lines.size)}
+                        </Button>
+                      </>
+                    ) : (
+                      hunkAction &&
+                      diff.hunkActions && (
+                        <Button size="sm" variant="ghost" icon={hunkAction.icon} disabled={busy} onClick={() => hunkAction.run(r.hunk)} className="shrink-0">
+                          {hunkAction.label}
+                        </Button>
+                      )
                     )}
                   </div>
                 </div>
@@ -223,16 +318,16 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
             if (r.t === "line")
               return (
                 <div key={r.key} style={style} {...measure} className="flex">
-                  <LineCells line={r.line} lang={lang} showEol={mixedEol} />
+                  <LineCells line={r.line} lang={lang} showEol={mixedEol} hi={r.hi} li={r.li} pick={pick} />
                 </div>
               );
             return (
               <div key={r.key} style={style} {...measure} className="flex">
                 <div className="flex w-1/2 min-w-0 border-r border-border">
-                  <LineCells side="left" line={r.left?.kind === "add" ? null : r.left} lang={lang} showEol={mixedEol} />
+                  <LineCells side="left" line={r.left?.line.kind === "add" ? null : (r.left?.line ?? null)} lang={lang} showEol={mixedEol} hi={r.hi} li={r.left?.li} pick={pick} />
                 </div>
                 <div className="flex w-1/2 min-w-0">
-                  <LineCells side="right" line={r.right?.kind === "del" ? null : r.right} lang={lang} showEol={mixedEol} />
+                  <LineCells side="right" line={r.right?.line.kind === "del" ? null : (r.right?.line ?? null)} lang={lang} showEol={mixedEol} hi={r.hi} li={r.right?.li} pick={pick} />
                 </div>
               </div>
             );
@@ -266,6 +361,9 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
             <span className="text-added">+{diff.additions}</span> <span className="text-removed">−{diff.deletions}</span>
           </span>
         )}
+        {pick.enabled && !sel && rows.length > 0 && (
+          <span className="hidden shrink-0 text-xs text-faint lg:inline">Click + or − markers to pick lines</span>
+        )}
         {loading && <Spinner size={12} />}
         {!diff.conflictView && (
           <Segmented
@@ -282,7 +380,7 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
       </div>
       {diff.truncated && (
         <div className="shrink-0 border-b border-border bg-warning-bg px-3 py-1.5 text-sm text-warning">
-          This diff is very large, so only the first part is shown. Hunk staging is disabled for it.
+          This diff is very large, so only the first part is shown. Hunk and line staging are disabled for it.
         </div>
       )}
       {diff.conflictView && !diff.deletedFile && (

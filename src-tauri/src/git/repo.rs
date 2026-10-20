@@ -13,6 +13,7 @@ use super::runner::{Git, RunOpts, NETWORK_TIMEOUT};
 use super::status::{self, Area, BranchInfo, FileEntry};
 use super::validate as v;
 use crate::error::{AppError, AppResult, ErrorKind};
+use tokio::sync::Notify;
 
 /// Applied to every network-capable command: never allow command-executing transports.
 const NO_EXT: [&str; 4] = [
@@ -63,6 +64,15 @@ pub enum PullStrategy {
     FfOnly,
     Merge,
     Rebase,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum SequenceAction {
+    Continue,
+    Skip,
+    Abort,
 }
 
 #[derive(Debug, Clone, Serialize, TS)]
@@ -154,6 +164,7 @@ pub async fn clone<F: FnMut(String) + Send>(
     git: &Git,
     url: &str,
     dest: &Path,
+    cancel: Option<&Notify>,
     on_progress: F,
 ) -> AppResult<PathBuf> {
     let url = v::remote_url(url)?;
@@ -183,8 +194,31 @@ pub async fn clone<F: FnMut(String) + Send>(
         url.into(),
         dest.as_os_str().to_owned(),
     ]);
-    git.run_streaming(parent, args, NETWORK_TIMEOUT, on_progress)
-        .await?;
+    let existed = dest.exists();
+    let res = git
+        .run_streaming(parent, args, NETWORK_TIMEOUT, cancel, on_progress)
+        .await;
+    if let Err(e) = res {
+        // A failed or cancelled clone leaves a partial folder behind. It was absent or empty
+        // before we started (checked above), so removing what git created loses nothing.
+        if dest.exists() {
+            if existed {
+                if let Ok(entries) = std::fs::read_dir(dest) {
+                    for entry in entries.flatten() {
+                        let p = entry.path();
+                        let _ = if p.is_dir() {
+                            std::fs::remove_dir_all(&p)
+                        } else {
+                            std::fs::remove_file(&p)
+                        };
+                    }
+                }
+            } else {
+                let _ = std::fs::remove_dir_all(dest);
+            }
+        }
+        return Err(e);
+    }
     Ok(dest.to_path_buf())
 }
 
@@ -981,6 +1015,7 @@ impl Repo<'_> {
     pub async fn fetch<F: FnMut(String) + Send>(
         &self,
         remote: Option<&str>,
+        cancel: Option<&Notify>,
         on: F,
     ) -> AppResult<()> {
         let mut args: Vec<String> = NO_EXT.iter().map(|s| s.to_string()).collect();
@@ -990,7 +1025,7 @@ impl Repo<'_> {
             None => args.push("--all".into()),
         }
         self.git
-            .run_streaming(self.path, &args, NETWORK_TIMEOUT, on)
+            .run_streaming(self.path, &args, NETWORK_TIMEOUT, cancel, on)
             .await?;
         Ok(())
     }
@@ -1020,7 +1055,7 @@ impl Repo<'_> {
             PullStrategy::Rebase => "--rebase".into(),
         });
         self.git
-            .run_streaming(self.path, &args, NETWORK_TIMEOUT, on)
+            .run_streaming(self.path, &args, NETWORK_TIMEOUT, None, on)
             .await?;
         Ok(())
     }
@@ -1032,6 +1067,7 @@ impl Repo<'_> {
         remote: Option<&str>,
         set_upstream: bool,
         force_with_lease: bool,
+        cancel: Option<&Notify>,
         on: F,
     ) -> AppResult<()> {
         let st = self.status().await?;
@@ -1063,7 +1099,7 @@ impl Repo<'_> {
             args.extend([v::remote_name(r)?.to_string(), "HEAD".into()]);
         }
         self.git
-            .run_streaming(self.path, &args, NETWORK_TIMEOUT, on)
+            .run_streaming(self.path, &args, NETWORK_TIMEOUT, cancel, on)
             .await?;
         Ok(())
     }
@@ -1100,6 +1136,124 @@ impl Repo<'_> {
         let scope = if global { "--global" } else { "--local" };
         self.write(["config", scope, "user.name", name]).await?;
         self.write(["config", scope, "user.email", email]).await?;
+        Ok(())
+    }
+
+    // ---------- integrating changes ----------
+
+    async fn is_merge_commit(&self, hash: &str) -> AppResult<bool> {
+        let parents = self
+            .read(["rev-list", "--parents", "-n", "1", hash])
+            .await?;
+        Ok(parents.split_whitespace().count() > 2)
+    }
+
+    /// Merges `branch` into the current branch. Stops (without committing) on conflicts.
+    pub async fn merge(&self, branch: &str) -> AppResult<()> {
+        let b = v::revision(branch)?;
+        self.write(["merge", "--no-edit", b]).await?;
+        Ok(())
+    }
+
+    /// Rebases the current branch onto `onto`. Rewrites the current branch's commits.
+    pub async fn rebase(&self, onto: &str) -> AppResult<()> {
+        let o = v::revision(onto)?;
+        let st = self.status().await?;
+        if st.branch.detached || st.branch.unborn {
+            return Err(AppError::invalid(
+                "Switch to a branch with commits before rebasing.",
+            ));
+        }
+        self.write(["rebase", o]).await?;
+        Ok(())
+    }
+
+    /// Applies one commit on top of the current branch. Merge commits use their first parent.
+    pub async fn cherry_pick(&self, hash: &str) -> AppResult<()> {
+        let h = v::commit_hash(hash)?;
+        let mut args = vec!["cherry-pick"];
+        if self.is_merge_commit(h).await? {
+            args.extend(["-m", "1"]);
+        }
+        args.push(h);
+        self.write(args).await?;
+        Ok(())
+    }
+
+    /// Creates a new commit that undoes `hash`. Merge commits are reverted against their first parent.
+    pub async fn revert(&self, hash: &str) -> AppResult<()> {
+        let h = v::commit_hash(hash)?;
+        let mut args = vec!["revert", "--no-edit"];
+        if self.is_merge_commit(h).await? {
+            args.extend(["-m", "1"]);
+        }
+        args.push(h);
+        self.write(args).await?;
+        Ok(())
+    }
+
+    /// Continues, skips or aborts whatever multi-step operation is in progress.
+    pub async fn sequence(&self, action: SequenceAction) -> AppResult<()> {
+        let state = self.status().await?.state;
+        let cmd = match state {
+            RepoState::Rebasing => "rebase",
+            RepoState::CherryPicking => "cherry-pick",
+            RepoState::Reverting => "revert",
+            RepoState::Merging => "merge",
+            _ => {
+                return Err(AppError::invalid(
+                    "There's no merge, rebase, cherry-pick or revert in progress.",
+                ))
+            }
+        };
+        let flag = match action {
+            SequenceAction::Continue => "--continue",
+            SequenceAction::Skip => "--skip",
+            SequenceAction::Abort => "--abort",
+        };
+        if state == RepoState::Merging && action == SequenceAction::Skip {
+            return Err(AppError::invalid(
+                "A merge can't be skipped. Abort it or finish it.",
+            ));
+        }
+        self.write([cmd, flag]).await?;
+        Ok(())
+    }
+
+    /// Stages (or unstages) only the selected lines of one hunk.
+    pub async fn apply_lines(
+        &self,
+        path: &str,
+        hunk_header: &str,
+        lines: &[u32],
+        unstage: bool,
+    ) -> AppResult<()> {
+        let path = v::rel_path(path)?;
+        if lines.is_empty() {
+            return Err(AppError::invalid("Select at least one changed line."));
+        }
+        let raw = self.raw_diff(path, unstage, None).await?;
+        let patch = diff::patch_for_lines(&raw, hunk_header, lines, unstage).ok_or_else(|| {
+            AppError::new(
+                ErrorKind::InvalidInput,
+                "This change was modified since it was displayed. Refresh and try again.",
+            )
+        })?;
+        let mut args = vec!["apply", "--cached", "--recount", "--whitespace=nowarn"];
+        if unstage {
+            args.push("--reverse");
+        }
+        args.push("-");
+        self.git
+            .run(
+                self.path,
+                args,
+                RunOpts {
+                    stdin: Some(&patch),
+                    ..RunOpts::default()
+                },
+            )
+            .await?;
         Ok(())
     }
 
