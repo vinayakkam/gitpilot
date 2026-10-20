@@ -101,11 +101,11 @@ src-tauri/
 
 ## Development commands
 
-Verified in this environment (Ubuntu 24.04, Node 22, Rust 1.97) unless marked otherwise.
+Verified in session 1 on Ubuntu 24.04 (Node 22.22, Rust 1.97, git 2.43) unless marked *(unverified)*.
 
 ```bash
 npm install                        # install JS deps
-npm run tauri dev                  # run the desktop app with hot reload
+npm run tauri dev                  # run the desktop app with hot reload (not run headless; equivalent build verified)
 npm run dev                        # Vite only (UI without backend — invoke() will fail)
 npm run typecheck                  # tsc --noEmit
 npm run lint                       # eslint
@@ -116,7 +116,8 @@ cd src-tauri && cargo clippy --all-targets -- -D warnings
 cd src-tauri && cargo test         # unit + integration tests (needs git on PATH); regenerates bindings
 npm run tauri build                # release build + bundles for the current OS
 npm run tauri build -- --bundles appimage,deb   # Linux packages
-npm run tauri build -- --bundles nsis,msi       # Windows installers (must run on Windows)
+npm run tauri build -- --bundles nsis,msi       # Windows installers — must run on Windows (unverified)
+npm run tauri build -- --debug --no-bundle      # debug binary with embedded frontend (used for QA)
 ```
 
 Linux build deps (Debian/Ubuntu): `libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
@@ -147,8 +148,13 @@ libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev build-essential file`.
 
 ## Current implementation state
 
-See `DEVELOPMENT.md` → "Feature tracker" and "Current implementation details" for the
-authoritative, up-to-date status. Summary is kept there to avoid two diverging copies.
+See `DEVELOPMENT.md` → "Feature tracker", "Current implementation details" and "Known issues" for
+the authoritative status. In short (end of session 1): all core features are implemented and verified
+on Linux; Linux deb/AppImage build; Windows has never been built; AI providers were not called live;
+partial staging is hunk-level only; no cancellation for network operations; no CI.
+
+Environment notes: `cargo test`/`cargo clippy` rebuild `target/debug/gitpilot` in dev-server mode (it
+loads http://localhost:1420), so for manual runs use `npm run tauri dev` or a `tauri build` output.
 
 Key decisions:
 - Repo ids instead of paths across IPC (security boundary).
