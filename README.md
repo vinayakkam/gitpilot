@@ -25,6 +25,8 @@ Available now:
 
 ## Install
 
+Step-by-step instructions for Windows, CachyOS/Arch and Debian/Ubuntu are in [INSTALL.md](INSTALL.md).
+
 ### Linux
 
 Download from your build (see below):

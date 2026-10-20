@@ -32,8 +32,8 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 - [x] Error handling and safety (classified errors, plain messages + technical details, confirmations + backend flags)
 - [x] Automated tests (Rust 64 unit + 9 integration on temp repos; frontend 24 vitest)
 - [~] UI polish and visual QA (all main screens inspected on Linux/Xvfb, light + dark, min size; no screen-reader testing)
-- [ ] Windows packaging (config present: NSIS + MSI targets; never built)
-- [x] Linux packaging (deb 5.1 MB and AppImage 80 MB built; AppImage launched)
+- [-] Windows packaging (MSI + NSIS configured; GitHub Actions workflow `.github/workflows/build-installers.yml` builds them on windows-latest; workflow not yet run)
+- [x] Linux packaging (deb 5.1 MB and AppImage 80 MB built; AppImage launched; Arch/CachyOS `gitpilot-bin` package built with makepkg from `packaging/arch/PKGBUILD` — not yet installed on a real Arch system)
 - [~] Documentation and release preparation (README, CLAUDE.md, this file; no signing, no CI)
 
 ## Work log
@@ -80,6 +80,13 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 first-run welcome; repositories page incl. missing folder; changes (staged deletion, D/A pair, two-hunk edit, untracked `.env.local`); unified + split diff; staging one hunk via UI then committing with `Ctrl+Enter` (verified with `git log --stat`: only that hunk committed, untracked files untouched); push rejected on diverged branch (plain explanation shown); discard confirmation for an untracked file; branch picker; history with author ≠ committer, merge commit, tag; branches; remotes; overview; assistant; command palette (file + commit search); settings (appearance, AI with keychain unavailable); dark theme; 900×580.
 
 **Important decisions:** see CLAUDE.md "Key decisions". Additionally: AI default model `claude-haiku-5-5` (user-editable); Claude Code launched via terminal emulator on Linux and `CREATE_NEW_CONSOLE` on Windows (no shell, so prompts can't inject commands).
+
+### Session 2 — 2026-10-20
+- Objective: Windows MSI and a CachyOS package, with install instructions.
+- Windows target still can't be downloaded here (network allowlist), so added `.github/workflows/build-installers.yml`: builds MSI + NSIS on `windows-latest` (Rust tests run but don't block the installer), deb + AppImage + Arch package on `ubuntu-24.04`, and publishes a GitHub Release on `v*` tags. YAML validated locally; workflow not run yet.
+- Added `packaging/arch/PKGBUILD` (`gitpilot-bin`, repackages the .deb; pinned sha256). Built `gitpilot-bin-0.1.0-1-x86_64.pkg.tar.zst` with makepkg 6.0.2 on Ubuntu; contents and metadata inspected. Binary needs glibc ≥ 2.39 (CachyOS ships newer).
+- Added `INSTALL.md`.
+- Next: run the workflow, test the MSI on Windows, and `pacman -U` the package on CachyOS.
 
 ## Current implementation details
 
