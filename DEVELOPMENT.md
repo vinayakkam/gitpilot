@@ -20,12 +20,13 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 - [x] Git status integration (porcelain v2, renames, conflicts, unborn, detached, merge/rebase state)
 - [x] Changed-file browser (groups, filter, multi-select, keyboard, context menu)
 - [x] Diff viewer (unified/split, highlighting, virtualization, binary/empty/rename/mode/CRLF/conflict views)
-- [x] Staging and unstaging (files, all, **hunks** via `git apply --cached`) — line-level staging not implemented
+- [x] Staging and unstaging (files, all, hunks, and **individual lines** via `git apply --cached --recount`)
 - [x] Commit creation (multiline via stdin, identity check, hooks/signing errors surfaced, never auto-stages)
 - [x] Commit history (paging, search, file history, details, per-file diffs, copy)
 - [x] Branch management (create/switch/rename/delete with merged check, remote checkout, compare, upstream, stashes)
 - [x] Remote management (add/edit/remove, credential redaction, `ext::` blocked)
-- [x] Fetch, pull, and push (progress, ff-only default, publish, rejection explained, guarded force-with-lease)
+- [x] Fetch, pull, and push (progress, ff-only default, publish, rejection explained, guarded force-with-lease; fetch/push/clone cancellable)
+- [x] Merge, rebase, cherry-pick, revert with continue/skip/abort
 - [~] AI commit message generation (Anthropic + OpenAI-compatible; prompt/parsing unit-tested; **not exercised against a live API**)
 - [x] Claude Code integration (detection verified with real CLI 2.1.304; terminal launch verified with xterm + stand-in executable; prompt passed as one argv entry)
 - [x] Application settings (persisted JSON, validated; keychain for keys with env fallback)
@@ -81,6 +82,17 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 
 **Important decisions:** see CLAUDE.md "Key decisions". Additionally: AI default model `claude-haiku-5-5` (user-editable); Claude Code launched via terminal emulator on Linux and `CREATE_NEW_CONSOLE` on Windows (no shell, so prompts can't inject commands).
 
+### Session 3 — 2026-10-20 (v0.2.0)
+- Objective: fix the four limitations from the 0.1.0 release notes.
+- **Line staging:** `git/diff.rs::patch_for_lines` builds a single-hunk patch from selected line indices (forward: unselected `+` dropped, unselected `-` → context; reverse/unstage: the mirror). Deletions and additions are paired per change block so partial selections keep natural line order (found by an integration test that produced `a c B d` before the fix). Applied with `git apply --cached --recount`. UI: clickable `+`/`−` markers in `DiffViewer` (unified + split), selection limited to one hunk, Shift-click ranges, "Stage N lines" in the hunk header.
+- **Cancellation:** `runner::run_streaming` takes `Option<&Notify>`; network git runs in its own process group (Unix) and cancel sends SIGTERM to the group, waits ≤5 s, then SIGKILL (Windows: `taskkill /T`). Without the process group the ssh helper outlived git — caught by a regression test (verified the test fails without the fix). Registry in `state.rs` (`begin_cancellable`, `op_cancel` command, keys `clone` / `repo:<id>`). Cancelled clone removes the partial folder (or empties a pre-existing empty one). Pull deliberately not cancellable.
+- **Integration ops:** `merge`, `rebase` (confirmed), `cherry_pick` / `revert` (merge commits use `-m 1`), `sequence(continue|skip|abort)` (skip/abort confirmed). `GIT_EDITOR=:` so `--continue` never opens an editor. UI: Branches menu (Merge/Rebase), Compare dialog (Cherry-pick on commits only on the other branch), History (Revert), `OperationBanner` in Changes, toolbar shows "Rebase in progress" and blocks push/pull mid-operation. `useIntegrate` treats conflict stops as pauses and jumps to Changes.
+- **Signing:** workflow imports a `.pfx` from secrets `WINDOWS_CERTIFICATE` / `WINDOWS_CERTIFICATE_PASSWORD` and passes `certificateThumbprint` via `--config`; unsigned build + warning otherwise. Not exercised (no certificate). `docs/CODE_SIGNING.md` documents providers.
+- **Bug found in QA:** dialogs focused the × button on open (showModal default), so Enter closed confirm dialogs and `autoFocus` fields never got focus. Fixed in `Dialog.tsx` (`data-autofocus`), with tests.
+- Checks: tsc, eslint, vitest 31/31, cargo fmt, clippy -D warnings, cargo test 66 unit + 14 integration — all pass. Release deb/AppImage/Arch package built.
+- UI verified in the real app: paused rebase banner → resolve → Continue (git log confirmed); stage 2 of 3 lines (git diff --cached confirmed); fetch against a hanging ssh helper → Cancel (no git/ssh processes or lock files left); rebase dialog force-push acknowledgement; merge via Enter (merge commit confirmed); revert from History (revert commit confirmed).
+- Not verified: clone "Stop cloning" button by hand (backend covered by tests), cherry-pick button by hand (backend covered), Windows build of the new code, signing.
+
 ### Session 2 — 2026-10-20
 - Objective: Windows MSI and a CachyOS package, with install instructions.
 - Windows target still can't be downloaded here (network allowlist), so added `.github/workflows/build-installers.yml`: builds MSI + NSIS on `windows-latest` (Rust tests run but don't block the installer), deb + AppImage + Arch package on `ubuntu-24.04`, and publishes a GitHub Release on `v*` tags. YAML validated locally; workflow not run yet.
@@ -92,13 +104,13 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 
 - **Status refresh:** on window focus, after every operation, and manually (F5 / Ctrl+R / toolbar). No filesystem watcher.
 - **Operations:** one at a time per window (`run()` in the store); per-repo async mutex in the backend for mutating commands.
-- **Timeouts:** local git 120 s; network 15 min. No user cancellation yet.
+- **Timeouts:** local git 120 s; network 15 min. Fetch/push/clone can be cancelled; pull can't (stopping mid-merge could leave a half-updated tree).
 - **File list:** not virtualized (diff is). Thousands of changed files will render slowly.
 - **Syntax highlighting:** per line with highlight.js (24 languages); multi-line constructs may be mis-colored.
-- **Partial staging:** hunk-level only. Backend regenerates the diff and matches the hunk header byte-exactly; refuses if the hunk changed.
+- **Partial staging:** hunks and lines. Backend regenerates the diff and matches the hunk header byte-exactly; refuses if the hunk changed. Line selections are per hunk.
 - **Discard:** tracked → backup copy in `<app_data>/discard-backups/<ms-timestamp>/` then `git restore --worktree`; untracked → OS trash, only after `git ls-files --others` confirms they're untracked.
 - **Conflicts:** shown with ours/theirs regions; "Mark as resolved" stages. "Stage everything" deliberately skips conflicted files.
-- **Rebase/cherry-pick/revert in progress:** detected and explained; continue/abort must be done in a terminal.
+- **Merge/rebase/cherry-pick/revert:** started from the UI or a terminal; Continue/Skip/Abort in the Changes banner. Interactive rebase not supported.
 - **AI:** off by default; requires privacy acknowledgement; staged diff only, sensitive file patterns excluded, 48 k char cap; errors never replaced with fabricated output.
 - **Keychain:** Linux Secret Service via `keyring` (sync-secret-service + crypto-rust); in headless/no-DBus environments the UI shows the env-var fallback.
 - **Accessibility:** labels on icon buttons, tooltips, roles for lists/menus/dialogs, keyboard navigation, focus rings, non-color status. Not tested with a screen reader.
@@ -111,7 +123,6 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 4. **Detection of a hanging `claude --version`** waits up to 10 s before the Assistant enables its launch button.
 5. **Native `title` tooltips** on file rows render as GTK tooltips (black) and can cover the next row.
 6. **Sidebar doesn't auto-collapse** at narrow widths (user can collapse it).
-7. **Clone can't be cancelled** from the dialog.
 8. **No CI** configured.
 
 ## Next-session handoff

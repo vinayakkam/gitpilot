@@ -27,7 +27,15 @@ export function Dialog({ open, onClose, title, description, children, footer, wi
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
-    if (open && !d.open) d.showModal();
+    if (open && !d.open) {
+      d.showModal();
+      // showModal() focuses the first focusable element (the close button). Move focus to the
+      // control marked with autoFocus instead, or to the first field, so Enter does the right thing.
+      const target =
+        d.querySelector<HTMLElement>("[data-autofocus]") ??
+        d.querySelector<HTMLElement>("input:not([type=hidden]):not([disabled]):not([readonly]), textarea:not([disabled]), select:not([disabled])");
+      target?.focus();
+    }
     if (!open && d.open) d.close();
   }, [open]);
 

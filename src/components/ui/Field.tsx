@@ -7,7 +7,7 @@ const control =
   "disabled:opacity-60 aria-[invalid=true]:border-danger";
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input({ className, ...rest }, ref) {
-  return <input ref={ref} spellCheck={false} className={cx(control, "h-7", className)} {...rest} />;
+  return <input ref={ref} spellCheck={false} data-autofocus={rest.autoFocus ? "" : undefined} className={cx(control, "h-7", className)} {...rest} />;
 });
 
 export const TextArea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function TextArea(

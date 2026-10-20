@@ -780,19 +780,32 @@ async fn cancelled_clone_leaves_nothing_behind() {
 async fn cancelling_a_hanging_fetch_stops_git_and_its_helpers() {
     let g = git();
     let (_d, root) = new_repo(&g).await;
-    let r = Repo { git: &g, path: &root };
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
     let marker = format!("gp-cancel-probe-{}", std::process::id());
     // A fake ssh that never answers. The marker in its argv lets us find it afterwards.
     let script = root.join(".git").join("fake-ssh.sh");
     // Copy `sleep` under a unique name so the helper can be found by its process name.
     let sleeper = root.join(".git").join(&marker);
     std::fs::copy(which_sleep(), &sleeper).unwrap();
-    std::fs::write(&script, format!("#!/bin/sh\nexec {} 300\n", sleeper.display())).unwrap();
+    std::fs::write(
+        &script,
+        format!("#!/bin/sh\nexec {} 300\n", sleeper.display()),
+    )
+    .unwrap();
     std::fs::set_permissions(&script, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
-    g.run(&root, ["config", "core.sshCommand", script.to_str().unwrap()], Default::default())
+    g.run(
+        &root,
+        ["config", "core.sshCommand", script.to_str().unwrap()],
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    r.remote_add("slow", "ssh://git@slow.invalid/x.git")
         .await
         .unwrap();
-    r.remote_add("slow", "ssh://git@slow.invalid/x.git").await.unwrap();
 
     let cancel = std::sync::Arc::new(tokio::sync::Notify::new());
     let c2 = cancel.clone();
@@ -801,12 +814,18 @@ async fn cancelling_a_hanging_fetch_stops_git_and_its_helpers() {
         c2.notify_one();
     });
     let started = std::time::Instant::now();
-    let err = r.fetch(Some("slow"), Some(&cancel), |_| {}).await.unwrap_err();
+    let err = r
+        .fetch(Some("slow"), Some(&cancel), |_| {})
+        .await
+        .unwrap_err();
     assert_eq!(err.kind, ErrorKind::Cancelled);
     assert!(started.elapsed() < std::time::Duration::from_secs(10));
 
     tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-    let ps = std::process::Command::new("ps").args(["-eo", "args"]).output().unwrap();
+    let ps = std::process::Command::new("ps")
+        .args(["-eo", "args"])
+        .output()
+        .unwrap();
     let leftover = String::from_utf8_lossy(&ps.stdout)
         .lines()
         .any(|l| l.contains(&marker));

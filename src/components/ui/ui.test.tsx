@@ -36,3 +36,28 @@ describe("DiffViewer", () => {
     expect(screen.getByText("Select a file")).toBeInTheDocument();
   });
 });
+
+describe("Dialog focus", () => {
+  beforeAll(() => {
+    HTMLDialogElement.prototype.showModal = function () {
+      this.setAttribute("open", "");
+      // Mimic the browser: focus the first focusable element (the close button).
+      this.querySelector<HTMLElement>("button")?.focus();
+    };
+    HTMLDialogElement.prototype.close = function () {
+      this.removeAttribute("open");
+    };
+  });
+
+  it("focuses the confirm button, not the close button, so Enter confirms", async () => {
+    const { ConfirmDialog } = await import("./Dialog");
+    render(<ConfirmDialog open onClose={() => {}} title="Merge?" confirmLabel="Merge" onConfirm={() => {}} />);
+    expect(screen.getByRole("button", { name: "Merge" })).toHaveFocus();
+  });
+
+  it("focuses Cancel for destructive confirmations", async () => {
+    const { ConfirmDialog } = await import("./Dialog");
+    render(<ConfirmDialog open danger onClose={() => {}} title="Delete?" confirmLabel="Delete" onConfirm={() => {}} />);
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+  });
+});

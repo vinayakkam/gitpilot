@@ -151,15 +151,18 @@ libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev build-essential file`.
 See `DEVELOPMENT.md` → "Feature tracker", "Current implementation details" and "Known issues" for
 the authoritative status. In short (end of session 1): all core features are implemented and verified
 on Linux; Linux deb/AppImage build; Windows has never been built; AI providers were not called live;
-partial staging is hunk-level only; no cancellation for network operations; no CI.
+see DEVELOPMENT.md for what's verified per release.
 
 Environment notes: `cargo test`/`cargo clippy` rebuild `target/debug/gitpilot` in dev-server mode (it
 loads http://localhost:1420), so for manual runs use `npm run tauri dev` or a `tauri build` output.
 
 Key decisions:
 - Repo ids instead of paths across IPC (security boundary).
-- Hunk-level (not line-level) partial staging, done with `git apply --cached` on patches
-  the backend regenerates itself, byte-exact (frontend only sends the hunk header to identify it).
+- Hunk- and line-level partial staging with `git apply --cached [--recount]` on patches the
+  backend regenerates itself, byte-exact (frontend sends the hunk header + selected line indices).
+- Network git (clone/fetch/push) runs in its own process group so cancellation stops helpers too.
+- `GIT_EDITOR=:` for every git call: GitPilot never opens an editor.
+- Dialogs: use `autoFocus` on the intended control; `Dialog` moves focus there after `showModal()`.
 - Discarding untracked files moves them to the OS trash; discarding tracked changes first
   copies the current file to `<app_data_dir>/discard-backups/<timestamp>/`.
 - Pull defaults to `--ff-only`; merge/rebase are explicit settings.

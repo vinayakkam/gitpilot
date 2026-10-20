@@ -90,7 +90,13 @@ export function BranchesView() {
       ? []
       : [
           { type: "separator" },
-          { label: `Merge into ${current ?? "current branch"}…`, icon: <GitMerge size={14} />, disabled: !canIntegrate, onSelect: () => setPending({ kind: "merge", b }) },
+          {
+            label: `Merge into ${current ?? "current branch"}…`,
+            icon: <GitMerge size={14} />,
+            hint: b.merged ? "already merged" : undefined,
+            disabled: !canIntegrate || b.merged === true,
+            onSelect: () => setPending({ kind: "merge", b }),
+          },
           { label: `Rebase ${current ?? "current branch"} onto this…`, icon: <GitPullRequestArrow size={14} />, disabled: !canIntegrate, onSelect: () => setPending({ kind: "rebase", b }) },
         ];
 
