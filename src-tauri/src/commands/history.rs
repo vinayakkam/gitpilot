@@ -1,11 +1,18 @@
 use tauri::State;
 
+<<<<<<< HEAD
 use super::changes::{repo, require_confirmation};
+=======
+use super::changes::repo;
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 use super::ctx;
 use crate::error::AppResult;
 use crate::git::diff::FileDiff;
 use crate::git::log::{CommitDetail, LogPage, LogQuery};
+<<<<<<< HEAD
 use crate::git::repo::SequenceAction;
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 use crate::git::Repo;
 use crate::state::AppState;
 
@@ -36,6 +43,7 @@ pub async fn commit_diff_file(
     repo!(state, id, git, root, r);
     r.commit_file_diff(&hash, &path, orig_path.as_deref()).await
 }
+<<<<<<< HEAD
 
 #[tauri::command]
 pub async fn commit_revert(state: State<'_, AppState>, id: i64, hash: String) -> AppResult<()> {
@@ -96,3 +104,5 @@ pub async fn sequence_run(
     repo!(state, id, git, root, r);
     r.sequence(action).await
 }
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854

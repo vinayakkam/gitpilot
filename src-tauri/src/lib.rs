@@ -9,7 +9,10 @@ pub mod git;
 pub mod secrets;
 pub mod settings;
 pub mod state;
+<<<<<<< HEAD
 pub mod updates;
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 
 use tauri::Manager;
 
@@ -19,8 +22,11 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
+<<<<<<< HEAD
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
         .setup(|app| {
             let data = app.path().app_data_dir()?;
             let config = app.path().app_config_dir()?;
@@ -36,7 +42,10 @@ pub fn run() {
             commands::app::secret_status,
             commands::app::secret_set,
             commands::app::secret_clear,
+<<<<<<< HEAD
             commands::app::update_support,
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
             commands::repos::repo_list,
             commands::repos::repo_inspect_path,
             commands::repos::repo_add,
@@ -59,6 +68,7 @@ pub fn run() {
             commands::changes::identity_get,
             commands::changes::identity_set,
             commands::changes::files_search,
+<<<<<<< HEAD
             commands::changes::lines_apply,
             commands::history::log_get,
             commands::history::commit_get,
@@ -68,6 +78,11 @@ pub fn run() {
             commands::history::branch_merge,
             commands::history::branch_rebase,
             commands::history::sequence_run,
+=======
+            commands::history::log_get,
+            commands::history::commit_get,
+            commands::history::commit_diff_file,
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
             commands::branches::branch_list,
             commands::branches::branch_create,
             commands::branches::branch_switch,
@@ -88,7 +103,10 @@ pub fn run() {
             commands::remotes::sync_fetch,
             commands::remotes::sync_pull,
             commands::remotes::sync_push,
+<<<<<<< HEAD
             commands::remotes::op_cancel,
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
             commands::assist::ai_suggest_commit,
             commands::assist::claude_detect,
             commands::assist::claude_launch,

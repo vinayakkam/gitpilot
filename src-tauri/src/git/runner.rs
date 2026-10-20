@@ -10,7 +10,10 @@ use std::time::Duration;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
+<<<<<<< HEAD
 use tokio::sync::Notify;
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 
 use super::errors::classify;
 use crate::error::{AppError, AppResult, ErrorKind};
@@ -84,8 +87,11 @@ impl Git {
             .env("GIT_LITERAL_PATHSPECS", "1")
             .env("GIT_PAGER", "cat")
             .env("GIT_MERGE_AUTOEDIT", "no")
+<<<<<<< HEAD
             // ":" tells git not to launch an editor (rebase/cherry-pick/revert --continue keep the prepared message).
             .env("GIT_EDITOR", ":")
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
             .env("LC_ALL", "C")
             .env("LANGUAGE", "C")
             .stdout(Stdio::piped())
@@ -168,15 +174,21 @@ impl Git {
 
     /// Runs git, streaming progress lines (split on `\r` and `\n`) from stderr to `on_line`.
     /// Used for clone/fetch/pull/push so the UI can show progress.
+<<<<<<< HEAD
     ///
     /// When `cancel` is notified, git is asked to stop (SIGTERM on Unix, so it can remove its own
     /// lock files), given a few seconds, then killed. The result is an `ErrorKind::Cancelled` error.
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
     pub async fn run_streaming<I, S, F>(
         &self,
         cwd: &Path,
         args: I,
         timeout: Duration,
+<<<<<<< HEAD
         cancel: Option<&Notify>,
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
         mut on_line: F,
     ) -> AppResult<Output>
     where
@@ -186,11 +198,15 @@ impl Git {
     {
         let mut cmd = self.command(cwd, false);
         cmd.args(args).stdin(Stdio::null());
+<<<<<<< HEAD
         // Own process group, so cancelling also stops helpers git starts (ssh, credential helpers).
         #[cfg(unix)]
         cmd.process_group(0);
         let mut child = cmd.spawn().map_err(|e| spawn_error(&self.exe, e))?;
         let pid = child.id();
+=======
+        let mut child = cmd.spawn().map_err(|e| spawn_error(&self.exe, e))?;
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
         let mut stderr = child
             .stderr
             .take()
@@ -237,6 +253,7 @@ impl Git {
             let stdout = stdout_task.await.unwrap_or_default();
             Ok::<_, std::io::Error>((status, stdout, all))
         };
+<<<<<<< HEAD
         tokio::pin!(work);
 
         let result = tokio::select! {
@@ -258,6 +275,18 @@ impl Git {
             }
         };
         let (status, stdout, stderr_bytes) = result;
+=======
+
+        let (status, stdout, stderr_bytes) = match tokio::time::timeout(timeout, work).await {
+            Ok(r) => r.map_err(AppError::from)?,
+            Err(_) => {
+                return Err(AppError::new(
+                    ErrorKind::Timeout,
+                    "The network operation took too long and was stopped.",
+                ))
+            }
+        };
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
         let code = status.code().unwrap_or(-1);
         let output = Output {
             stdout,
@@ -272,6 +301,7 @@ impl Git {
     }
 }
 
+<<<<<<< HEAD
 /// Resolves when `cancel` is notified; never resolves when there is no cancel handle.
 async fn wait_for(cancel: Option<&Notify>) {
     match cancel {
@@ -308,6 +338,8 @@ fn terminate(pid: Option<u32>, force: bool) {
     let _ = (pid, force);
 }
 
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 fn spawn_error(exe: &Path, e: std::io::Error) -> AppError {
     if e.kind() == std::io::ErrorKind::NotFound {
         AppError::new(

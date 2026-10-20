@@ -191,8 +191,12 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         return out;
       } catch (e) {
         const err = toAppError(e);
+<<<<<<< HEAD
         if (err.kind === "cancelled") notify({ tone: "info", title: `${label} cancelled` });
         else if (!opts.quiet) notify({ tone: "error", title: `${label} failed`, error: err });
+=======
+        if (!opts.quiet) notify({ tone: "error", title: `${label} failed`, error: err });
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
         if (opts.rethrow) throw err;
         return undefined;
       } finally {

@@ -4,24 +4,38 @@ A desktop Git manager for Windows and Linux. GitPilot shows exactly what changed
 
 Built with Tauri 2 (Rust) and React. It runs your installed `git` executable; nothing is simulated.
 
+<<<<<<< HEAD
 > Status: early development (v0.1.0). Linux is built and tested. Windows installers are built by the GitHub Actions workflow — see [Known limitations](#known-limitations).
+=======
+> Status: early development (v0.1.0). Linux is built and tested. **Windows has not been built or tested yet** — see [Known limitations](#known-limitations).
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 
 ## Features
 
 Available now:
 
 - **Repositories** — open, clone (HTTPS/SSH, with progress) or create repositories; switch between many; detects moved/deleted folders and lets you locate them again. Removing a repository from GitPilot never touches its files.
+<<<<<<< HEAD
 - **Changes** — staged, unstaged, new and conflicted files in separate groups, with letter + color status markers. Stage/unstage files, selections or everything, **individual hunks, or individual lines** (real `git apply --cached` patches, CRLF-safe).
+=======
+- **Changes** — staged, unstaged, new and conflicted files in separate groups, with letter + color status markers. Stage/unstage files, selections or everything; **stage or unstage individual hunks** (real `git apply --cached` patches, CRLF-safe).
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 - **Discard safely** — always confirmed. Tracked files are backed up to GitPilot's data folder before being restored; new files go to the system trash.
 - **Diff viewer** — unified and side-by-side, syntax highlighting for ~25 languages, line numbers, virtualized rendering for large diffs, binary/empty/rename/mode-change/line-ending/conflict handling. Read-only.
 - **Commits** — summary + description, 72-character guidance, optional Conventional Commits hints, `Ctrl+Enter`, clear errors for missing identity, hooks, signing, locks. Never auto-stages, never bypasses hooks or signing.
 - **History** — paged commit list, search by message, `author:name` or hash, per-file history, commit details (author vs. committer, parents, merge commits compared to first parent), per-file diffs, copy hash/message.
 - **Branches** — local and remote-tracking branches with upstream ahead/behind, merged status, create/switch/rename/delete, check out remote branches, compare branches, set/unset upstream, stashes. Switching with uncommitted changes asks whether to bring them along or stash first.
+<<<<<<< HEAD
 - **Merge, rebase, cherry-pick, revert** — from Branches, Compare and History, with Continue / Skip / Abort when Git pauses for conflicts. Rebasing a published branch asks for explicit acknowledgement.
 - **Remotes & sync** — add/edit/remove remotes (any Git host), fetch/pull/push with progress (fetch, push and clone can be cancelled), publish new branches, sync status that distinguishes up to date / ahead / behind / diverged / never fetched / no upstream. Pull is fast-forward-only by default. Force push exists only as an advanced, double-confirmed `--force-with-lease`.
 - **AI commit messages (optional, off by default)** — Anthropic Claude API or any OpenAI-compatible API (OpenAI, Ollama, LM Studio…). Sends only the staged diff, skips files that look like secrets, never commits for you.
 - **Claude Code** — detects the `claude` CLI, opens it in a terminal in the repository, with prompt templates filled from real repository context (branch, counts, file names, recent commits).
 - **Updates in place** — checks GitHub Releases and installs signed updates without uninstalling (Windows installers, AppImage, .deb). See [docs/UPDATES.md](docs/UPDATES.md).
+=======
+- **Remotes & sync** — add/edit/remove remotes (any Git host), fetch/pull/push with progress, publish new branches, sync status that distinguishes up to date / ahead / behind / diverged / never fetched / no upstream. Pull is fast-forward-only by default. Force push exists only as an advanced, double-confirmed `--force-with-lease`.
+- **AI commit messages (optional, off by default)** — Anthropic Claude API or any OpenAI-compatible API (OpenAI, Ollama, LM Studio…). Sends only the staged diff, skips files that look like secrets, never commits for you.
+- **Claude Code** — detects the `claude` CLI, opens it in a terminal in the repository, with prompt templates filled from real repository context (branch, counts, file names, recent commits).
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 - **Command palette** (`Ctrl+K`) — actions, branches, repositories, file history and commit search.
 - Light, dark and system themes; comfortable/compact density; keyboard navigation throughout.
 
@@ -102,6 +116,7 @@ GitPilot finds `claude` on `PATH` or in common install locations (`~/.local/bin`
 
 ## Known limitations
 
+<<<<<<< HEAD
 - Windows: installers are built on GitHub's Windows machines but haven't been hands-on tested on a Windows PC yet.
 - Installers are unsigned until a code-signing certificate is configured — see [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md). Until then Windows shows a SmartScreen warning.
 - macOS is not a target.
@@ -110,6 +125,16 @@ GitPilot finds `claude` on `PATH` or in common install locations (`~/.local/bin`
 - Status refreshes on window focus and after operations; there's no file watcher.
 - No commit graph visualization.
 - The AI integration hasn't been exercised against a live provider yet.
+=======
+- Windows: not built, not run, and Windows-only code paths are not compiled in CI yet.
+- macOS is not a target.
+- Partial staging works per hunk, not per line.
+- Clone/fetch/pull/push can't be cancelled (they time out after 15 minutes).
+- Rebase, cherry-pick, revert and reset aren't available in the UI; continuing/aborting a rebase must be done in a terminal (GitPilot detects and explains the state).
+- Status refreshes on window focus and after operations; there's no file watcher.
+- No commit graph visualization.
+- The AI integration hasn't been exercised against a live provider in this build.
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 
 ## Security and privacy
 

@@ -19,6 +19,7 @@ export interface HunkAction {
   run: (hunk: Hunk) => void;
 }
 
+<<<<<<< HEAD
 /** Stage/unstage individual lines: `lines` are indices into `hunk.lines`. */
 export interface LineAction {
   label: (count: number) => string;
@@ -35,6 +36,8 @@ interface Pick {
   toggle: (hi: number, li: number, range: boolean) => void;
 }
 
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 interface Props {
   diff: FileDiff | null;
   loading?: boolean;
@@ -43,17 +46,27 @@ interface Props {
   onModeChange: (m: DiffMode) => void;
   highlight: boolean;
   hunkAction?: HunkAction;
+<<<<<<< HEAD
   lineAction?: LineAction;
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
   busy?: boolean;
   emptyTitle?: string;
   emptyBody?: string;
 }
 
+<<<<<<< HEAD
 type Ref = { line: DiffLine; li: number };
 type Row =
   | { t: "hunk"; hunk: Hunk; hi: number; key: string }
   | { t: "line"; line: DiffLine; hi: number; li: number; key: string }
   | { t: "pair"; left: Ref | null; right: Ref | null; hi: number; key: string };
+=======
+type Row =
+  | { t: "hunk"; hunk: Hunk; key: string }
+  | { t: "line"; line: DiffLine; key: string }
+  | { t: "pair"; left: DiffLine | null; right: DiffLine | null; key: string };
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 
 const LINE_H = 20;
 const HUNK_H = 30;
@@ -61,9 +74,15 @@ const HUNK_H = 30;
 function buildRows(diff: FileDiff, mode: DiffMode): Row[] {
   const rows: Row[] = [];
   diff.hunks.forEach((h, hi) => {
+<<<<<<< HEAD
     if (h.header) rows.push({ t: "hunk", hunk: h, hi, key: `h${hi}` });
     if (mode === "unified" || diff.conflictView) {
       h.lines.forEach((l, li) => rows.push({ t: "line", line: l, hi, li, key: `${hi}:${li}` }));
+=======
+    if (h.header) rows.push({ t: "hunk", hunk: h, key: `h${hi}` });
+    if (mode === "unified" || diff.conflictView) {
+      h.lines.forEach((l, li) => rows.push({ t: "line", line: l, key: `${hi}:${li}` }));
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
       return;
     }
     // Side-by-side: pair each run of deletions with the following run of additions.
@@ -72,6 +91,7 @@ function buildRows(diff: FileDiff, mode: DiffMode): Row[] {
     while (i < L.length) {
       const l = L[i]!;
       if (l.kind === "context" || l.kind === "noNewline") {
+<<<<<<< HEAD
         rows.push({ t: "pair", left: { line: l, li: i }, right: { line: l, li: i }, hi, key: `${hi}:${i}` });
         i++;
         continue;
@@ -80,12 +100,26 @@ function buildRows(diff: FileDiff, mode: DiffMode): Row[] {
       const adds: Ref[] = [];
       while (i < L.length && L[i]!.kind === "del") dels.push({ line: L[i]!, li: i++ });
       while (i < L.length && L[i]!.kind === "add") adds.push({ line: L[i]!, li: i++ });
+=======
+        rows.push({ t: "pair", left: l, right: l, key: `${hi}:${i}` });
+        i++;
+        continue;
+      }
+      const dels: DiffLine[] = [];
+      const adds: DiffLine[] = [];
+      while (i < L.length && L[i]!.kind === "del") dels.push(L[i++]!);
+      while (i < L.length && L[i]!.kind === "add") adds.push(L[i++]!);
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
       if (!dels.length && !adds.length) {
         i++;
         continue;
       }
       const n = Math.max(dels.length, adds.length);
+<<<<<<< HEAD
       for (let k = 0; k < n; k++) rows.push({ t: "pair", left: dels[k] ?? null, right: adds[k] ?? null, hi, key: `${hi}:${i}:${k}` });
+=======
+      for (let k = 0; k < n; k++) rows.push({ t: "pair", left: dels[k] ?? null, right: adds[k] ?? null, key: `${hi}:${i}:${k}` });
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
     }
   });
   return rows;
@@ -107,6 +141,7 @@ const Code = memo(function Code({ text, lang }: { text: string; lang: string | n
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
 });
 
+<<<<<<< HEAD
 function LineCells({
   line,
   lang,
@@ -132,6 +167,14 @@ function LineCells({
   const no = side === "left" ? line.oldNo : side === "right" ? line.newNo : null;
   return (
     <div className={cx("flex min-h-5 min-w-0 flex-1", t.row, selected && "shadow-[inset_3px_0_0_var(--accent)]")}>
+=======
+function LineCells({ line, lang, showEol, side }: { line: DiffLine | null; lang: string | null; showEol: boolean; side?: "left" | "right" }) {
+  if (!line) return <div className="min-h-5 flex-1 bg-surface-2/50" />;
+  const t = tone[line.kind];
+  const no = side === "left" ? line.oldNo : side === "right" ? line.newNo : null;
+  return (
+    <div className={cx("flex min-h-5 min-w-0 flex-1", t.row)}>
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
       {side ? (
         <span className={cx("w-12 shrink-0 select-none pr-2 text-right", t.gutter)}>{no ?? ""}</span>
       ) : (
@@ -140,6 +183,7 @@ function LineCells({
           <span className={cx("w-11 shrink-0 select-none pr-2 text-right", t.gutter)}>{line.newNo ?? ""}</span>
         </>
       )}
+<<<<<<< HEAD
       {selectable ? (
         <button
           type="button"
@@ -160,6 +204,11 @@ function LineCells({
           {t.sign}
         </span>
       )}
+=======
+      <span className={cx("w-5 shrink-0 select-none text-center", t.gutter.replace(/bg-\S+/g, ""))} aria-hidden>
+        {t.sign}
+      </span>
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
       <span className={cx("selectable pr-4", side ? "min-w-0 flex-1 whitespace-pre-wrap break-all" : "whitespace-pre", line.kind === "noNewline" && "italic text-faint")}>
         {line.kind === "noNewline" ? "No newline at end of file" : <Code text={line.content} lang={lang} />}
         {showEol && line.crlf && (
@@ -172,6 +221,7 @@ function LineCells({
   );
 }
 
+<<<<<<< HEAD
 export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight, hunkAction, lineAction, busy, emptyTitle, emptyBody }: Props) {
   const [sel, setSel] = useState<Selection>(null);
   // A new diff (after staging, or another file) invalidates line indices.
@@ -195,6 +245,9 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
       });
     },
   };
+=======
+export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight, hunkAction, busy, emptyTitle, emptyBody }: Props) {
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
   const scrollRef = useRef<HTMLDivElement>(null);
   const path = diff?.newPath ?? diff?.oldPath ?? null;
   const lang = highlight ? languageFor(path) : null;
@@ -288,6 +341,7 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
                   <div className="sticky left-0 flex h-full items-center gap-3 pl-3 pr-2" style={{ width: viewportW || "100%" }}>
                     <span className="shrink-0 whitespace-nowrap font-mono text-xs text-faint">{r.hunk.header.match(/^@@[^@]*@@/)?.[0]}</span>
                     <span className="min-w-0 flex-1 truncate font-mono text-xs">{r.hunk.section}</span>
+<<<<<<< HEAD
                     {lineAction && diff.hunkActions && sel?.hunk === r.hi ? (
                       <>
                         <Button size="sm" variant="ghost" disabled={busy} onClick={() => setSel(null)} className="shrink-0">
@@ -311,6 +365,12 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
                           {hunkAction.label}
                         </Button>
                       )
+=======
+                    {hunkAction && diff.hunkActions && (
+                      <Button size="sm" variant="ghost" icon={hunkAction.icon} disabled={busy} onClick={() => hunkAction.run(r.hunk)} className="shrink-0">
+                        {hunkAction.label}
+                      </Button>
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
                     )}
                   </div>
                 </div>
@@ -318,16 +378,27 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
             if (r.t === "line")
               return (
                 <div key={r.key} style={style} {...measure} className="flex">
+<<<<<<< HEAD
                   <LineCells line={r.line} lang={lang} showEol={mixedEol} hi={r.hi} li={r.li} pick={pick} />
+=======
+                  <LineCells line={r.line} lang={lang} showEol={mixedEol} />
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
                 </div>
               );
             return (
               <div key={r.key} style={style} {...measure} className="flex">
                 <div className="flex w-1/2 min-w-0 border-r border-border">
+<<<<<<< HEAD
                   <LineCells side="left" line={r.left?.line.kind === "add" ? null : (r.left?.line ?? null)} lang={lang} showEol={mixedEol} hi={r.hi} li={r.left?.li} pick={pick} />
                 </div>
                 <div className="flex w-1/2 min-w-0">
                   <LineCells side="right" line={r.right?.line.kind === "del" ? null : (r.right?.line ?? null)} lang={lang} showEol={mixedEol} hi={r.hi} li={r.right?.li} pick={pick} />
+=======
+                  <LineCells side="left" line={r.left?.kind === "add" ? null : r.left} lang={lang} showEol={mixedEol} />
+                </div>
+                <div className="flex w-1/2 min-w-0">
+                  <LineCells side="right" line={r.right?.kind === "del" ? null : r.right} lang={lang} showEol={mixedEol} />
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
                 </div>
               </div>
             );
@@ -361,9 +432,12 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
             <span className="text-added">+{diff.additions}</span> <span className="text-removed">−{diff.deletions}</span>
           </span>
         )}
+<<<<<<< HEAD
         {pick.enabled && !sel && rows.length > 0 && (
           <span className="hidden shrink-0 text-xs text-faint lg:inline">Click + or − markers to pick lines</span>
         )}
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
         {loading && <Spinner size={12} />}
         {!diff.conflictView && (
           <Segmented
@@ -380,7 +454,11 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
       </div>
       {diff.truncated && (
         <div className="shrink-0 border-b border-border bg-warning-bg px-3 py-1.5 text-sm text-warning">
+<<<<<<< HEAD
           This diff is very large, so only the first part is shown. Hunk and line staging are disabled for it.
+=======
+          This diff is very large, so only the first part is shown. Hunk staging is disabled for it.
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
         </div>
       )}
       {diff.conflictView && !diff.deletedFile && (

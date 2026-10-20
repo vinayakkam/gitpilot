@@ -1,6 +1,10 @@
 [package]
 name = "gitpilot"
+<<<<<<< HEAD
 version = "0.2.0"
+=======
+version = "0.1.0"
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 description = "GitPilot — a desktop Git manager"
 authors = ["OLIT Technologies"]
 edition = "2021"
@@ -18,7 +22,10 @@ tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-opener = "2"
+<<<<<<< HEAD
 tauri-plugin-process = "2"
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
@@ -31,9 +38,12 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 regex = "1"
 once_cell = "1"
 
+<<<<<<< HEAD
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 [target.'cfg(target_os = "linux")'.dependencies]
 keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }
 
@@ -52,6 +62,9 @@ lto = true
 opt-level = "s"
 strip = true
 panic = "abort"
+<<<<<<< HEAD
 
 [target.'cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))'.dependencies]
 tauri-plugin-updater = "2"
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854

@@ -4,10 +4,16 @@ use std::path::{Path, PathBuf};
 use std::sync::Once;
 
 use gitpilot_lib::error::ErrorKind;
+<<<<<<< HEAD
 use gitpilot_lib::git::diff::LineKind;
 use gitpilot_lib::git::locate::locate_git;
 use gitpilot_lib::git::log::LogQuery;
 use gitpilot_lib::git::repo::{self, PullStrategy, RepoState, SequenceAction};
+=======
+use gitpilot_lib::git::locate::locate_git;
+use gitpilot_lib::git::log::LogQuery;
+use gitpilot_lib::git::repo::{self, PullStrategy, RepoState};
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 use gitpilot_lib::git::status::{Area, ChangeType};
 use gitpilot_lib::git::{Git, Repo};
 use tempfile::TempDir;
@@ -370,7 +376,11 @@ async fn remotes_push_pull_fetch_with_local_bare_remote() {
     ra.stage_all().await.unwrap();
     ra.commit("one").await.unwrap();
     // No upstream yet → push publishes and sets upstream.
+<<<<<<< HEAD
     ra.push(None, false, false, None, |_| {}).await.unwrap();
+=======
+    ra.push(None, false, false, |_| {}).await.unwrap();
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
     let st = ra.status().await.unwrap();
     assert_eq!(st.branch.upstream.as_deref(), Some("origin/main"));
     assert_eq!((st.branch.ahead, st.branch.behind), (Some(0), Some(0)));
@@ -378,18 +388,28 @@ async fn remotes_push_pull_fetch_with_local_bare_remote() {
     // Clone into a second working copy.
     let parent = tempfile::tempdir().unwrap();
     let mut lines = Vec::new();
+<<<<<<< HEAD
     let b = repo::clone(&g, &url, &parent.path().join("copy"), None, |l| {
         lines.push(l)
     })
     .await
     .unwrap();
+=======
+    let b = repo::clone(&g, &url, &parent.path().join("copy"), |l| lines.push(l))
+        .await
+        .unwrap();
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
     let rb = Repo { git: &g, path: &b };
     assert_eq!(
         rb.status().await.unwrap().branch.head.as_deref(),
         Some("main")
     );
     assert!(
+<<<<<<< HEAD
         repo::clone(&g, &url, &parent.path().join("copy"), None, |_| {})
+=======
+        repo::clone(&g, &url, &parent.path().join("copy"), |_| {})
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
             .await
             .is_err(),
         "won't clone into non-empty dir"
@@ -399,8 +419,13 @@ async fn remotes_push_pull_fetch_with_local_bare_remote() {
     write(&a, "x.txt", "1\n2\n");
     ra.stage_all().await.unwrap();
     ra.commit("two").await.unwrap();
+<<<<<<< HEAD
     ra.push(None, false, false, None, |_| {}).await.unwrap();
     rb.fetch(None, None, |_| {}).await.unwrap();
+=======
+    ra.push(None, false, false, |_| {}).await.unwrap();
+    rb.fetch(None, |_| {}).await.unwrap();
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
     let st = rb.status().await.unwrap();
     assert_eq!(st.branch.behind, Some(1));
     assert!(st.last_fetch.is_some());
@@ -414,12 +439,18 @@ async fn remotes_push_pull_fetch_with_local_bare_remote() {
     write(&a, "a.txt", "a\n");
     ra.stage_all().await.unwrap();
     ra.commit("from a").await.unwrap();
+<<<<<<< HEAD
     ra.push(None, false, false, None, |_| {}).await.unwrap();
     let err = rb.push(None, false, false, None, |_| {}).await.unwrap_err();
+=======
+    ra.push(None, false, false, |_| {}).await.unwrap();
+    let err = rb.push(None, false, false, |_| {}).await.unwrap_err();
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
     assert_eq!(err.kind, ErrorKind::PushRejected);
     // ff-only pull refuses to merge diverged history.
     assert!(rb.pull(PullStrategy::FfOnly, |_| {}).await.is_err());
     rb.pull(PullStrategy::Merge, |_| {}).await.unwrap();
+<<<<<<< HEAD
     rb.push(None, false, false, None, |_| {}).await.unwrap();
 
     // Remote branch listing and deletion.
@@ -429,6 +460,15 @@ async fn remotes_push_pull_fetch_with_local_bare_remote() {
     ra.push(Some("origin"), true, false, None, |_| {})
         .await
         .unwrap();
+=======
+    rb.push(None, false, false, |_| {}).await.unwrap();
+
+    // Remote branch listing and deletion.
+    ra.fetch(Some("origin"), |_| {}).await.unwrap();
+    ra.branch_create("topic", None, false).await.unwrap();
+    ra.branch_switch("topic").await.unwrap();
+    ra.push(Some("origin"), true, false, |_| {}).await.unwrap();
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
     assert!(ra
         .branches()
         .await
@@ -436,7 +476,11 @@ async fn remotes_push_pull_fetch_with_local_bare_remote() {
         .iter()
         .any(|b| b.is_remote && b.name == "origin/topic"));
     ra.remote_branch_delete("origin", "topic").await.unwrap();
+<<<<<<< HEAD
     ra.fetch(None, None, |_| {}).await.unwrap();
+=======
+    ra.fetch(None, |_| {}).await.unwrap();
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
     let br = ra.branches().await.unwrap();
     assert!(!br.iter().any(|b| b.is_remote && b.name == "origin/topic"));
     assert!(br.iter().find(|b| b.name == "topic").unwrap().upstream_gone);
@@ -558,6 +602,7 @@ async fn non_repository_and_missing_paths() {
         std::fs::canonicalize(d.path()).unwrap()
     );
 }
+<<<<<<< HEAD
 
 #[tokio::test]
 async fn line_level_staging_and_unstaging() {
@@ -840,3 +885,5 @@ fn which_sleep() -> std::path::PathBuf {
         .find(|p| p.exists())
         .expect("sleep binary")
 }
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854

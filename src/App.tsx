@@ -19,8 +19,11 @@ import { RepositoriesView } from "@/features/repositories/RepositoriesView";
 import { SettingsView } from "@/features/settings/SettingsView";
 import { hasMod } from "@/lib/platform";
 import { AppStoreProvider, useStore } from "@/store/AppStore";
+<<<<<<< HEAD
 import { UpdateDialog } from "@/features/updates/UpdateDialog";
 import { UpdateProvider } from "@/features/updates/UpdateProvider";
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 import { api } from "@/lib/api";
 
 function MissingRepo() {
@@ -132,7 +135,10 @@ function Shell() {
         )}
       </div>
       <CommandPalette />
+<<<<<<< HEAD
       <UpdateDialog />
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
       <Toaster />
     </div>
   );
@@ -142,9 +148,13 @@ export default function App() {
   return (
     <AppStoreProvider>
       <RepoActionsProvider>
+<<<<<<< HEAD
         <UpdateProvider>
           <Shell />
         </UpdateProvider>
+=======
+        <Shell />
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
       </RepoActionsProvider>
     </AppStoreProvider>
   );

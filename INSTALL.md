@@ -8,11 +8,19 @@ GitPilot needs **Git** installed on your computer. Everything else it needs come
 
 ### Option A — install the ready-made package (recommended)
 
+<<<<<<< HEAD
 1. Download `gitpilot-bin-0.2.0-1-x86_64.pkg.tar.zst`.
 2. Open a terminal in the folder you downloaded it to and run:
 
    ```bash
    sudo pacman -U gitpilot-bin-0.2.0-1-x86_64.pkg.tar.zst
+=======
+1. Download `gitpilot-bin-0.1.0-1-x86_64.pkg.tar.zst`.
+2. Open a terminal in the folder you downloaded it to and run:
+
+   ```bash
+   sudo pacman -U gitpilot-bin-0.1.0-1-x86_64.pkg.tar.zst
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
    ```
 
    pacman installs the dependencies it needs (`git`, `webkit2gtk-4.1`, `gtk3`, `libsoup3`).
@@ -24,7 +32,11 @@ To uninstall: `sudo pacman -R gitpilot-bin`
 
 Use this if you'd rather build the package on your own machine.
 
+<<<<<<< HEAD
 1. Put `PKGBUILD` and `GitPilot_0.2.0_amd64.deb` in the same, empty folder.
+=======
+1. Put `PKGBUILD` and `GitPilot_0.1.0_amd64.deb` in the same, empty folder.
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 2. In that folder run (as your normal user, not root):
 
    ```bash
@@ -37,11 +49,19 @@ Use this if you'd rather build the package on your own machine.
 
 ```bash
 sudo pacman -S --needed git webkit2gtk-4.1 fuse2
+<<<<<<< HEAD
 chmod +x GitPilot_0.2.0_amd64.AppImage
 ./GitPilot_0.2.0_amd64.AppImage
 ```
 
 `fuse2` is needed to mount AppImages. Without it, run `./GitPilot_0.2.0_amd64.AppImage --appimage-extract-and-run`.
+=======
+chmod +x GitPilot_0.1.0_amd64.AppImage
+./GitPilot_0.1.0_amd64.AppImage
+```
+
+`fuse2` is needed to mount AppImages. Without it, run `./GitPilot_0.1.0_amd64.AppImage --appimage-extract-and-run`.
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 
 ### Optional extras on CachyOS
 
@@ -59,21 +79,32 @@ Install **Git for Windows** from <https://git-scm.com/download/win> (keep the de
 
 ### Install with the MSI
 
+<<<<<<< HEAD
 1. Download `GitPilot_0.2.0_x64_en-US.msi`.
 2. Double-click it and follow the installer.
 3. Windows may show **"Windows protected your PC"** (SmartScreen) while the installer is unsigned. Click **More info → Run anyway**. (Maintainers: see `docs/CODE_SIGNING.md` to sign releases.)
+=======
+1. Download `GitPilot_0.1.0_x64_en-US.msi`.
+2. Double-click it and follow the installer.
+3. Windows may show **"Windows protected your PC"** (SmartScreen), because the installer isn't code-signed yet. Click **More info → Run anyway**.
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 4. Start **GitPilot** from the Start menu.
 
 Uninstall from **Settings → Apps → Installed apps → GitPilot**.
 
 ### Alternative: the EXE installer
 
+<<<<<<< HEAD
 `GitPilot_0.2.0_x64-setup.exe` installs for your user only and doesn't need administrator rights. Same SmartScreen note applies.
+=======
+`GitPilot_0.1.0_x64-setup.exe` installs for your user only and doesn't need administrator rights. Same SmartScreen note applies.
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 
 GitPilot uses Microsoft Edge WebView2, which is built into Windows 11 and current Windows 10. If it's missing, the installer downloads it.
 
 ---
 
+<<<<<<< HEAD
 ## Updating
 
 You never need to uninstall first.
@@ -83,6 +114,8 @@ You never need to uninstall first.
 
 ---
 
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 ## Getting the Windows installers built
 
 Windows installers have to be built on Windows (the MSI tool, WiX, only runs there). The project includes a GitHub Actions workflow that does this for free on GitHub's Windows machines:
@@ -101,8 +134,13 @@ Windows installers have to be built on Windows (the MSI tool, WiX, only runs the
 To publish a release with all installers attached, push a version tag instead:
 
 ```bash
+<<<<<<< HEAD
 git tag v0.2.0
 git push origin v0.2.0
+=======
+git tag v0.1.0
+git push origin v0.1.0
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 ```
 
 Or build on your own Windows PC: install Rust (<https://rustup.rs>, MSVC toolchain), Node.js 22, and the "Desktop development with C++" workload from Visual Studio Build Tools, then:
@@ -119,5 +157,9 @@ The installers appear in `src-tauri\target\release\bundle\msi\` and `...\nsis\`.
 ## Debian / Ubuntu
 
 ```bash
+<<<<<<< HEAD
 sudo apt install ./GitPilot_0.2.0_amd64.deb
+=======
+sudo apt install ./GitPilot_0.1.0_amd64.deb
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 ```

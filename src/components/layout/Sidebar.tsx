@@ -23,7 +23,10 @@ import { Menu, type MenuItem } from "@/components/ui/Menu";
 import { Kbd } from "@/components/ui/Misc";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { useRepoActions } from "@/features/onboarding/RepoActions";
+<<<<<<< HEAD
 import { UpdateNotice } from "@/features/updates/UpdateNotice";
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 import { modKey } from "@/lib/platform";
 import { useStore, type Section } from "@/store/AppStore";
 
@@ -188,7 +191,10 @@ export function Sidebar() {
       </div>
 
       <div className={cx("flex flex-col gap-px border-t border-border p-2", collapsed && "px-1.5")}>
+<<<<<<< HEAD
         <UpdateNotice collapsed={collapsed} />
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
         <NavItem
           icon={<Search size={16} />}
           label="Go to…"

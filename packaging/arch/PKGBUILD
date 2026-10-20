@@ -2,7 +2,11 @@
 # Repackages the GitPilot .deb for Arch Linux / CachyOS / Manjaro / EndeavourOS.
 # Build: put GitPilot_0.1.0_amd64.deb next to this file, then run `makepkg -si`.
 pkgname=gitpilot-bin
+<<<<<<< HEAD
 pkgver=0.2.0
+=======
+pkgver=0.1.0
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 pkgrel=1
 pkgdesc="Desktop Git manager: changes, diffs, hunk staging, history, branches, remotes"
 arch=('x86_64')
@@ -18,14 +22,21 @@ provides=('gitpilot')
 conflicts=('gitpilot')
 options=('!strip' '!debug')
 source=("GitPilot_${pkgver}_amd64.deb")
+<<<<<<< HEAD
 sha256sums=('19dd8314659a09b809d4361aafdfff34952ad18a0bf999c31454add847c5aed3')
+=======
+sha256sums=('28dc011558a984df7be359b02386775995a8b82aad7b3c6d71e896bf68fa542a')
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 
 package() {
   bsdtar -xf "${srcdir}/data.tar.gz" -C "${pkgdir}"
   chmod 755 "${pkgdir}/usr/bin/gitpilot"
+<<<<<<< HEAD
   # Tells GitPilot it is managed by pacman, so it points to pacman instead of updating itself.
   install -Dm644 /dev/null "${pkgdir}/usr/share/gitpilot/package-manager"
   echo pacman > "${pkgdir}/usr/share/gitpilot/package-manager"
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
   # Tauri names this icon size "256x256@2"; hicolor expects "256x256@2x".
   if [[ -d "${pkgdir}/usr/share/icons/hicolor/256x256@2" ]]; then
     mv "${pkgdir}/usr/share/icons/hicolor/256x256@2" "${pkgdir}/usr/share/icons/hicolor/256x256@2x"

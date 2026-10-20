@@ -1,0 +1,42 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <list>
+          <option value="python-dotenvl" />
+          <option value="flask-cors" />
+          <option value="requests" />
+          <option value="anthropic" />
+          <option value="llama-cpp-python" />
+          <option value="bcrypt" />
+          <option value="PyJWT" />
+          <option value="google-cloud-firestore" />
+          <option value="dnspython" />
+          <option value="discord.py" />
+          <option value="flask" />
+          <option value="python-dotenv" />
+          <option value="aiohttp" />
+          <option value="pytz" />
+          <option value="tweepy" />
+          <option value="async_lru" />
+          <option value="oauthlib" />
+          <option value="feedparser" />
+          <option value="wavelink" />
+          <option value="spotipy" />
+          <option value="PyNaCl" />
+          <option value="bs4" />
+          <option value="pillow" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyRedeclarationInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredIdentifiers">
+        <list>
+          <option value="int.*" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>

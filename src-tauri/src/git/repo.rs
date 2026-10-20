@@ -13,7 +13,10 @@ use super::runner::{Git, RunOpts, NETWORK_TIMEOUT};
 use super::status::{self, Area, BranchInfo, FileEntry};
 use super::validate as v;
 use crate::error::{AppError, AppResult, ErrorKind};
+<<<<<<< HEAD
 use tokio::sync::Notify;
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 
 /// Applied to every network-capable command: never allow command-executing transports.
 const NO_EXT: [&str; 4] = [
@@ -66,6 +69,7 @@ pub enum PullStrategy {
     Rebase,
 }
 
+<<<<<<< HEAD
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -75,6 +79,8 @@ pub enum SequenceAction {
     Abort,
 }
 
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -164,7 +170,10 @@ pub async fn clone<F: FnMut(String) + Send>(
     git: &Git,
     url: &str,
     dest: &Path,
+<<<<<<< HEAD
     cancel: Option<&Notify>,
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
     on_progress: F,
 ) -> AppResult<PathBuf> {
     let url = v::remote_url(url)?;
@@ -194,6 +203,7 @@ pub async fn clone<F: FnMut(String) + Send>(
         url.into(),
         dest.as_os_str().to_owned(),
     ]);
+<<<<<<< HEAD
     let existed = dest.exists();
     let res = git
         .run_streaming(parent, args, NETWORK_TIMEOUT, cancel, on_progress)
@@ -219,6 +229,10 @@ pub async fn clone<F: FnMut(String) + Send>(
         }
         return Err(e);
     }
+=======
+    git.run_streaming(parent, args, NETWORK_TIMEOUT, on_progress)
+        .await?;
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
     Ok(dest.to_path_buf())
 }
 
@@ -1015,7 +1029,10 @@ impl Repo<'_> {
     pub async fn fetch<F: FnMut(String) + Send>(
         &self,
         remote: Option<&str>,
+<<<<<<< HEAD
         cancel: Option<&Notify>,
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
         on: F,
     ) -> AppResult<()> {
         let mut args: Vec<String> = NO_EXT.iter().map(|s| s.to_string()).collect();
@@ -1025,7 +1042,11 @@ impl Repo<'_> {
             None => args.push("--all".into()),
         }
         self.git
+<<<<<<< HEAD
             .run_streaming(self.path, &args, NETWORK_TIMEOUT, cancel, on)
+=======
+            .run_streaming(self.path, &args, NETWORK_TIMEOUT, on)
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
             .await?;
         Ok(())
     }
@@ -1055,7 +1076,11 @@ impl Repo<'_> {
             PullStrategy::Rebase => "--rebase".into(),
         });
         self.git
+<<<<<<< HEAD
             .run_streaming(self.path, &args, NETWORK_TIMEOUT, None, on)
+=======
+            .run_streaming(self.path, &args, NETWORK_TIMEOUT, on)
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
             .await?;
         Ok(())
     }
@@ -1067,7 +1092,10 @@ impl Repo<'_> {
         remote: Option<&str>,
         set_upstream: bool,
         force_with_lease: bool,
+<<<<<<< HEAD
         cancel: Option<&Notify>,
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
         on: F,
     ) -> AppResult<()> {
         let st = self.status().await?;
@@ -1099,7 +1127,11 @@ impl Repo<'_> {
             args.extend([v::remote_name(r)?.to_string(), "HEAD".into()]);
         }
         self.git
+<<<<<<< HEAD
             .run_streaming(self.path, &args, NETWORK_TIMEOUT, cancel, on)
+=======
+            .run_streaming(self.path, &args, NETWORK_TIMEOUT, on)
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
             .await?;
         Ok(())
     }
@@ -1139,6 +1171,7 @@ impl Repo<'_> {
         Ok(())
     }
 
+<<<<<<< HEAD
     // ---------- integrating changes ----------
 
     async fn is_merge_commit(&self, hash: &str) -> AppResult<bool> {
@@ -1257,6 +1290,8 @@ impl Repo<'_> {
         Ok(())
     }
 
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
     /// Tracked files whose path contains `query` (case-insensitive), for quick navigation.
     pub async fn search_files(&self, query: &str, limit: usize) -> AppResult<Vec<String>> {
         let raw = self

@@ -30,7 +30,10 @@ pub enum ErrorKind {
     AlreadyExists,
     PermissionDenied,
     Timeout,
+<<<<<<< HEAD
     Cancelled,
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
     Database,
     Settings,
     AiNotConfigured,

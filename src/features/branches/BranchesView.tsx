@@ -4,11 +4,16 @@ import {
   ArrowLeftRight,
   Check,
   CloudOff,
+<<<<<<< HEAD
   CopyPlus,
   Download,
   GitBranch,
   GitMerge,
   GitPullRequestArrow,
+=======
+  Download,
+  GitBranch,
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
   GitBranchPlus,
   Link2,
   MoreHorizontal,
@@ -33,7 +38,10 @@ import { api } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
 import { plural, relativeTime } from "@/lib/format";
 import { useAsync } from "@/lib/useAsync";
+<<<<<<< HEAD
 import { useIntegrate } from "@/lib/useIntegrate";
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 import { useStore } from "@/store/AppStore";
 import { branchNameProblem, NewBranchDialog } from "./NewBranchDialog";
 import { useBranchSwitch } from "./useBranchSwitch";
@@ -45,8 +53,11 @@ type Pending =
   | { kind: "upstream"; b: Branch }
   | { kind: "checkoutRemote"; b: Branch }
   | { kind: "compare"; b: Branch }
+<<<<<<< HEAD
   | { kind: "merge"; b: Branch }
   | { kind: "rebase"; b: Branch }
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
   | { kind: "dropStash"; s: Stash }
   | null;
 
@@ -73,7 +84,10 @@ export function BranchesView() {
   const [pending, setPending] = useState<Pending>(null);
   const [menu, setMenu] = useState<{ at: { x: number; y: number }; items: MenuItem[] } | null>(null);
   const { request: switchTo, dialog: switchDialog } = useBranchSwitch();
+<<<<<<< HEAD
   const integrate = useIntegrate();
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 
   const { local, remote } = useMemo(() => {
     const all = branches.data ?? [];
@@ -84,6 +98,7 @@ export function BranchesView() {
 
   if (!activeRepo || id == null) return null;
   const current = status?.branch.head ?? null;
+<<<<<<< HEAD
   const canIntegrate = !!current && status?.state === "normal" && !status.branch.unborn;
   const integrateItems = (b: Branch): MenuItem[] =>
     b.isCurrent
@@ -99,13 +114,18 @@ export function BranchesView() {
           },
           { label: `Rebase ${current ?? "current branch"} onto this…`, icon: <GitPullRequestArrow size={14} />, disabled: !canIntegrate, onSelect: () => setPending({ kind: "rebase", b }) },
         ];
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
 
   const itemsFor = (b: Branch): MenuItem[] =>
     b.isRemote
       ? [
           { label: "Check out as local branch…", icon: <Download size={14} />, onSelect: () => setPending({ kind: "checkoutRemote", b }) },
           { label: `Compare with ${current ?? "HEAD"}`, icon: <ArrowLeftRight size={14} />, onSelect: () => setPending({ kind: "compare", b }) },
+<<<<<<< HEAD
           ...integrateItems(b),
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
           { type: "separator" },
           { label: `Delete from ${b.remote}…`, icon: <CloudOff size={14} />, danger: true, onSelect: () => setPending({ kind: "deleteRemote", b }) },
         ]
@@ -117,7 +137,10 @@ export function BranchesView() {
           ...(b.upstream
             ? [{ label: "Stop tracking upstream", icon: <Unlink size={14} />, onSelect: () => void run("Unset upstream", () => api.branchSetUpstream(id, b.name, null), { success: `${b.name} no longer tracks ${b.upstream}` }) }]
             : []),
+<<<<<<< HEAD
           ...integrateItems(b),
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
           { type: "separator" },
           { label: "Delete…", icon: <Trash2 size={14} />, danger: true, disabled: b.isCurrent, onSelect: () => setPending({ kind: "delete", b }) },
         ];
@@ -287,6 +310,7 @@ export function BranchesView() {
         />
       )}
       {pending?.kind === "compare" && current && <CompareDialog base={current} head={pending.b.name} onClose={() => setPending(null)} />}
+<<<<<<< HEAD
 
       <ConfirmDialog
         open={pending?.kind === "merge"}
@@ -332,6 +356,8 @@ export function BranchesView() {
         )}
         <p className="mt-2">Commit or stash your uncommitted changes first. If a commit conflicts, Git pauses; you can resolve it, skip it, or abort to get your branch back exactly as it was.</p>
       </ConfirmDialog>
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
     </div>
   );
 }
@@ -434,6 +460,7 @@ function CheckoutRemoteDialog({ b, existing, onClose, onCheckout }: { b: Branch;
 }
 
 function CompareDialog({ base, head, onClose }: { base: string; head: string; onClose: () => void }) {
+<<<<<<< HEAD
   const { activeRepo, status, busy } = useStore();
   const integrate = useIntegrate();
   const [swap, setSwap] = useState(false);
@@ -441,6 +468,13 @@ function CompareDialog({ base, head, onClose }: { base: string; head: string; on
   const cmp = useAsync<BranchComparison>(() => api.branchCompare(activeRepo!.id, b, h), [b, h], !!activeRepo);
   const current = status?.branch.head;
   const list = (title: string, items: BranchComparison["ahead"], pickable = false) => (
+=======
+  const { activeRepo } = useStore();
+  const [swap, setSwap] = useState(false);
+  const [b, h] = swap ? [head, base] : [base, head];
+  const cmp = useAsync<BranchComparison>(() => api.branchCompare(activeRepo!.id, b, h), [b, h], !!activeRepo);
+  const list = (title: string, items: BranchComparison["ahead"]) => (
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
     <div className="min-w-0 flex-1">
       <h4 className="mb-1 text-sm font-semibold text-muted">{title}</h4>
       {items.length === 0 ? (
@@ -448,6 +482,7 @@ function CompareDialog({ base, head, onClose }: { base: string; head: string; on
       ) : (
         <ul className="max-h-64 overflow-y-auto rounded border border-border">
           {items.map((c) => (
+<<<<<<< HEAD
             <li key={c.hash} className="group flex items-center gap-2 border-b border-border px-2 py-1 text-sm last:border-b-0">
               <span className="font-mono text-xs text-faint">{c.shortHash}</span>
               <span className="min-w-0 flex-1 truncate">{c.subject}</span>
@@ -467,6 +502,11 @@ function CompareDialog({ base, head, onClose }: { base: string; head: string; on
                   Cherry-pick
                 </Button>
               )}
+=======
+            <li key={c.hash} className="flex gap-2 border-b border-border px-2 py-1 text-sm last:border-b-0">
+              <span className="font-mono text-xs text-faint">{c.shortHash}</span>
+              <span className="truncate">{c.subject}</span>
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
             </li>
           ))}
         </ul>
@@ -491,7 +531,11 @@ function CompareDialog({ base, head, onClose }: { base: string; head: string; on
             {cmp.data.ahead.length >= 200 || cmp.data.behind.length >= 200 ? " (lists are capped at 200)" : ""}.
           </p>
           <div className="flex gap-4">
+<<<<<<< HEAD
             {list(`Only on ${h}`, cmp.data.ahead, b === current)}
+=======
+            {list(`Only on ${h}`, cmp.data.ahead)}
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
             {list(`Only on ${b}`, cmp.data.behind)}
           </div>
         </>

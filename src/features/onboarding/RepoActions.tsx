@@ -174,7 +174,10 @@ function CloneDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
   const [name, setName] = useState("");
   const [nameTouched, setNameTouched] = useState(false);
   const [busy, setBusy] = useState(false);
+<<<<<<< HEAD
   const [cancelling, setCancelling] = useState(false);
+=======
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
   const [error, setError] = useState<AppError | null>(null);
 
   const reset = () => {
@@ -199,6 +202,7 @@ function CloneDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
       await openRepo(rec.id);
       notify({ tone: "success", title: `Cloned ${rec.name}` });
     } catch (e) {
+<<<<<<< HEAD
       const err = toAppError(e);
       if (err.kind === "cancelled") notify({ tone: "info", title: "Clone stopped", body: "The partly downloaded folder was removed." });
       else setError(err);
@@ -213,6 +217,14 @@ function CloneDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
     void api.opCancel("clone");
   };
 
+=======
+      setError(toAppError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
   const isSsh = /^(ssh:\/\/|[\w.-]+@[\w.-]+:)/.test(url.trim());
 
   return (
@@ -226,6 +238,7 @@ function CloneDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
       onSubmit={submit}
       footer={
         <>
+<<<<<<< HEAD
           {busy ? (
             <Button onClick={cancelClone} disabled={cancelling}>
               {cancelling ? "Stopping…" : "Stop cloning"}
@@ -233,6 +246,11 @@ function CloneDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
           ) : (
             <Button onClick={onClose}>Cancel</Button>
           )}
+=======
+          <Button onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+>>>>>>> e365a9fef3e0021574d3072637bd2f2d41a73854
           <Button type="submit" variant="primary" loading={busy}>
             {busy ? "Cloning…" : "Clone"}
           </Button>
