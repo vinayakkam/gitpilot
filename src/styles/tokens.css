@@ -1,0 +1,80 @@
+/* GitPilot design tokens. Components use semantic utilities (bg-surface, text-muted…), never raw hex. */
+
+:root {
+  --bg: #f4f5f8;
+  --surface: #ffffff;
+  --surface-2: #f2f4f7;
+  --surface-3: #e8ebf0;
+  --border: #e2e5ea;
+  --border-strong: #cdd2da;
+  --text: #1b1e24;
+  --text-muted: #5b6370;
+  --text-faint: #8a919c;
+  --accent: #3550c8;
+  --accent-hover: #2b43ad;
+  --accent-text: #2f49bd;
+  --accent-soft: #e9edfb;
+  --on-accent: #ffffff;
+  --added: #1d7a4b;
+  --added-bg: #e9f6ee;
+  --added-bg-strong: #c9ead6;
+  --removed: #b3373d;
+  --removed-bg: #fcedee;
+  --removed-bg-strong: #f6cfd2;
+  --modified: #976400;
+  --renamed: #1c7582;
+  --conflict: #c2410c;
+  --conflict-bg: #fdf0e7;
+  --warning: #965a00;
+  --warning-bg: #fdf5e4;
+  --danger: #be353b;
+  --danger-hover: #a52b31;
+  --success: #1d7a4b;
+  --focus: #3550c8;
+  --selection: #dfe5fa;
+  --shadow-overlay: 0 12px 32px -8px rgb(16 20 30 / 0.22), 0 0 0 1px rgb(16 20 30 / 0.06);
+  --row-h: 28px;
+  --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "Cascadia Mono", "DejaVu Sans Mono", monospace;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #121419;
+  --surface: #181b21;
+  --surface-2: #1f232a;
+  --surface-3: #282d36;
+  --border: #272c34;
+  --border-strong: #363c47;
+  --text: #e5e7eb;
+  --text-muted: #a0a7b2;
+  --text-faint: #6f7783;
+  --accent: #4862d9;
+  --accent-hover: #5872e6;
+  --accent-text: #93a6f6;
+  --accent-soft: #212a48;
+  --on-accent: #ffffff;
+  --added: #5cc28b;
+  --added-bg: rgb(52 168 98 / 0.1);
+  --added-bg-strong: rgb(52 168 98 / 0.26);
+  --removed: #ef7b7e;
+  --removed-bg: rgb(229 72 77 / 0.1);
+  --removed-bg-strong: rgb(229 72 77 / 0.26);
+  --modified: #ddb05a;
+  --renamed: #62c2cf;
+  --conflict: #f1904f;
+  --conflict-bg: rgb(241 144 79 / 0.12);
+  --warning: #e0ad55;
+  --warning-bg: rgb(224 173 85 / 0.1);
+  --danger: #ef7377;
+  --danger-hover: #f38c8f;
+  --success: #5cc28b;
+  --focus: #7b93f5;
+  --selection: #2a3456;
+  --shadow-overlay: 0 16px 40px -8px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(255 255 255 / 0.06);
+  color-scheme: dark;
+}
+
+:root[data-density="compact"] {
+  --row-h: 24px;
+}
