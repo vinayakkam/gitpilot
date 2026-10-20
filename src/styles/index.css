@@ -1,0 +1,239 @@
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "./tokens.css";
+@import "tailwindcss";
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-muted: var(--text-muted);
+  --color-faint: var(--text-faint);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-text: var(--accent-text);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+  --color-added: var(--added);
+  --color-added-bg: var(--added-bg);
+  --color-added-bg-strong: var(--added-bg-strong);
+  --color-removed: var(--removed);
+  --color-removed-bg: var(--removed-bg);
+  --color-removed-bg-strong: var(--removed-bg-strong);
+  --color-modified: var(--modified);
+  --color-renamed: var(--renamed);
+  --color-conflict: var(--conflict);
+  --color-conflict-bg: var(--conflict-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-success: var(--success);
+  --color-selection: var(--selection);
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-mono);
+  --radius-sm: 3px;
+  --radius: 4px;
+  --radius-md: 6px;
+  --text-xs: 11px;
+  --text-xs--line-height: 16px;
+  --text-sm: 12px;
+  --text-sm--line-height: 18px;
+  --text-base: 13px;
+  --text-base--line-height: 20px;
+  --text-md: 14px;
+  --text-md--line-height: 20px;
+  --text-lg: 16px;
+  --text-lg--line-height: 22px;
+  --text-xl: 20px;
+  --text-xl--line-height: 26px;
+  --shadow-overlay: var(--shadow-overlay);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    line-height: 20px;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+    /* App chrome isn't selectable like a web page; content areas opt back in. */
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: default;
+  }
+  input,
+  textarea,
+  .selectable,
+  .selectable * {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  ::selection {
+    background: var(--selection);
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
+  }
+  button {
+    cursor: default;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 10px;
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  dialog::backdrop {
+    background: rgb(10 12 18 / 0.38);
+  }
+  code,
+  kbd,
+  .mono {
+    font-family: var(--font-mono);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes gp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes gp-pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+.gp-pop {
+  animation: gp-pop 120ms ease-out;
+}
+
+/* Syntax highlighting: restrained palette tied to tokens. */
+.hl .hljs-keyword,
+.hl .hljs-selector-tag,
+.hl .hljs-built_in,
+.hl .hljs-meta .hljs-keyword {
+  color: #8a3fb8;
+}
+.hl .hljs-string,
+.hl .hljs-regexp,
+.hl .hljs-template-string {
+  color: #2f7a3a;
+}
+.hl .hljs-number,
+.hl .hljs-literal,
+.hl .hljs-symbol {
+  color: #a35200;
+}
+.hl .hljs-comment,
+.hl .hljs-quote {
+  color: var(--text-faint);
+  font-style: italic;
+}
+.hl .hljs-title,
+.hl .hljs-title.function_,
+.hl .hljs-section {
+  color: #2753c4;
+}
+.hl .hljs-type,
+.hl .hljs-title.class_,
+.hl .hljs-attr,
+.hl .hljs-attribute {
+  color: #a1450f;
+}
+.hl .hljs-variable,
+.hl .hljs-template-variable,
+.hl .hljs-params {
+  color: inherit;
+}
+.hl .hljs-tag,
+.hl .hljs-name,
+.hl .hljs-selector-class,
+.hl .hljs-selector-id {
+  color: #1f6f8b;
+}
+.hl .hljs-meta {
+  color: #7a6a00;
+}
+:root[data-theme="dark"] .hl .hljs-keyword,
+:root[data-theme="dark"] .hl .hljs-selector-tag,
+:root[data-theme="dark"] .hl .hljs-built_in,
+:root[data-theme="dark"] .hl .hljs-meta .hljs-keyword {
+  color: #c792ea;
+}
+:root[data-theme="dark"] .hl .hljs-string,
+:root[data-theme="dark"] .hl .hljs-regexp,
+:root[data-theme="dark"] .hl .hljs-template-string {
+  color: #a5d38a;
+}
+:root[data-theme="dark"] .hl .hljs-number,
+:root[data-theme="dark"] .hl .hljs-literal,
+:root[data-theme="dark"] .hl .hljs-symbol {
+  color: #f0a96b;
+}
+:root[data-theme="dark"] .hl .hljs-title,
+:root[data-theme="dark"] .hl .hljs-title.function_,
+:root[data-theme="dark"] .hl .hljs-section {
+  color: #82aaff;
+}
+:root[data-theme="dark"] .hl .hljs-type,
+:root[data-theme="dark"] .hl .hljs-title.class_,
+:root[data-theme="dark"] .hl .hljs-attr,
+:root[data-theme="dark"] .hl .hljs-attribute {
+  color: #ffcb8b;
+}
+:root[data-theme="dark"] .hl .hljs-tag,
+:root[data-theme="dark"] .hl .hljs-name,
+:root[data-theme="dark"] .hl .hljs-selector-class,
+:root[data-theme="dark"] .hl .hljs-selector-id {
+  color: #7fd3e8;
+}
+:root[data-theme="dark"] .hl .hljs-meta {
+  color: #d6c46a;
+}
+
+@keyframes gp-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
