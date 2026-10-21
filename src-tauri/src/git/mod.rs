@@ -3,11 +3,14 @@
 pub mod diff;
 pub mod eol;
 pub mod errors;
+pub mod everyday;
+pub mod explore;
 pub mod locate;
 pub mod log;
 pub mod redact;
 pub mod refs;
 pub mod repo;
+pub mod rewrite;
 pub mod runner;
 pub mod status;
 pub mod validate;

@@ -161,3 +161,57 @@ pub async fn stash_drop(
     repo!(state, id, git, root, r);
     r.stash_drop(index).await
 }
+
+#[tauri::command]
+pub async fn tag_list(
+    state: State<'_, AppState>,
+    id: i64,
+) -> AppResult<Vec<crate::git::everyday::Tag>> {
+    repo!(state, id, git, root, r);
+    r.tags().await
+}
+
+#[tauri::command]
+pub async fn tag_create(
+    state: State<'_, AppState>,
+    id: i64,
+    name: String,
+    target: String,
+    message: String,
+) -> AppResult<()> {
+    let lock = state.repo_lock(id);
+    let _g = lock.lock().await;
+    repo!(state, id, git, root, r);
+    r.tag_create(&name, &target, &message).await
+}
+
+#[tauri::command]
+pub async fn tag_delete(
+    state: State<'_, AppState>,
+    id: i64,
+    name: String,
+    confirmed: bool,
+) -> AppResult<()> {
+    crate::commands::changes::require_confirmation(confirmed)?;
+    let lock = state.repo_lock(id);
+    let _g = lock.lock().await;
+    repo!(state, id, git, root, r);
+    r.tag_delete(&name).await
+}
+
+/// Pushes a tag to a remote, or with `delete` removes it there (needs `confirmed`).
+#[tauri::command]
+pub async fn tag_push(
+    state: State<'_, AppState>,
+    id: i64,
+    remote: String,
+    name: String,
+    delete: bool,
+    confirmed: bool,
+) -> AppResult<()> {
+    if delete {
+        crate::commands::changes::require_confirmation(confirmed)?;
+    }
+    repo!(state, id, git, root, r);
+    r.tag_push(&remote, &name, delete).await
+}

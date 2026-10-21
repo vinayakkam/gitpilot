@@ -2,12 +2,12 @@
 
 ## Current status
 
-- **Phase:** 6 — reliability and refinement (phases 1–5 implemented for Linux; Windows not started)
+- **Phase:** 6 — reliability and refinement (implemented on Linux and Windows; Windows verified by the user)
 - **Overall:** core Git workflow, branches, remotes, sync, AI provider integration, Claude Code integration and settings are implemented and verified on Linux against real repositories. Linux packages (deb, AppImage) build and launch.
 - **Current working area:** cross-platform verification and remaining feature gaps
 - **Most recently completed:** v0.3.1 — readable update notes, Add to .gitignore, tracked-but-ignored files (session 7). Before that: v0.3.0 — accent colours, line-ending guard, OpenRouter default provider, Claude Code account provider, rearranged settings (session 6)
-- **Blocker:** Windows cannot be built or type-checked in this environment (no Windows host; `rustup target add x86_64-pc-windows-gnu` is blocked by the network allowlist)
-- **Immediate next task:** build and run on Windows (see handoff)
+- **Windows:** verified by the user on a real Windows machine (2026-10-21, all features working); this environment still can't build for Windows
+- **Immediate next task:** release 0.4.0; when the user says 0.4.0 is complete, start 0.4.5 (Batch D, then E)
 
 ## Feature tracker
 
@@ -27,6 +27,9 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 - [x] Remote management (add/edit/remove, credential redaction, `ext::` blocked)
 - [x] Fetch, pull, and push (progress, ff-only default, publish, rejection explained, guarded force-with-lease; fetch/push/clone cancellable)
 - [x] Merge, rebase, cherry-pick, revert with continue/skip/abort
+- [x] Amend, undo last commit, tags, stash selected files, discard hunks/lines, auto-refresh (0.4.0)
+- [x] Blame, commit graph, compare any refs, image previews (0.4.0)
+- [x] Conflict resolver, edit commits (interactive rebase), reset with backups + restore (0.4.0)
 - [~] AI commit message generation (OpenRouter default, Claude Code account, Anthropic, OpenAI-compatible). **Claude Code provider verified live in the real app.** OpenRouter/Anthropic/OpenAI request shapes unit-tested only (openrouter.ai unreachable from the build sandbox)
 - [x] Accent colours (11 presets + custom; OKLCH-derived tokens; contrast unit-tested for every preset in both themes)
 - [x] .gitignore support (Add to .gitignore dialog; tracked-but-ignored files flagged with Stop tracking; integration-tested and verified in the real app)
@@ -37,12 +40,21 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 - [x] Error handling and safety (classified errors, plain messages + technical details, confirmations + backend flags)
 - [x] Automated tests (Rust 84 unit + 18 integration on temp repos; frontend 52 vitest)
 - [~] UI polish and visual QA (all main screens inspected on Linux/Xvfb, light + dark, min size; no screen-reader testing)
-- [-] Windows packaging (MSI + NSIS configured; GitHub Actions workflow `.github/workflows/build-installers.yml` builds them on windows-latest; workflow not yet run)
+- [x] Windows packaging (MSI + NSIS built by `.github/workflows/build-installers.yml` on windows-latest; installed and used by the user)
 - [x] Linux packaging (deb 5.1 MB and AppImage 80 MB built; AppImage launched; Arch/CachyOS `gitpilot-bin` package built with makepkg from `packaging/arch/PKGBUILD` — not yet installed on a real Arch system)
 - [x] In-app updates (verified end to end for AppImage; Windows/.deb unverified)
 - [~] Documentation and release preparation (README, CLAUDE.md, this file; no signing, no CI)
 
 ## Work log
+
+### Session 8 — 2026-10-21 (v0.4.0)
+- User asked for the whole feature list; split into batches. A–C ship as **0.4.0**; D (GitHub sign-in, clone from list, pull requests, AI explain/PR description/conflict help) and E (multiple windows, worktrees/submodules, LFS, commit signing, CI) are planned for **0.4.5**, to start when the user says 0.4.0 is complete.
+- **Batch A** (commit cb0e149): amend (pushed-commit confirmation), undo last commit (soft reset, message back in composer), auto-refresh file watcher skipping ignored paths (setting `autoRefresh`), tags (lightweight/annotated, push, delete local/remote), stash selected files, discard hunk/lines with backup.
+- **Batch B** (d1dd026): blame, commit graph (lane layout as a pure tested function; history in date order), file-by-file compare of any refs (three-dot or direct), image before/after previews, dialogs rendered at document top (nested dialogs + Escape).
+- **Batch C** (2aed89f): `git/rewrite.rs` — per-block conflict resolution and whole-file sides, interactive rebase from a step list (todo built by `build_todo`, messages via files), `reset_to` soft/mixed/hard, backups under `refs/gitpilot/backups/<ms>-<branch>` (+ `refs/gitpilot/wip/*` for uncommitted tracked changes, `refs/gitpilot/labels/*`), restore backs up current state first. UI: Keep mine/theirs/both in the diff, EditCommitsDialog, ResetDialog, Branches → Backups.
+- Verified in the real app (Xvfb) across A–C: discard hunk/lines, undo, amend, tag push, stash file, blame → History, compare, merge conflict resolved per block → commit merge, hard reset + backup, edit commits (remove/combine/reword), restore from backup.
+- The session hit its usage limit after Batch C's QA and before its commit; C was committed in the next session after re-running all checks.
+- Checks: cargo fmt, clippy -D warnings, cargo test 102 unit + 21 integration, tsc, eslint, vitest 65 — pass.
 
 ### Session 7 — 2026-10-21 (v0.3.1)
 - User reports: update window showed release notes as raw Markdown; git-ignored files appeared in Changes; no way to ignore files.
@@ -51,6 +63,15 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 - Bug found in real-app QA: ignoring with nothing to untrack failed ("No files were selected") because `untrack([])` validated first → empty check moved first; regression assertion added.
 - File rows no longer set a native `title` (GTK tooltips covered the context menu); renames keep it.
 - Checks: cargo fmt, clippy, cargo test 84 + 18, tsc, eslint, vitest 52 — pass. Verified in the real app: ignored badge + notice; right-click → Add to .gitignore → *.log (file written, debug.log gone); Stop tracking → staged deletions, files still on disk. Update notes rendering checked with the app CSS (not inside a real update; a test AppImage build was stopped at the user's request).
+
+### Session 8 — 2026-10-21 (v0.4.0)
+- User asked for the whole feature list; split into batches. A–C ship as **0.4.0**; D (GitHub sign-in, clone from list, pull requests, AI explain/PR description/conflict help) and E (multiple windows, worktrees/submodules, LFS, commit signing, CI) are planned for **0.4.5**, to start when the user says 0.4.0 is complete.
+- **Batch A** (commit cb0e149): amend (pushed-commit confirmation), undo last commit (soft reset, message back in composer), auto-refresh file watcher skipping ignored paths (setting `autoRefresh`), tags (lightweight/annotated, push, delete local/remote), stash selected files, discard hunk/lines with backup.
+- **Batch B** (d1dd026): blame, commit graph (lane layout as a pure tested function; history in date order), file-by-file compare of any refs (three-dot or direct), image before/after previews, dialogs rendered at document top (nested dialogs + Escape).
+- **Batch C** (2aed89f): `git/rewrite.rs` — per-block conflict resolution and whole-file sides, interactive rebase from a step list (todo built by `build_todo`, messages via files), `reset_to` soft/mixed/hard, backups under `refs/gitpilot/backups/<ms>-<branch>` (+ `refs/gitpilot/wip/*` for uncommitted tracked changes, `refs/gitpilot/labels/*`), restore backs up current state first. UI: Keep mine/theirs/both in the diff, EditCommitsDialog, ResetDialog, Branches → Backups.
+- Verified in the real app (Xvfb) across A–C: discard hunk/lines, undo, amend, tag push, stash file, blame → History, compare, merge conflict resolved per block → commit merge, hard reset + backup, edit commits (remove/combine/reword), restore from backup.
+- The session hit its usage limit after Batch C's QA and before its commit; C was committed in the next session after re-running all checks.
+- Checks: cargo fmt, clippy -D warnings, cargo test 102 unit + 21 integration, tsc, eslint, vitest 65 — pass.
 
 ### Session 7 — 2026-10-21 (v0.3.1)
 - User reports: update window showed release notes as raw Markdown; git-ignored files appeared in Changes; no way to ignore files; About buttons did nothing.
@@ -159,14 +180,14 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 - **Partial staging:** hunks and lines. Backend regenerates the diff and matches the hunk header byte-exactly; refuses if the hunk changed. Line selections are per hunk.
 - **Discard:** tracked → backup copy in `<app_data>/discard-backups/<ms-timestamp>/` then `git restore --worktree`; untracked → OS trash, only after `git ls-files --others` confirms they're untracked.
 - **Conflicts:** shown with ours/theirs regions; "Mark as resolved" stages. "Stage everything" deliberately skips conflicted files.
-- **Merge/rebase/cherry-pick/revert:** started from the UI or a terminal; Continue/Skip/Abort in the Changes banner. Interactive rebase not supported.
+- **Merge/rebase/cherry-pick/revert:** started from the UI or a terminal; Continue/Skip/Abort in the Changes banner. Interactive rebase via Edit commits (0.4.0).
 - **AI:** off by default; requires privacy acknowledgement; staged diff only, sensitive file patterns excluded, 48 k char cap; errors never replaced with fabricated output.
 - **Keychain:** Linux Secret Service via `keyring` (sync-secret-service + crypto-rust); in headless/no-DBus environments the UI shows the env-var fallback.
 - **Accessibility:** labels on icon buttons, tooltips, roles for lists/menus/dialogs, keyboard navigation, focus rings, non-color status. Not tested with a screen reader.
 
 ## Known issues
 
-1. **Windows unverified** — never compiled for Windows. Windows-only code: `git/locate.rs` candidates, `CREATE_NO_WINDOW` in `git/runner.rs` and `claude_code.rs`, `keyring` windows-native, Claude launch with `CREATE_NEW_CONSOLE`. Expect at least compile fixes (e.g. `creation_flags` on `tokio::process::Command` requires the method to be in scope on Windows — verify).
+1. **Windows:** user reported on 2026-10-21 that all features work on Windows (0.3.x installers built by CI). Not tested in this environment (no Windows host); CI still builds installers without running the test suite on Windows.
 2. **AI providers not tested live** — request shapes for Anthropic Messages API (`anthropic-version: 2023-06-01`) and `/chat/completions` are written to the documented formats but no real call was made. Verify the default model id.
 3. **Real Claude Code session not observed** — with the real CLI in this sandbox the terminal opened and closed immediately (the sandboxed CLI exits); the mechanism was verified with a stand-in executable. Check on a normal desktop.
 4. **Detection of a hanging `claude --version`** waits up to 10 s before the Assistant enables its launch button.

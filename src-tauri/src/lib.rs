@@ -10,6 +10,7 @@ pub mod secrets;
 pub mod settings;
 pub mod state;
 pub mod updates;
+pub mod watch;
 
 use tauri::Manager;
 
@@ -65,6 +66,17 @@ pub fn run() {
             commands::changes::eol_add_gitattributes,
             commands::changes::gitignore_add,
             commands::changes::untrack_paths,
+            commands::changes::last_commit,
+            commands::repos::repo_watch,
+            commands::repos::repo_unwatch,
+            commands::changes::commit_amend,
+            commands::changes::commit_undo,
+            commands::changes::discard_partial,
+            commands::changes::stash_paths,
+            commands::branches::tag_list,
+            commands::branches::tag_create,
+            commands::branches::tag_delete,
+            commands::branches::tag_push,
             commands::history::log_get,
             commands::history::commit_get,
             commands::history::commit_diff_file,
@@ -73,6 +85,17 @@ pub fn run() {
             commands::history::branch_merge,
             commands::history::branch_rebase,
             commands::history::sequence_run,
+            commands::history::file_blame,
+            commands::history::compare_files,
+            commands::history::compare_file_diff,
+            commands::history::conflict_resolve_block,
+            commands::history::conflict_take_side,
+            commands::history::rebase_commits,
+            commands::history::rebase_interactive,
+            commands::history::branch_reset,
+            commands::history::backup_list,
+            commands::history::backup_restore,
+            commands::history::backup_delete,
             commands::branches::branch_list,
             commands::branches::branch_create,
             commands::branches::branch_switch,

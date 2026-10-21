@@ -3,10 +3,11 @@ import { Sparkles, TriangleAlert, X } from "lucide-react";
 import type { AiSuggestions } from "@/bindings/AiSuggestions";
 import type { AppError } from "@/bindings/AppError";
 import type { Identity } from "@/bindings/Identity";
+import type { LastCommit } from "@/bindings/LastCommit";
 import { Button } from "@/components/ui/Button";
 import { cx } from "@/components/ui/cx";
-import { Dialog } from "@/components/ui/Dialog";
-import { Field, Input, TextArea } from "@/components/ui/Field";
+import { ConfirmDialog, Dialog } from "@/components/ui/Dialog";
+import { Checkbox, Field, Input, TextArea } from "@/components/ui/Field";
 import { ErrorNotice, Kbd } from "@/components/ui/Misc";
 import { Segmented } from "@/components/ui/Segmented";
 import { Spinner } from "@/components/ui/Spinner";
@@ -29,6 +30,26 @@ const CONVENTIONAL = /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|re
 
 // Drafts survive switching views and repositories (per repo, per session).
 const drafts = new Map<number, { summary: string; body: string }>();
+const DRAFT_EVENT = "gitpilot:commit-draft";
+
+/** Splits a full commit message into summary and description. */
+export function splitMessage(message: string): { summary: string; body: string } {
+  const [first = "", ...rest] = message.replace(/\r\n/g, "\n").split("\n");
+  return { summary: first.trim(), body: rest.join("\n").trim() };
+}
+
+/** Puts a message into a repository's commit box (used after undoing a commit). */
+export function setCommitDraft(id: number, message: string) {
+  drafts.set(id, splitMessage(message));
+  window.dispatchEvent(new CustomEvent(DRAFT_EVENT, { detail: id }));
+}
+
+/** Takes back the last commit and puts its message back in the commit box. */
+export async function undoLastCommit(id: number, confirmedPushed: boolean) {
+  const message = await api.commitUndo(id, confirmedPushed);
+  setCommitDraft(id, message);
+  return message;
+}
 
 export function CommitComposer({ stagedCount }: { stagedCount: number }) {
   const { activeRepo, status, settings, run, busy, setPage, notify } = useStore();
@@ -41,7 +62,24 @@ export function CommitComposer({ stagedCount }: { stagedCount: number }) {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<AppError | null>(null);
   const [commitError, setCommitError] = useState<AppError | null>(null);
+  const [amend, setAmend] = useState<LastCommit | null>(null);
+  const [confirmAmend, setConfirmAmend] = useState(false);
+  const beforeAmend = useRef<{ summary: string; body: string } | null>(null);
   const summaryRef = useRef<HTMLInputElement>(null);
+
+  // Another part of the app (e.g. Undo in History) can put a message here.
+  useEffect(() => {
+    const onDraft = (e: Event) => {
+      const target = (e as CustomEvent<number>).detail;
+      if (target !== id) return;
+      const d = drafts.get(target);
+      setAmend(null);
+      setSummary(d?.summary ?? "");
+      setBody(d?.body ?? "");
+    };
+    window.addEventListener(DRAFT_EVENT, onDraft);
+    return () => window.removeEventListener(DRAFT_EVENT, onDraft);
+  }, [id]);
 
   useEffect(() => {
     if (id == null) return;
@@ -51,25 +89,68 @@ export function CommitComposer({ stagedCount }: { stagedCount: number }) {
     setAi(null);
     setAiError(null);
     setCommitError(null);
+    setAmend(null);
     api.identityGet(id).then(setIdentity, () => setIdentity(null));
   }, [id]);
 
   useEffect(() => {
-    if (id != null) drafts.set(id, { summary, body });
-  }, [id, summary, body]);
+    // While amending, the box holds the old commit's message; keep the real draft untouched.
+    if (id != null && !amend) drafts.set(id, { summary, body });
+  }, [id, summary, body, amend]);
+
+  const toggleAmend = async (on: boolean) => {
+    if (!id) return;
+    if (!on) {
+      setAmend(null);
+      const d = beforeAmend.current;
+      setSummary(d?.summary ?? "");
+      setBody(d?.body ?? "");
+      return;
+    }
+    const last = await api.lastCommit(id).catch(() => null);
+    if (!last) {
+      notify({ tone: "info", title: "There's no commit to amend yet." });
+      return;
+    }
+    beforeAmend.current = { summary, body };
+    const m = splitMessage(last.message);
+    setSummary(m.summary);
+    setBody(m.body);
+    setAmend(last);
+    summaryRef.current?.focus();
+  };
 
   const merging = status?.state === "merging";
   const missingIdentity = identity !== null && (!identity.name || !identity.email);
-  const canCommit = !!summary.trim() && (stagedCount > 0 || merging) && !busy;
+  const canCommit = !!summary.trim() && (stagedCount > 0 || merging || !!amend) && !busy;
   const branch = status?.branch.head;
   const over = summary.length - SUMMARY_LIMIT;
   const conventional = settings?.commitConvention === "conventional";
   const convOk = !conventional || !summary.trim() || CONVENTIONAL.test(summary.trim());
 
-  const commit = async () => {
+  const commit = async (confirmedPushed = false) => {
     if (!id || !canCommit) return;
     setCommitError(null);
     const message = body.trim() ? `${summary.trim()}\n\n${body.trim()}` : summary.trim();
+    if (amend) {
+      if (amend.pushed && !confirmedPushed) {
+        setConfirmAmend(true);
+        return;
+      }
+      try {
+        const hash = await run("Amend commit", () => api.commitAmend(id, message, confirmedPushed), { rethrow: true, quiet: true });
+        if (hash) {
+          setAmend(null);
+          const d = beforeAmend.current;
+          setSummary(d?.summary ?? "");
+          setBody(d?.body ?? "");
+          if (settings?.successNotifications !== false) notify({ tone: "success", title: `Amended ${hash.slice(0, 7)}`, body: amend.pushed ? "Push with force (with lease) to update the remote." : undefined });
+        }
+      } catch (e) {
+        setCommitError(toAppError(e));
+      }
+      return;
+    }
     try {
       const hash = await run("Commit", () => api.commit(id, message), { rethrow: true, quiet: true });
       if (hash) {
@@ -77,7 +158,17 @@ export function CommitComposer({ stagedCount }: { stagedCount: number }) {
         setBody("");
         setAi(null);
         drafts.delete(id);
-        if (settings?.successNotifications !== false) notify({ tone: "success", title: `Committed ${hash.slice(0, 7)}` });
+        notify({
+          tone: "success",
+          title: `Committed ${hash.slice(0, 7)}`,
+          action: {
+            label: "Undo",
+            run: () =>
+              void run("Undo commit", () => undoLastCommit(id, false)).then((m) => {
+                if (m !== undefined) notify({ tone: "info", title: "Commit undone", body: "Its changes are staged again and the message is back in the commit box." });
+              }),
+          },
+        });
       }
     } catch (e) {
       const err = toAppError(e);
@@ -214,11 +305,24 @@ export function CommitComposer({ stagedCount }: { stagedCount: number }) {
         rows={body.split("\n").length > 3 ? 6 : 3}
         className="mt-1.5 text-sm"
       />
+      {(status?.state ?? "normal") === "normal" && (
+      <div className="mt-1.5 flex items-center justify-between gap-2">
+        <Checkbox checked={!!amend} onChange={(v) => void toggleAmend(v)} label="Amend last commit" />
+        {amend?.pushed && <span className="text-xs text-warning">Already pushed</span>}
+      </div>
+      )}
+      {amend && (
+        <p className="mt-1 text-xs text-muted">
+          {stagedCount > 0 ? `Adds ${plural(stagedCount, "staged file")} to the last commit and` : "Replaces the last commit's message; staged changes would be added too. It"} replaces it instead of creating a new commit.
+        </p>
+      )}
       {commitError && <ErrorNotice compact className="mt-2" error={commitError} />}
       <Tooltip content={canCommit ? `${modKey}+Enter` : !summary.trim() ? "Write a summary first" : "Stage the changes you want to commit"}>
         <span className="mt-2 block">
-          <Button variant="primary" className="w-full" disabled={!canCommit} loading={busy === "Commit"} onClick={commit}>
-            {merging
+          <Button variant="primary" className="w-full" disabled={!canCommit} loading={busy === "Commit" || busy === "Amend commit"} onClick={() => void commit()}>
+            {amend
+              ? "Amend last commit"
+              : merging
               ? "Commit merge"
               : stagedCount === 0
                 ? "No staged changes"
@@ -231,6 +335,19 @@ export function CommitComposer({ stagedCount }: { stagedCount: number }) {
           <Kbd>{modKey}</Kbd> <Kbd>Enter</Kbd>
         </p>
       )}
+      <ConfirmDialog
+        open={confirmAmend}
+        onClose={() => setConfirmAmend(false)}
+        danger
+        title="Amend a pushed commit?"
+        confirmLabel="Amend anyway"
+        onConfirm={async () => {
+          setConfirmAmend(false);
+          await commit(true);
+        }}
+      >
+        <p>This commit is already on the remote. Amending replaces it with a new one, so you'll need to push with force (with lease), and anyone who pulled it will have to reconcile their copy.</p>
+      </ConfirmDialog>
       <IdentityDialog open={identityOpen} onClose={() => setIdentityOpen(false)} initial={identity} onSaved={setIdentity} />
     </div>
   );

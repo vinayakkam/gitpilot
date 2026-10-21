@@ -73,6 +73,21 @@ pub struct FileDiff {
     pub conflict_view: bool,
     /// Hunk staging is possible for this diff (text, not truncated, not untracked/conflict).
     pub hunk_actions: bool,
+    /// Before/after previews for image files (set by the repository layer).
+    pub image: Option<ImageDiff>,
+}
+
+/// Images as data URLs so the UI can show them side by side.
+#[derive(Debug, Clone, Default, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ImageDiff {
+    pub old: Option<String>,
+    pub new: Option<String>,
+    #[ts(type = "number | null")]
+    pub old_size: Option<u64>,
+    #[ts(type = "number | null")]
+    pub new_size: Option<u64>,
 }
 
 fn strip_prefix_path(s: &str) -> Option<String> {

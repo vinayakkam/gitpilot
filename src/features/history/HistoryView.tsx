@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Copy, FileClock, GitCommitHorizontal, GitMerge, Undo2, X } from "lucide-react";
+import { Copy, FileClock, GitCommitHorizontal, GitCompare, GitFork, GitMerge, History, ListOrdered, RotateCcw, ScanSearch, Tag as TagIcon, Undo2, X } from "lucide-react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import type { AppError } from "@/bindings/AppError";
 import type { CommitDetail } from "@/bindings/CommitDetail";
@@ -17,7 +17,15 @@ import { Spinner } from "@/components/ui/Spinner";
 import { Splitter, usePanelWidth } from "@/components/ui/Splitter";
 import { StatusGlyph } from "@/components/ui/StatusGlyph";
 import { DiffViewer } from "@/features/diff/DiffViewer";
+import { TagDialog } from "@/features/branches/TagDialog";
+import { CompareFilesDialog, type CompareTarget } from "@/features/compare/CompareFilesDialog";
+import { BlameView } from "./BlameView";
+import { EditCommitsDialog } from "./EditCommitsDialog";
+import { ResetDialog } from "./ResetDialog";
+import { undoLastCommit } from "@/features/changes/CommitComposer";
+import type { LastCommit } from "@/bindings/LastCommit";
 import { api } from "@/lib/api";
+import { layoutGraph, type GraphRow } from "@/lib/graph";
 import { toAppError } from "@/lib/errors";
 import { absoluteTime, plural, relativeTime, splitPath } from "@/lib/format";
 import { useDebounced } from "@/lib/useAsync";
@@ -26,7 +34,31 @@ import { useStore } from "@/store/AppStore";
 
 const PAGE = 100;
 
-function CommitRow({ c, active, onClick, onContext }: { c: CommitSummary; active: boolean; onClick: () => void; onContext: (e: React.MouseEvent) => void }) {
+const LANE_W = 12;
+const ROW_H = 46;
+const MAX_LANES = 10;
+const GRAPH_COLORS = ["var(--accent)", "var(--added)", "var(--modified)", "var(--renamed)", "var(--conflict)", "var(--removed)", "var(--text-muted)"];
+const laneColor = (i: number) => GRAPH_COLORS[i % GRAPH_COLORS.length]!;
+const lx = (col: number) => Math.min(col, MAX_LANES - 1) * LANE_W + LANE_W / 2 + 2;
+
+/** The lines and dot for one row of the commit graph. */
+function GraphCell({ row, lanes, merge }: { row: GraphRow; lanes: number; merge: boolean }) {
+  const mid = ROW_H / 2;
+  const w = Math.min(lanes, MAX_LANES) * LANE_W + 4;
+  return (
+    <svg width={w} height={ROW_H} className="shrink-0" aria-hidden>
+      {row.top.map(([from, to, color], i) => (
+        <path key={`t${i}`} d={from === to ? `M${lx(from)} 0V${mid}` : `M${lx(from)} 0C${lx(from)} ${mid * 0.6} ${lx(to)} ${mid * 0.4} ${lx(to)} ${mid}`} stroke={laneColor(color)} strokeWidth={1.75} fill="none" />
+      ))}
+      {row.bottom.map(([from, to, color], i) => (
+        <path key={`b${i}`} d={from === to ? `M${lx(from)} ${mid}V${ROW_H}` : `M${lx(from)} ${mid}C${lx(from)} ${mid + mid * 0.6} ${lx(to)} ${mid + mid * 0.4} ${lx(to)} ${ROW_H}`} stroke={laneColor(color)} strokeWidth={1.75} fill="none" />
+      ))}
+      <circle cx={lx(row.col)} cy={mid} r={merge ? 3 : 4} fill={merge ? "var(--surface)" : laneColor(row.color)} stroke={laneColor(row.color)} strokeWidth={merge ? 2 : 0} />
+    </svg>
+  );
+}
+
+function CommitRow({ c, active, onClick, onContext, graph, lanes }: { c: CommitSummary; active: boolean; onClick: () => void; onContext: (e: React.MouseEvent) => void; graph?: GraphRow; lanes: number }) {
   return (
     <div
       role="option"
@@ -34,8 +66,11 @@ function CommitRow({ c, active, onClick, onContext }: { c: CommitSummary; active
       id={`commit-${c.hash}`}
       onClick={onClick}
       onContextMenu={onContext}
-      className={cx("mx-1 flex flex-col justify-center gap-0.5 rounded px-2.5 py-1.5", active ? "bg-selection" : "hover:bg-surface-2")}
+      className={cx("mx-1 flex items-center gap-1 rounded pr-2.5", graph ? "pl-0.5" : "pl-2.5", active ? "bg-selection" : "hover:bg-surface-2")}
+      style={{ height: ROW_H }}
     >
+      {graph && <GraphCell row={graph} lanes={lanes} merge={c.parents.length > 1} />}
+      <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
       <div className="flex min-w-0 items-center gap-2">
         {c.parents.length > 1 && <GitMerge size={12} className="shrink-0 text-faint" aria-label="Merge commit" />}
         <span className="truncate text-base">{c.subject || <span className="italic text-faint">(no message)</span>}</span>
@@ -51,6 +86,7 @@ function CommitRow({ c, active, onClick, onContext }: { c: CommitSummary; active
             </span>
           ))}
         </span>
+      </div>
       </div>
     </div>
   );
@@ -69,12 +105,22 @@ function Person({ label, name, email, time }: { label: string; name: string; ema
 }
 
 export function HistoryView() {
-  const { activeRepo, revision, settings, saveSettings, notify, historyPath, setHistoryPath, historyJump, setHistoryJump, status } = useStore();
+  const { activeRepo, revision, settings, saveSettings, notify, historyPath, setHistoryPath, historyJump, setHistoryJump, status, run, setSection } = useStore();
   const id = activeRepo?.id;
   const [listW, setListW] = usePanelWidth("history", 380, 280, 640);
   const [query, setQuery] = useState("");
+  const [showGraph, setShowGraph] = useState(() => {
+    try {
+      return localStorage.getItem("gitpilot.history.graph") !== "0";
+    } catch {
+      return true;
+    }
+  });
   const q = useDebounced(query, 250);
   const [commits, setCommits] = useState<CommitSummary[]>([]);
+  // The graph only makes sense for the full, unfiltered history.
+  const graph = useMemo(() => (showGraph && !q.trim() && !historyPath ? layoutGraph(commits) : null), [showGraph, q, historyPath, commits]);
+  const graphLanes = useMemo(() => (graph ? Math.max(1, ...graph.map((r) => r.width)) : 0), [graph]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
@@ -87,7 +133,23 @@ export function HistoryView() {
   const [diffErr, setDiffErr] = useState<AppError | null>(null);
   const [menu, setMenu] = useState<{ at: { x: number; y: number }; items: MenuItem[] } | null>(null);
   const [revert, setRevert] = useState<CommitSummary | null>(null);
+  const [tagOn, setTagOn] = useState<{ hash: string; label: string } | null>(null);
+  const [undo, setUndo] = useState<LastCommit | null>(null);
+  const [compare, setCompare] = useState<CompareTarget | null>(null);
+  const [blame, setBlame] = useState<{ path: string; rev: string | null } | null>(null);
+  const [editFrom, setEditFrom] = useState<{ base: string | null; from: string } | null>(null);
+  const [resetTo, setResetTo] = useState<{ hash: string; label: string } | null>(null);
   const integrate = useIntegrate();
+  const openUndo = async () => {
+    if (!activeRepo) return;
+    const last = await api.lastCommit(activeRepo.id).catch(() => null);
+    if (!last) return;
+    if (last.isMerge) {
+      notify({ tone: "info", title: "The last commit is a merge", body: "Use Revert instead; undoing merges isn't supported." });
+      return;
+    }
+    setUndo(last);
+  };
   const seq = useRef(0);
 
   useEffect(() => {
@@ -129,6 +191,15 @@ export function HistoryView() {
   useEffect(() => {
     setSel(null);
   }, [id, q, historyPath]);
+  // When HEAD moves (commit, reset, edited commits), the selected commit may no longer be on
+  // the branch: start again from the newest one.
+  const lastHead = useRef(headOid);
+  useEffect(() => {
+    if (lastHead.current !== headOid) {
+      lastHead.current = headOid;
+      setSel(null);
+    }
+  }, [headOid]);
 
   useEffect(() => {
     if (id == null || !sel) {
@@ -186,7 +257,26 @@ export function HistoryView() {
     <div className="flex h-full min-h-0">
       <div className="flex shrink-0 flex-col bg-surface" style={{ width: listW }}>
         <div className="flex shrink-0 flex-col gap-1.5 px-2 pb-1.5 pt-2">
-          <SearchField label="Search commits" placeholder="Search messages, author:name, or a hash" value={query} onChange={setQuery} />
+          <div className="flex items-center gap-1">
+            <div className="min-w-0 flex-1">
+              <SearchField label="Search commits" placeholder="Search messages, author:name, or a hash" value={query} onChange={setQuery} />
+            </div>
+            <IconButton
+              label={showGraph ? "Hide commit graph" : "Show commit graph"}
+              icon={<GitFork size={14} />}
+              className={showGraph ? "text-accent-text" : undefined}
+              onClick={() =>
+                setShowGraph((v) => {
+                  try {
+                    localStorage.setItem("gitpilot.history.graph", v ? "0" : "1");
+                  } catch {
+                    /* not persisted */
+                  }
+                  return !v;
+                })
+              }
+            />
+          </div>
           {historyPath && (
             <div className="flex items-center gap-1.5 rounded bg-accent-soft py-0.5 pl-2 pr-0.5 text-sm text-accent-text">
               <FileClock size={13} className="shrink-0" />
@@ -221,8 +311,10 @@ export function HistoryView() {
               {q ? `Nothing matches “${q}”.` : historyPath ? "This file has no committed history." : "Commits you make will be listed here."}
             </EmptyState>
           )}
-          {commits.map((c) => (
+          {commits.map((c, i) => (
             <CommitRow
+              graph={graph?.[i]}
+              lanes={graphLanes}
               key={c.hash}
               c={c}
               active={c.hash === sel}
@@ -235,7 +327,15 @@ export function HistoryView() {
                     { label: "Copy commit hash", icon: <Copy size={14} />, onSelect: () => copy(c.hash, "Hash") },
                     { label: "Copy message", icon: <Copy size={14} />, onSelect: () => copy(c.subject, "Message") },
                     { type: "separator" },
+                    { label: "Compare with current version…", icon: <GitCompare size={14} />, onSelect: () => setCompare({ base: c.hash, head: "HEAD" }) },
+                    { label: "Create tag here…", icon: <TagIcon size={14} />, onSelect: () => setTagOn({ hash: c.hash, label: `${c.shortHash} · ${c.subject}` }) },
+                    ...(c.hash === headOid
+                      ? [{ label: "Undo this commit…", icon: <RotateCcw size={14} />, disabled: status?.state !== "normal", onSelect: () => void openUndo() } as MenuItem]
+                      : []),
                     { label: "Revert this commit…", icon: <Undo2 size={14} />, disabled: status?.state !== "normal", onSelect: () => setRevert(c) },
+                    { type: "separator" },
+                    { label: "Edit commits from here…", icon: <ListOrdered size={14} />, disabled: status?.state !== "normal" || c.parents.length > 1, onSelect: () => setEditFrom({ base: c.parents[0] ?? null, from: c.hash }) },
+                    ...(c.hash !== headOid ? [{ label: "Reset branch to here…", icon: <History size={14} />, disabled: status?.state !== "normal", onSelect: () => setResetTo({ hash: c.hash, label: `${c.shortHash} · ${c.subject}` }) } as MenuItem] : []),
                   ],
                 });
               }}
@@ -306,7 +406,18 @@ export function HistoryView() {
                       role="option"
                       aria-selected={file?.path === f.path}
                       onClick={() => setFile(f)}
-                      title={f.origPath ? `${f.origPath} → ${f.path}` : f.path}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setMenu({
+                          at: { x: e.clientX, y: e.clientY },
+                          items: [
+                            { label: "Blame (who changed each line)", icon: <ScanSearch size={14} />, disabled: f.change === "deleted" || f.binary, onSelect: () => setBlame({ path: f.path, rev: detail.summary.hash }) },
+                            { label: "Show file history", icon: <FileClock size={14} />, onSelect: () => setHistoryPath(f.path) },
+                            { label: "Copy path", icon: <Copy size={14} />, onSelect: () => copy(f.path, "Path") },
+                          ],
+                        });
+                      }}
+                      title={f.origPath ? `${f.origPath} → ${f.path}` : undefined}
                       className={cx("mx-1 flex items-center gap-2 rounded px-2", file?.path === f.path ? "bg-selection" : "hover:bg-surface-2")}
                       style={{ height: "var(--row-h)" }}
                     >
@@ -342,6 +453,31 @@ export function HistoryView() {
         )}
       </div>
       {menu && <Menu at={menu.at} items={menu.items} onClose={() => setMenu(null)} />}
+      <TagDialog target={tagOn} onClose={() => setTagOn(null)} />
+      <CompareFilesDialog target={compare} onClose={() => setCompare(null)} />
+      <BlameView target={blame} onClose={() => setBlame(null)} />
+      <EditCommitsDialog target={editFrom} onClose={() => setEditFrom(null)} />
+      <ResetDialog target={resetTo} onClose={() => setResetTo(null)} />
+      <ConfirmDialog
+        open={undo !== null}
+        onClose={() => setUndo(null)}
+        danger={undo?.pushed}
+        acknowledge={undo?.pushed ? "I understand this rewrites history that's already on the remote." : undefined}
+        title="Undo the last commit?"
+        confirmLabel="Undo commit"
+        onConfirm={async () => {
+          if (!undo || !activeRepo) return;
+          const id = activeRepo.id;
+          const m = await run("Undo commit", () => undoLastCommit(id, undo.pushed), { rethrow: true });
+          if (m !== undefined) {
+            notify({ tone: "success", title: "Commit undone", body: "Its changes are staged again and the message is in the commit box." });
+            setSection("changes");
+          }
+        }}
+      >
+        <p>The commit is removed from the branch, but nothing is lost: its changes go back to the staging area and its message goes back into the commit box, ready to edit and commit again.</p>
+        {undo?.pushed && <p className="mt-2">This commit is already on the remote, so you'd need to push with force (with lease) afterwards.</p>}
+      </ConfirmDialog>
       <ConfirmDialog
         open={revert !== null}
         onClose={() => setRevert(null)}

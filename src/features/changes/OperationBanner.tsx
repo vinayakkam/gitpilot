@@ -38,7 +38,7 @@ export function OperationBanner({ status }: { status: RepoStatus }) {
 
   let text: string;
   if (conflicts > 0) {
-    text = `The ${op} stopped with ${plural(conflicts, "conflicted file")}. Resolve each one in your editor, mark it resolved, then continue.`;
+    text = `The ${op} stopped with ${plural(conflicts, "conflicted file")}. Pick a side for each conflict (or edit the file yourself), mark it resolved, then continue.`;
   } else if (status.state === "merging") {
     text = "All conflicts are resolved. Commit to finish the merge, or abort it.";
   } else {

@@ -11,7 +11,7 @@ const files: FileEntry[] = [
 ];
 
 function actions(): FileListActions {
-  return { stage: vi.fn(), unstage: vi.fn(), discard: vi.fn(), stageAll: vi.fn(), unstageAll: vi.fn(), copyPath: vi.fn(), showHistory: vi.fn(), ignore: vi.fn() };
+  return { stage: vi.fn(), unstage: vi.fn(), discard: vi.fn(), stageAll: vi.fn(), unstageAll: vi.fn(), copyPath: vi.fn(), showHistory: vi.fn(), ignore: vi.fn(), stash: vi.fn(), blame: vi.fn() };
 }
 
 describe("FileList", () => {

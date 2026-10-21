@@ -108,7 +108,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const notify = useCallback((t: Omit<Toast, "id">) => {
     const id = ++toastId;
     setToasts((ts) => [...ts.slice(-3), { ...t, id }]);
-    if (t.tone !== "error") window.setTimeout(() => setToasts((ts) => ts.filter((x) => x.id !== id)), 3500);
+    if (t.tone !== "error") window.setTimeout(() => setToasts((ts) => ts.filter((x) => x.id !== id)), t.action ? 8000 : 3500);
   }, []);
   const dismiss = useCallback((id: number) => setToasts((ts) => ts.filter((t) => t.id !== id)), []);
 
@@ -261,6 +261,37 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [refreshStatus]);
+
+  // Auto-refresh: watch the open repository and refresh when its files change on disk.
+  const autoRefresh = settings?.autoRefresh !== false;
+  useEffect(() => {
+    if (activeId == null || !autoRefresh || typeof api.repoWatch !== "function") return;
+    const id = activeId;
+    let unlisten: (() => void) | undefined;
+    let timer: number | undefined;
+    let live = true;
+    void api.repoWatch(id).catch(() => undefined);
+    const onChanged = typeof api.onRepoChanged === "function" ? api.onRepoChanged : undefined;
+    void onChanged?.((changed) => {
+      if (changed !== id || busyRef.current) return;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (live && !busyRef.current) {
+          void refreshStatus();
+          setRevision((r) => r + 1);
+        }
+      }, 100);
+    }).then((u) => {
+      if (live) unlisten = u;
+      else u();
+    });
+    return () => {
+      live = false;
+      window.clearTimeout(timer);
+      unlisten?.();
+      void api.repoUnwatch(id).catch(() => undefined);
+    };
+  }, [activeId, autoRefresh, refreshStatus]);
 
   // Theme + density.
   useEffect(() => {

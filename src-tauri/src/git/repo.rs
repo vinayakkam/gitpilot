@@ -16,7 +16,7 @@ use crate::error::{AppError, AppResult, ErrorKind};
 use tokio::sync::Notify;
 
 /// Applied to every network-capable command: never allow command-executing transports.
-const NO_EXT: [&str; 4] = [
+pub(crate) const NO_EXT: [&str; 4] = [
     "-c",
     "protocol.ext.allow=never",
     "-c",
@@ -557,7 +557,9 @@ impl Repo<'_> {
                 } else {
                     std::fs::read(&full)?
                 };
-                Ok(diff::untracked_file_diff(path, &bytes))
+                let mut f = diff::untracked_file_diff(path, &bytes);
+                self.attach_worktree_image(&mut f, path, area, None).await;
+                Ok(f)
             }
             Area::Conflicted => {
                 let full = self.path.join(path);
@@ -575,15 +577,18 @@ impl Repo<'_> {
             Area::Staged | Area::Unstaged => {
                 let raw = self.raw_diff(path, area == Area::Staged, orig_path).await?;
                 let mut files = diff::parse(&raw);
-                Ok(files.pop().unwrap_or_else(|| FileDiff {
+                let mut f = files.pop().unwrap_or_else(|| FileDiff {
                     new_path: Some(path.to_string()),
                     ..FileDiff::default()
-                }))
+                });
+                self.attach_worktree_image(&mut f, path, area, orig_path)
+                    .await;
+                Ok(f)
             }
         }
     }
 
-    async fn raw_diff(
+    pub(crate) async fn raw_diff(
         &self,
         path: &str,
         staged: bool,
@@ -744,11 +749,20 @@ impl Repo<'_> {
     // ---------- commit ----------
 
     pub async fn commit(&self, message: &str) -> AppResult<String> {
+        self.commit_with(message, false).await
+    }
+
+    /// Commits the staged changes, or with `amend` replaces the last commit (staged changes are
+    /// added to it and the message is replaced; nothing needs to be staged).
+    pub async fn commit_with(&self, message: &str, amend: bool) -> AppResult<String> {
         if message.trim().is_empty() {
             return Err(AppError::new(
                 ErrorKind::EmptyMessage,
                 "Write a commit message first.",
             ));
+        }
+        if amend && self.is_unborn().await {
+            return Err(AppError::invalid("There's no commit to amend yet."));
         }
         // Check staged changes explicitly so the error is precise (and we never auto-stage).
         let staged = self
@@ -765,18 +779,23 @@ impl Repo<'_> {
             .await?;
         let (_, common) = self.dirs().await?;
         let merging = common.join("MERGE_HEAD").exists();
-        if staged.code == 0 && !merging {
+        if staged.code == 0 && !merging && !amend {
             return Err(AppError::new(
                 ErrorKind::NothingToCommit,
                 "There are no staged changes to commit.",
             ));
         }
         let msg = message.as_bytes();
+        let args: &[&str] = if amend {
+            &["commit", "--amend", "--file=-"]
+        } else {
+            &["commit", "--file=-"]
+        };
         let res = self
             .git
             .run(
                 self.path,
-                ["commit", "--file=-"],
+                args,
                 RunOpts {
                     stdin: Some(msg),
                     ..RunOpts::default()
@@ -867,6 +886,9 @@ impl Repo<'_> {
         };
         if q.path.is_some() {
             args.push("--follow".into());
+        } else if search.is_none() {
+            // Children before parents, so the commit graph can be drawn.
+            args.push("--date-order".into());
         }
         args.push(rev);
         args.push("--".into());
@@ -969,6 +991,8 @@ impl Repo<'_> {
             ..FileDiff::default()
         });
         f.hunk_actions = false;
+        self.attach_commit_image(&mut f, hash, path, orig_path)
+            .await;
         Ok(f)
     }
 
@@ -1159,6 +1183,21 @@ impl Repo<'_> {
     }
 
     pub async fn stash_push(&self, message: &str, include_untracked: bool) -> AppResult<()> {
+        self.stash_push_paths(message, include_untracked, &[]).await
+    }
+
+    /// Stashes changes; with `paths`, only those files are stashed and the rest stay put.
+    pub async fn stash_push_paths(
+        &self,
+        message: &str,
+        include_untracked: bool,
+        paths: &[String],
+    ) -> AppResult<()> {
+        let paths = if paths.is_empty() {
+            Vec::new()
+        } else {
+            v::rel_paths(paths)?
+        };
         let msg = message.trim();
         let mut args = vec!["stash", "push"];
         if include_untracked {
@@ -1172,6 +1211,10 @@ impl Repo<'_> {
                 msg
             },
         ]);
+        if !paths.is_empty() {
+            args.push("--");
+            args.extend(paths);
+        }
         self.write(args).await?;
         Ok(())
     }

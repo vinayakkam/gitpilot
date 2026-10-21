@@ -1,5 +1,5 @@
 import { useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
-import { Check, ChevronRight, Copy, EyeOff, History, Minus, Plus, Trash2, Undo2 } from "lucide-react";
+import { Archive, Check, ChevronRight, Copy, EyeOff, History, Minus, Plus, ScanSearch, Trash2, Undo2 } from "lucide-react";
 import type { Area } from "@/bindings/Area";
 import type { FileEntry } from "@/bindings/FileEntry";
 import { Button } from "@/components/ui/Button";
@@ -27,6 +27,8 @@ export interface FileListActions {
   copyPath: (path: string) => void;
   showHistory: (path: string) => void;
   ignore: (files: FileEntry[]) => void;
+  stash: (files: FileEntry[]) => void;
+  blame: (path: string) => void;
 }
 
 interface Props {
@@ -98,9 +100,11 @@ export function FileList({ files, selected, focusKey, onSelect, actions, disable
     if (f.area === "untracked")
       items.push({ label: n > 1 ? `Move ${n} files to trash…` : "Move to trash…", icon: <Trash2 size={14} />, danger: true, onSelect: () => actions.discard(targets) });
     items.push({ type: "separator" });
+    if (f.area !== "conflicted") items.push({ label: n > 1 ? `Stash ${n} files…` : "Stash this file…", icon: <Archive size={14} />, onSelect: () => actions.stash(targets) });
     if (f.area !== "conflicted") items.push({ label: "Add to .gitignore…", icon: <EyeOff size={14} />, onSelect: () => actions.ignore(targets) });
     items.push({ label: "Copy path", icon: <Copy size={14} />, onSelect: () => actions.copyPath(f.path) });
     if (f.area !== "untracked") items.push({ label: "Show file history", icon: <History size={14} />, onSelect: () => actions.showHistory(f.path) });
+    if (f.area !== "untracked" && f.change !== "deleted") items.push({ label: "Blame (who changed each line)", icon: <ScanSearch size={14} />, onSelect: () => actions.blame(f.path) });
     setMenu({ at: { x: e.clientX, y: e.clientY }, items });
   };
 

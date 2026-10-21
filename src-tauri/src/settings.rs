@@ -151,6 +151,8 @@ pub struct Settings {
     pub claude_code: ClaudeCodeSettings,
     /// Reopen the last repository on startup.
     pub reopen_last_repo: bool,
+    /// Refresh the file list as soon as files change on disk.
+    pub auto_refresh: bool,
     /// Show a notification when operations succeed (errors are always shown).
     pub success_notifications: bool,
     /// Look for a new version on startup (at most once a day).
@@ -177,6 +179,7 @@ impl Default for Settings {
             ai: AiSettings::default(),
             claude_code: ClaudeCodeSettings::default(),
             reopen_last_repo: true,
+            auto_refresh: true,
             success_notifications: true,
             check_for_updates: true,
             last_repo_id: None,

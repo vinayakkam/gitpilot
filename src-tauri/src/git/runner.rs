@@ -86,6 +86,9 @@ impl Git {
             .env("GIT_MERGE_AUTOEDIT", "no")
             // ":" tells git not to launch an editor (rebase/cherry-pick/revert --continue keep the prepared message).
             .env("GIT_EDITOR", ":")
+            // Interactive rebase sets its own sequence editor with `-c sequence.editor=...`;
+            // a user's GIT_SEQUENCE_EDITOR would take precedence and open their editor.
+            .env_remove("GIT_SEQUENCE_EDITOR")
             .env("LC_ALL", "C")
             .env("LANGUAGE", "C")
             .stdout(Stdio::piped())

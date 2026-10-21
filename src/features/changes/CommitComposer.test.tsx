@@ -13,6 +13,9 @@ const api = vi.hoisted(() => ({
   commit: vi.fn(),
   aiSuggestCommit: vi.fn(),
   eolCheck: vi.fn(),
+  lastCommit: vi.fn(),
+  commitAmend: vi.fn(),
+  commitUndo: vi.fn(),
 }));
 
 vi.mock("@/lib/api", () => ({ api, onProgress: () => Promise.resolve(() => {}) }));
@@ -82,5 +85,37 @@ describe("CommitComposer", () => {
     setup(1);
     fireEvent.click(await screen.findByRole("button", { name: "Suggest a commit message with AI" }));
     expect(api.aiSuggestCommit).not.toHaveBeenCalled();
+  });
+
+  it("amends the last commit with its message pre-filled, then restores the draft", async () => {
+    api.lastCommit.mockResolvedValue({ hash: "abc1234", message: "Fix login\n\nOld body", pushed: false, isMerge: false, isRoot: false });
+    api.commitAmend.mockResolvedValue("def5678000");
+    setup(0);
+    await waitFor(() => expect(api.identityGet).toHaveBeenCalled());
+    fireEvent.change(await screen.findByLabelText("Commit summary"), { target: { value: "My draft" } });
+    fireEvent.click(screen.getByLabelText("Amend last commit"));
+    await waitFor(() => expect(screen.getByLabelText("Commit summary")).toHaveValue("Fix login"));
+    expect(screen.getByLabelText("Commit description (optional)")).toHaveValue("Old body");
+    const btn = screen.getByRole("button", { name: "Amend last commit" });
+    expect(btn).toBeEnabled();
+    fireEvent.change(screen.getByLabelText("Commit summary"), { target: { value: "Fix login redirect" } });
+    fireEvent.click(btn);
+    await waitFor(() => expect(api.commitAmend).toHaveBeenCalledWith(1, "Fix login redirect\n\nOld body", false));
+    await waitFor(() => expect(screen.getByLabelText("Commit summary")).toHaveValue("My draft"));
+  });
+
+  it("asks before amending a commit that was already pushed", async () => {
+    api.lastCommit.mockResolvedValue({ hash: "abc1234", message: "Pushed", pushed: true, isMerge: false, isRoot: false });
+    api.commitAmend.mockResolvedValue("def5678000");
+    HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) { this.open = true; };
+    HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) { this.open = false; };
+    setup(0);
+    await waitFor(() => expect(api.identityGet).toHaveBeenCalled());
+    fireEvent.click(await screen.findByLabelText("Amend last commit"));
+    expect(await screen.findByText("Already pushed")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Amend last commit" }));
+    expect(api.commitAmend).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByRole("button", { name: "Amend anyway" }));
+    await waitFor(() => expect(api.commitAmend).toHaveBeenCalledWith(1, "Pushed", true));
   });
 });

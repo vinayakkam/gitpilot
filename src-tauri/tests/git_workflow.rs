@@ -1170,3 +1170,423 @@ async fn gitignore_tracked_files_and_ignore_rules() {
         "nothing left to show"
     );
 }
+
+/// Batch A (0.4.0): amend, undo last commit, tags, stashing selected files and discarding
+/// lines or hunks from the working copy.
+#[tokio::test]
+async fn amend_undo_tags_stash_paths_and_partial_discard() {
+    let g = git();
+    let bare = tempfile::tempdir().unwrap();
+    g.run(
+        bare.path(),
+        ["init", "--bare", "-b", "main"],
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    assert!(r.last_commit().await.unwrap().is_none());
+    write(&root, "f.txt", "a\nb\nc\nd\n");
+    r.stage_all().await.unwrap();
+    r.commit("Base").await.unwrap();
+    let base = r.last_commit().await.unwrap().unwrap();
+    assert!(base.is_root && !base.pushed);
+
+    // Amend: message only, then with an extra staged file.
+    r.commit_with("Base commit\n\nWith a body.", true)
+        .await
+        .unwrap();
+    write(&root, "extra.txt", "x\n");
+    r.stage(&["extra.txt".into()]).await.unwrap();
+    let h = r.commit_with("Base commit", true).await.unwrap();
+    let count = g
+        .read(&root, ["rev-list", "--count", "HEAD"])
+        .await
+        .unwrap();
+    assert_eq!(count.trim(), "1", "amend replaces, never adds");
+    let files = g
+        .read(&root, ["show", "--name-only", "--format=", &h])
+        .await
+        .unwrap();
+    assert!(files.contains("extra.txt"));
+
+    // Undo a normal commit: changes return staged, message comes back.
+    write(&root, "g.txt", "g\n");
+    r.stage(&["g.txt".into()]).await.unwrap();
+    r.commit("Add g").await.unwrap();
+    let msg = r.undo_last_commit(false).await.unwrap();
+    assert_eq!(msg, "Add g");
+    let st = r.status().await.unwrap();
+    assert!(st
+        .files
+        .iter()
+        .any(|f| f.path == "g.txt" && f.area == Area::Staged));
+    r.commit("Add g").await.unwrap();
+
+    // Pushed commits need confirmation to undo.
+    let url = bare.path().display().to_string();
+    r.remote_add("origin", &url).await.unwrap();
+    r.push(None, false, false, None, |_| {}).await.unwrap();
+    assert!(r.last_commit().await.unwrap().unwrap().pushed);
+    assert!(r.undo_last_commit(false).await.is_err());
+
+    // Tags: lightweight + annotated, push, delete remote, delete local.
+    r.tag_create("v1.0", "HEAD", "First release").await.unwrap();
+    r.tag_create("light", "HEAD~1", "").await.unwrap();
+    assert!(
+        r.tag_create("v1.0", "HEAD", "").await.is_err(),
+        "no duplicates"
+    );
+    assert!(r.tag_create("bad name", "HEAD", "").await.is_err());
+    let tags = r.tags().await.unwrap();
+    let v1 = tags.iter().find(|t| t.name == "v1.0").unwrap();
+    assert!(v1.annotated);
+    assert_eq!(v1.message, "First release");
+    let head = g.read(&root, ["rev-parse", "HEAD"]).await.unwrap();
+    assert_eq!(v1.target, head.trim());
+    r.tag_push("origin", "v1.0", false).await.unwrap();
+    let remote_tags = g.read(bare.path(), ["tag"]).await.unwrap();
+    assert!(remote_tags.contains("v1.0"));
+    r.tag_push("origin", "v1.0", true).await.unwrap();
+    assert!(!g.read(bare.path(), ["tag"]).await.unwrap().contains("v1.0"));
+    r.tag_delete("light").await.unwrap();
+    assert_eq!(r.tags().await.unwrap().len(), 1);
+
+    // Stash only one of two changed files.
+    write(&root, "f.txt", "a\nb\nc\nd\ne\n");
+    write(&root, "g.txt", "changed\n");
+    r.stash_push_paths("only g", false, &["g.txt".into()])
+        .await
+        .unwrap();
+    assert_eq!(std::fs::read_to_string(root.join("g.txt")).unwrap(), "g\n");
+    assert_eq!(
+        std::fs::read_to_string(root.join("f.txt")).unwrap(),
+        "a\nb\nc\nd\ne\n",
+        "other file untouched"
+    );
+    assert_eq!(r.stash_list().await.unwrap()[0].message, "On main: only g");
+
+    // Discard lines: f.txt has -b +B, -c +C, +new. Discard only the B replacement.
+    write(&root, "f.txt", "a\nB\nC\nnew\nd\n");
+    let d = r.file_diff("f.txt", Area::Unstaged, None).await.unwrap();
+    let h = &d.hunks[0];
+    let idx = |kind: LineKind, text: &str| {
+        h.lines
+            .iter()
+            .position(|l| l.kind == kind && l.content == text)
+            .unwrap() as u32
+    };
+    let backups = tempfile::tempdir().unwrap();
+    let saved = r
+        .discard_partial(
+            "f.txt",
+            &h.header,
+            Some(&[idx(LineKind::Del, "b"), idx(LineKind::Add, "B")]),
+            backups.path(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        std::fs::read_to_string(root.join("f.txt")).unwrap(),
+        "a\nb\nC\nnew\nd\n",
+        "only the selected change was reverted"
+    );
+    assert!(saved.is_some());
+
+    // Discard the "+new" addition alone, then the rest of the hunk.
+    let d = r.file_diff("f.txt", Area::Unstaged, None).await.unwrap();
+    let h = &d.hunks[0];
+    let new_i = h.lines.iter().position(|l| l.content == "new").unwrap() as u32;
+    r.discard_partial("f.txt", &h.header, Some(&[new_i]), backups.path())
+        .await
+        .unwrap();
+    assert_eq!(
+        std::fs::read_to_string(root.join("f.txt")).unwrap(),
+        "a\nb\nC\nd\n"
+    );
+    let d = r.file_diff("f.txt", Area::Unstaged, None).await.unwrap();
+    r.discard_partial("f.txt", &d.hunks[0].header, None, backups.path())
+        .await
+        .unwrap();
+    assert_eq!(
+        std::fs::read_to_string(root.join("f.txt")).unwrap(),
+        "a\nb\nc\nd\n"
+    );
+    assert!(r.status().await.unwrap().files.is_empty());
+}
+
+/// Batch B (0.4.0): blame, comparing revisions file by file, and image previews.
+#[tokio::test]
+async fn blame_compare_and_image_previews() {
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    write(&root, "f.txt", "one\ntwo\n");
+    // A tiny valid PNG (1x1).
+    let png: &[u8] = &[
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d, 0x49, 0x48, 0x44, 0x52, 0,
+        0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 0x1f, 0x15, 0xc4, 0x89, 0, 0, 0, 0x0d, 0x49, 0x44,
+        0x41, 0x54, 0x78, 0x9c, 0x63, 0xf8, 0xcf, 0xc0, 0xf0, 0x1f, 0, 0x05, 0x00, 0x01, 0xff,
+        0x89, 0x99, 0x3d, 0x1d, 0, 0, 0, 0, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+    ];
+    std::fs::write(root.join("logo.png"), png).unwrap();
+    r.stage_all().await.unwrap();
+    r.commit("First").await.unwrap();
+    let first = g
+        .read(&root, ["rev-parse", "HEAD"])
+        .await
+        .unwrap()
+        .trim()
+        .to_string();
+    r.branch_create("feature", None, true).await.unwrap();
+    write(&root, "f.txt", "one\nTWO\nthree\n");
+    let mut png2 = png.to_vec();
+    png2.extend_from_slice(b"extra");
+    std::fs::write(root.join("logo.png"), &png2).unwrap();
+    r.stage_all().await.unwrap();
+    r.commit("Second").await.unwrap();
+
+    // Blame: line 1 from First, lines 2-3 from Second; an uncommitted edit shows up as such.
+    write(&root, "f.txt", "one\nTWO\nthree\nfour\n");
+    let b = r.blame("f.txt", None).await.unwrap();
+    assert_eq!(b.lines.len(), 4);
+    let who = |i: usize| &b.commits[b.lines[i].commit as usize];
+    assert_eq!(who(0).summary, "First");
+    assert_eq!(who(1).summary, "Second");
+    assert!(who(3).uncommitted);
+    let at_first = r.blame("f.txt", Some(&first)).await.unwrap();
+    assert_eq!(at_first.lines.len(), 2);
+
+    // Compare main...feature: both files changed.
+    let files = r.compare_files("main", "feature", true).await.unwrap();
+    let mut names: Vec<&str> = files.iter().map(|f| f.path.as_str()).collect();
+    names.sort();
+    assert_eq!(names, vec!["f.txt", "logo.png"]);
+    let d = r
+        .compare_file_diff("main", "feature", true, "f.txt", None)
+        .await
+        .unwrap();
+    assert_eq!((d.additions, d.deletions), (2, 1));
+    assert!(!d.hunk_actions);
+    assert!(r.compare_files("main", "bad name", true).await.is_err());
+
+    // Image previews: in a commit, in a comparison and in the working copy.
+    let head = g
+        .read(&root, ["rev-parse", "HEAD"])
+        .await
+        .unwrap()
+        .trim()
+        .to_string();
+    let c = r.commit_file_diff(&head, "logo.png", None).await.unwrap();
+    let img = c.image.expect("commit image preview");
+    assert!(img.old.unwrap().starts_with("data:image/png;base64,"));
+    assert_eq!(img.new_size, Some(png2.len() as u64));
+    let cmp = r
+        .compare_file_diff("main", "feature", true, "logo.png", None)
+        .await
+        .unwrap();
+    assert!(cmp.image.is_some());
+    std::fs::write(root.join("logo.png"), png).unwrap();
+    let wt = r.file_diff("logo.png", Area::Unstaged, None).await.unwrap();
+    let img = wt.image.expect("working copy image preview");
+    assert_eq!(img.old_size, Some(png2.len() as u64));
+    assert_eq!(img.new_size, Some(png.len() as u64));
+}
+
+/// Batch C (0.4.0): resolving conflict blocks, editing commits (interactive rebase), and
+/// resetting with an automatic backup that can be restored.
+#[tokio::test]
+async fn conflicts_interactive_rebase_and_reset_backups() {
+    use gitpilot_lib::git::rewrite::{ConflictChoice, RebaseAction, RebaseStep, ResetMode};
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    let log = |g: &Git, root: &Path| {
+        let g = g.clone();
+        let root = root.to_path_buf();
+        async move {
+            g.read(&root, ["log", "--format=%s", "--reverse"])
+                .await
+                .unwrap()
+                .lines()
+                .map(String::from)
+                .collect::<Vec<_>>()
+        }
+    };
+
+    // --- conflicts ---
+    write(
+        &root,
+        "c.txt",
+        "top\nm1\nm2\nm3\nm4\nm5\nm6\nm7\nm8\nbottom\nend\n",
+    );
+    r.stage_all().await.unwrap();
+    r.commit("Base").await.unwrap();
+    r.branch_create("other", None, true).await.unwrap();
+    write(
+        &root,
+        "c.txt",
+        "TOP-other\nm1\nm2\nm3\nm4\nm5\nm6\nm7\nm8\nBOTTOM-other\nend\n",
+    );
+    r.stage_all().await.unwrap();
+    r.commit("Other").await.unwrap();
+    r.branch_switch("main").await.unwrap();
+    write(
+        &root,
+        "c.txt",
+        "TOP-main\nm1\nm2\nm3\nm4\nm5\nm6\nm7\nm8\nBOTTOM-main\nend\n",
+    );
+    r.stage_all().await.unwrap();
+    r.commit("Main").await.unwrap();
+    assert!(r.merge("other").await.is_err(), "conflict stops the merge");
+    let left = r
+        .conflict_resolve_block("c.txt", 0, ConflictChoice::Incoming)
+        .await
+        .unwrap();
+    assert_eq!(left, 1);
+    let left = r
+        .conflict_resolve_block("c.txt", 0, ConflictChoice::Both)
+        .await
+        .unwrap();
+    assert_eq!(left, 0);
+    assert_eq!(
+        std::fs::read_to_string(root.join("c.txt")).unwrap(),
+        "TOP-other\nm1\nm2\nm3\nm4\nm5\nm6\nm7\nm8\nBOTTOM-main\nBOTTOM-other\nend\n"
+    );
+    r.stage(&["c.txt".into()]).await.unwrap();
+    r.commit("Merge other").await.unwrap();
+
+    // Whole-file choice.
+    r.branch_create("other2", Some("other"), true)
+        .await
+        .unwrap();
+    write(&root, "c.txt", "theirs only\n");
+    r.stage_all().await.unwrap();
+    r.commit("Other2").await.unwrap();
+    r.branch_switch("main").await.unwrap();
+    assert!(r.merge("other2").await.is_err());
+    r.conflict_take_side("c.txt", true).await.unwrap();
+    assert!(!std::fs::read_to_string(root.join("c.txt"))
+        .unwrap()
+        .contains("<<<<<<<"));
+    r.stage(&["c.txt".into()]).await.unwrap();
+    r.commit("Keep main's version").await.unwrap();
+
+    // --- interactive rebase on a fresh linear branch ---
+    r.branch_create("work", None, true).await.unwrap();
+    let base = g
+        .read(&root, ["rev-parse", "HEAD"])
+        .await
+        .unwrap()
+        .trim()
+        .to_string();
+    for (f, m) in [
+        ("1.txt", "One"),
+        ("2.txt", "Two"),
+        ("3.txt", "Three"),
+        ("4.txt", "Four"),
+    ] {
+        write(&root, f, m);
+        r.stage(&[f.into()]).await.unwrap();
+        r.commit(m).await.unwrap();
+    }
+    let commits = r.rebase_commits(Some(&base)).await.unwrap();
+    assert_eq!(
+        commits
+            .iter()
+            .map(|c| c.subject.as_str())
+            .collect::<Vec<_>>(),
+        vec!["One", "Two", "Three", "Four"]
+    );
+    let h = |i: usize| commits[i].hash.clone();
+    // New order: Three (reworded), One + Two squashed with a new message, Four dropped.
+    let steps = vec![
+        RebaseStep {
+            hash: h(2),
+            action: RebaseAction::Reword,
+            message: Some("Three, reworded\n\nWith a body.".into()),
+        },
+        RebaseStep {
+            hash: h(0),
+            action: RebaseAction::Pick,
+            message: None,
+        },
+        RebaseStep {
+            hash: h(1),
+            action: RebaseAction::Squash,
+            message: Some("One and two".into()),
+        },
+        RebaseStep {
+            hash: h(3),
+            action: RebaseAction::Drop,
+            message: None,
+        },
+    ];
+    // A stale list (missing a commit) is refused.
+    assert!(r
+        .rebase_interactive(Some(&base), &steps[..3], false)
+        .await
+        .is_err());
+    let backup = r
+        .rebase_interactive(Some(&base), &steps, false)
+        .await
+        .unwrap();
+    let after = log(&g, &root).await;
+    assert_eq!(
+        &after[after.len() - 2..],
+        &["Three, reworded", "One and two"]
+    );
+    assert!(
+        !root.join("4.txt").exists(),
+        "dropped commit's file is gone"
+    );
+    assert!(root.join("1.txt").exists() && root.join("2.txt").exists());
+    let body = g
+        .read(&root, ["log", "-1", "--skip=1", "--format=%B"])
+        .await
+        .unwrap();
+    assert!(body.contains("With a body."));
+
+    // --- backups and reset ---
+    let backups = r.backups().await.unwrap();
+    assert!(backups
+        .iter()
+        .any(|b| b.name == backup.name && b.label.contains("editing commits")));
+    write(&root, "1.txt", "uncommitted work");
+    let b2 = r.reset_to(&base, ResetMode::Hard).await.unwrap();
+    assert!(b2.wip.is_some(), "uncommitted changes were saved");
+    assert!(!root.join("1.txt").exists());
+    r.backup_restore(&b2.name).await.unwrap();
+    assert_eq!(
+        std::fs::read_to_string(root.join("1.txt")).unwrap(),
+        "uncommitted work",
+        "restoring brings back commits and uncommitted work"
+    );
+    assert_eq!(log(&g, &root).await.last().unwrap(), "One and two");
+
+    // Soft reset keeps the changes staged.
+    r.stage(&["1.txt".into()]).await.unwrap();
+    r.commit("Edit one").await.unwrap();
+    r.reset_to("HEAD~1", ResetMode::Soft).await.unwrap();
+    let st = r.status().await.unwrap();
+    assert!(st
+        .files
+        .iter()
+        .any(|f| f.path == "1.txt" && f.area == Area::Staged));
+    r.backup_delete(&b2.name).await.unwrap();
+    assert!(!r.backups().await.unwrap().iter().any(|b| b.name == b2.name));
+    assert!(
+        r.backup_delete("refs/heads/main").await.is_err(),
+        "only GitPilot backups"
+    );
+}

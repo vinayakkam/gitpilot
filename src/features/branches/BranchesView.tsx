@@ -33,6 +33,9 @@ import { api } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
 import { plural, relativeTime } from "@/lib/format";
 import { useAsync } from "@/lib/useAsync";
+import { TagsSection } from "./TagsSection";
+import { BackupsSection } from "./BackupsSection";
+import { CompareFilesDialog, type CompareTarget } from "@/features/compare/CompareFilesDialog";
 import { useIntegrate } from "@/lib/useIntegrate";
 import { useStore } from "@/store/AppStore";
 import { branchNameProblem, NewBranchDialog } from "./NewBranchDialog";
@@ -209,6 +212,8 @@ export function BranchesView() {
                 <p className="px-4 py-3 text-base text-muted">No stashes. Stashing saves uncommitted changes so you can switch branches with a clean working tree.</p>
               )}
             </section>
+            <TagsSection query={q} />
+            <BackupsSection />
           </>
         )}
       </div>
@@ -440,6 +445,7 @@ function CompareDialog({ base, head, onClose }: { base: string; head: string; on
   const [b, h] = swap ? [head, base] : [base, head];
   const cmp = useAsync<BranchComparison>(() => api.branchCompare(activeRepo!.id, b, h), [b, h], !!activeRepo);
   const current = status?.branch.head;
+  const [files, setFiles] = useState<CompareTarget | null>(null);
   const list = (title: string, items: BranchComparison["ahead"], pickable = false) => (
     <div className="min-w-0 flex-1">
       <h4 className="mb-1 text-sm font-semibold text-muted">{title}</h4>
@@ -480,8 +486,9 @@ function CompareDialog({ base, head, onClose }: { base: string; head: string; on
       width={720}
       title="Compare branches"
       description={<span className="font-mono text-sm">{b} … {h}</span>}
-      footer={<><Checkbox checked={swap} onChange={setSwap} label="Swap sides" className="mr-auto" /><Button variant="primary" onClick={onClose}>Done</Button></>}
+      footer={<><Checkbox checked={swap} onChange={setSwap} label="Swap sides" className="mr-auto" /><Button onClick={() => setFiles({ base: b, head: h })}>Compare files…</Button><Button variant="primary" onClick={onClose}>Done</Button></>}
     >
+      <CompareFilesDialog target={files} onClose={() => setFiles(null)} />
       {cmp.error && <ErrorNotice error={cmp.error} />}
       {cmp.loading && !cmp.data && <div className="flex justify-center p-4"><Spinner /></div>}
       {cmp.data && (

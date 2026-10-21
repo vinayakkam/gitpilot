@@ -33,6 +33,10 @@ checkLineEndings: boolean, ai: AiSettings, claudeCode: ClaudeCodeSettings,
  */
 reopenLastRepo: boolean, 
 /**
+ * Refresh the file list as soon as files change on disk.
+ */
+autoRefresh: boolean, 
+/**
  * Show a notification when operations succeed (errors are always shown).
  */
 successNotifications: boolean, 

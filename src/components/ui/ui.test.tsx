@@ -21,10 +21,17 @@ describe("EmptyState", () => {
 });
 
 describe("DiffViewer", () => {
-  const base = { oldPath: "a.png", newPath: "a.png", newFile: false, deletedFile: false, renamed: false, similarity: null, oldMode: null, newMode: null, hunks: [], additions: 0, deletions: 0, truncated: false, conflictView: false, hunkActions: false };
+  const base = { oldPath: "a.png", newPath: "a.png", newFile: false, deletedFile: false, renamed: false, similarity: null, oldMode: null, newMode: null, hunks: [], additions: 0, deletions: 0, truncated: false, conflictView: false, hunkActions: false, image: null };
   it("never renders binary content as text", () => {
     render(<DiffViewer diff={{ ...base, binary: true }} mode="unified" onModeChange={() => {}} highlight />);
     expect(screen.getByText("Binary file")).toBeInTheDocument();
+  });
+  it("shows image changes side by side", () => {
+    const image = { old: "data:image/png;base64,AAAA", new: "data:image/png;base64,BBBB", oldSize: 2048, newSize: 4096 };
+    render(<DiffViewer diff={{ ...base, binary: true, image }} mode="unified" onModeChange={() => {}} highlight />);
+    expect(screen.getByAltText("Before")).toHaveAttribute("src", image.old);
+    expect(screen.getByAltText("After")).toHaveAttribute("src", image.new);
+    expect(screen.getByText("4 KB")).toBeInTheDocument();
   });
   it("explains empty diffs and large-diff truncation", () => {
     render(<DiffViewer diff={{ ...base, binary: false, newFile: true, truncated: true }} mode="unified" onModeChange={() => {}} highlight />);

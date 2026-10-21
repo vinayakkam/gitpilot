@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.4.0 — 2026-10-21
+
+### Everyday Git
+- **Amend the last commit.** Tick **Amend last commit** in the commit box to change its message or add staged files to it. If that commit was already pushed, GitPilot asks first.
+- **Undo the last commit.** Click **Undo** on the "Committed" message, or use History. The changes go back to staged and the message returns to the commit box.
+- **Auto-refresh.** Changes appear as soon as you save a file. Folders in .gitignore (like node_modules) are skipped so large projects stay fast. Can be turned off in Settings → General.
+- **Tags.** Create a tag (simple or with a message) from History or Branches, push it, or delete it locally and on the remote.
+- **Stash selected files.** Right-click files in Changes to stash just those.
+- **Discard a hunk or selected lines.** The opposite of line staging. A backup is kept, as with other discards.
+
+### Understanding code
+- **Blame.** See who last changed each line, and in which commit. Uncommitted lines are marked. Open it from a file's menu in Changes or History; clicking a commit opens it in History.
+- **Commit graph.** History shows branches and merges as lines. It can be turned off.
+- **Compare anything.** Compare two branches, tags or commits file by file, either since they split or directly. Open it from Branches or History.
+- **Image previews.** Changed images (PNG, JPEG, GIF, WebP, BMP, ICO, AVIF) show before and after instead of "binary file changed".
+
+### Conflicts and history
+- **Conflict resolver.** For each conflict, choose **Keep mine**, **Keep theirs** or **Keep both**, or do it for the whole file.
+- **Edit commits.** Right-click a commit in History → **Edit commits from here…** to reorder, combine, reword or remove commits.
+- **Reset branch to a commit.** Right-click a commit → **Reset branch to here…** and choose to keep your changes staged, keep them unstaged, or discard everything after it.
+- **Backups.** GitPilot saves a backup before every reset or commit edit. Branches → Backups lists them, and **Restore** puts the branch back (backing up the current state first, so that can be undone too).
+
+### Fixed
+- Dialogs opened from inside other dialogs now work, and Escape closes only the top one.
+- Selected lines in a diff stay selected when the file list refreshes.
+
 ## 0.3.1 — 2026-10-21
 
 ### Added

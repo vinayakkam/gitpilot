@@ -1,6 +1,6 @@
 [package]
 name = "gitpilot"
-version = "0.3.1"
+version = "0.4.0"
 description = "GitPilot — a desktop Git manager"
 authors = ["OLIT Technologies"]
 edition = "2021"
@@ -30,6 +30,10 @@ trash = "5"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 regex = "1"
 once_cell = "1"
+notify = "8"
+ignore = "0.4"
+base64 = "0.22"
+tempfile = "3"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

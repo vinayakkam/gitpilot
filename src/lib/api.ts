@@ -12,6 +12,15 @@ import type { ClaudeCodeInfo } from "@/bindings/ClaudeCodeInfo";
 import type { CommitDetail } from "@/bindings/CommitDetail";
 import type { DiscardResult } from "@/bindings/DiscardResult";
 import type { EolReport } from "@/bindings/EolReport";
+import type { LastCommit } from "@/bindings/LastCommit";
+import type { Backup } from "@/bindings/Backup";
+import type { ConflictChoice } from "@/bindings/ConflictChoice";
+import type { RebaseCommit } from "@/bindings/RebaseCommit";
+import type { RebaseStep } from "@/bindings/RebaseStep";
+import type { ResetMode } from "@/bindings/ResetMode";
+import type { BlameResult } from "@/bindings/BlameResult";
+import type { CommitFile } from "@/bindings/CommitFile";
+import type { Tag } from "@/bindings/Tag";
 import type { FileDiff } from "@/bindings/FileDiff";
 import type { Identity } from "@/bindings/Identity";
 import type { KeyStatus } from "@/bindings/KeyStatus";
@@ -59,6 +68,34 @@ export const api = {
   unstagePaths: (id: number, paths: string[]) => invoke<void>("unstage_paths", { id, paths }),
   stageAll: (id: number) => invoke<void>("stage_all", { id }),
   unstageAll: (id: number) => invoke<void>("unstage_all", { id }),
+  repoWatch: (id: number) => invoke<void>("repo_watch", { id }),
+  /** Fires when a watched repository's files change on disk. */
+  onRepoChanged: (cb: (id: number) => void): Promise<UnlistenFn> => listen<number>("repo-changed", (ev) => cb(ev.payload)),
+  repoUnwatch: (id: number) => invoke<void>("repo_unwatch", { id }),
+  lastCommit: (id: number) => invoke<LastCommit | null>("last_commit", { id }),
+  commitAmend: (id: number, message: string, confirmedPushed: boolean) => invoke<string>("commit_amend", { id, message, confirmedPushed }),
+  commitUndo: (id: number, confirmedPushed: boolean) => invoke<string>("commit_undo", { id, confirmedPushed }),
+  discardPartial: (id: number, path: string, header: string, lines: number[] | null) =>
+    invoke<string | null>("discard_partial", { id, path, header, lines, confirmed: true }),
+  stashPaths: (id: number, message: string, includeUntracked: boolean, paths: string[]) =>
+    invoke<void>("stash_paths", { id, message, includeUntracked, paths }),
+  fileBlame: (id: number, path: string, rev: string | null) => invoke<BlameResult>("file_blame", { id, path, rev }),
+  compareFiles: (id: number, base: string, head: string, threeDot: boolean) => invoke<CommitFile[]>("compare_files", { id, base, head, threeDot }),
+  compareFileDiff: (id: number, base: string, head: string, threeDot: boolean, path: string, origPath: string | null) =>
+    invoke<FileDiff>("compare_file_diff", { id, base, head, threeDot, path, origPath }),
+  conflictResolveBlock: (id: number, path: string, index: number, choice: ConflictChoice) => invoke<number>("conflict_resolve_block", { id, path, index, choice }),
+  conflictTakeSide: (id: number, path: string, current: boolean) => invoke<void>("conflict_take_side", { id, path, current }),
+  rebaseCommits: (id: number, base: string | null) => invoke<RebaseCommit[]>("rebase_commits", { id, base }),
+  rebaseInteractive: (id: number, base: string | null, steps: RebaseStep[], confirmedPushed: boolean) =>
+    invoke<Backup>("rebase_interactive", { id, base, steps, confirmedPushed }),
+  branchReset: (id: number, target: string, mode: ResetMode) => invoke<Backup>("branch_reset", { id, target, mode, confirmed: mode === "hard" }),
+  backupList: (id: number) => invoke<Backup[]>("backup_list", { id }),
+  backupRestore: (id: number, name: string) => invoke<void>("backup_restore", { id, name, confirmed: true }),
+  backupDelete: (id: number, name: string) => invoke<void>("backup_delete", { id, name, confirmed: true }),
+  tagList: (id: number) => invoke<Tag[]>("tag_list", { id }),
+  tagCreate: (id: number, name: string, target: string, message: string) => invoke<void>("tag_create", { id, name, target, message }),
+  tagDelete: (id: number, name: string) => invoke<void>("tag_delete", { id, name, confirmed: true }),
+  tagPush: (id: number, remote: string, name: string, del: boolean) => invoke<void>("tag_push", { id, remote, name, delete: del, confirmed: del }),
   gitignoreAdd: (id: number, patterns: string[], untrack: string[]) =>
     invoke<string[]>("gitignore_add", { id, patterns, untrack, confirmed: untrack.length > 0 }),
   untrackPaths: (id: number, paths: string[]) => invoke<void>("untrack_paths", { id, paths, confirmed: true }),

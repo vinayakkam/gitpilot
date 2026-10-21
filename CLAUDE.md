@@ -152,7 +152,7 @@ libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev build-essential file`.
 
 See `DEVELOPMENT.md` → "Feature tracker", "Current implementation details" and "Known issues" for
 the authoritative status. In short (end of session 1): all core features are implemented and verified
-on Linux; Linux deb/AppImage build; Windows has never been built; AI providers were not called live;
+on Linux and Windows (Windows verified by the user); AI: Claude Code provider verified live, others not;
 see DEVELOPMENT.md for what's verified per release.
 
 Environment notes: `cargo test`/`cargo clippy` rebuild `target/debug/gitpilot` in dev-server mode (it
@@ -179,6 +179,7 @@ Key decisions:
 - AI providers: OpenRouter (default), Claude Code (user's Claude account via `claude -p`, no tools, empty temp cwd, input on stdin), Anthropic, OpenAI-compatible. `Settings::migrate()` + `settings_version` upgrade old settings files.
 - Fetch freshness comes from `FETCH_HEAD` mtime, not stored state.
 - External links: always `openLink()` from `src/lib/links.ts` (never `openUrl` directly). The opener capability is scoped to `https://*`; a URL outside the scope fails and shows a Copy link toast.
+- History rewriting (`git/rewrite.rs`): every reset / commit edit first saves a backup ref under `refs/gitpilot/backups/<ms>-<branch>` (uncommitted tracked changes under `refs/gitpilot/wip/`, labels under `refs/gitpilot/labels/`). Restore backs up the current state first. Interactive rebase runs from a generated todo (`build_todo`), never an editor.
 - Update notes: `latest.json` gets plain text (`scripts/notes.mjs`) because older versions display it raw; `ReleaseNotes` renders both plain and Markdown.
 
 ## Session continuity rules

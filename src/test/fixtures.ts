@@ -16,6 +16,7 @@ export const settings: Settings = {
   ai: { enabled: false, provider: "openRouter", model: "openrouter/auto", baseUrl: "", includeBody: true, privacyAcknowledged: false },
   claudeCode: { path: "", terminal: "", sendPromptOnLaunch: true },
   reopenLastRepo: true,
+  autoRefresh: true,
   successNotifications: true,
   checkForUpdates: true,
   lastRepoId: 1,

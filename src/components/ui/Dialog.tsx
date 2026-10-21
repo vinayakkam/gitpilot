@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { Button } from "./Button";
@@ -44,19 +45,24 @@ export function Dialog({ open, onClose, title, description, children, footer, wi
     if (!busy) onSubmit?.();
   };
 
-  return (
+  // Rendered at the top of the document: a dialog opened from inside another dialog would
+  // otherwise nest one <form> in another, and its events would reach the outer dialog.
+  return createPortal(
     <dialog
       ref={ref}
       aria-labelledby={titleId}
       aria-describedby={description ? descId : undefined}
       onCancel={(e) => {
         e.preventDefault();
+        e.stopPropagation();
         if (!busy) onClose();
       }}
       onMouseDown={(e) => {
+        e.stopPropagation();
         if (e.target === ref.current && !busy) onClose();
       }}
-      className="gp-pop m-auto max-h-[85vh] overflow-visible rounded-md border border-border bg-surface p-0 text-text shadow-overlay"
+      onKeyDown={(e) => e.stopPropagation()}
+      className="gp-pop m-auto max-h-[85vh] overflow-visible rounded-md outline-none border border-border bg-surface p-0 text-text shadow-overlay"
       style={{ width: `min(${width}px, calc(100vw - 48px))` }}
     >
       {open && (
@@ -78,7 +84,8 @@ export function Dialog({ open, onClose, title, description, children, footer, wi
           <footer className="flex items-center justify-end gap-2 px-5 pb-4 pt-5">{footer}</footer>
         </form>
       )}
-    </dialog>
+    </dialog>,
+    document.body,
   );
 }
 

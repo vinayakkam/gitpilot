@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { CircleCheck, EyeOff } from "lucide-react";
+import { CircleCheck, EyeOff, Undo2 } from "lucide-react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import type { AppError } from "@/bindings/AppError";
 import type { FileDiff } from "@/bindings/FileDiff";
 import type { FileEntry } from "@/bindings/FileEntry";
 import { Button } from "@/components/ui/Button";
-import { ConfirmDialog } from "@/components/ui/Dialog";
+import { ConfirmDialog, Dialog } from "@/components/ui/Dialog";
+import { Input } from "@/components/ui/Field";
 import { EmptyState, ErrorNotice } from "@/components/ui/Misc";
 import { SearchField } from "@/components/ui/SearchField";
 import { Splitter, usePanelWidth } from "@/components/ui/Splitter";
@@ -17,6 +18,7 @@ import { useStore } from "@/store/AppStore";
 import { CommitComposer } from "./CommitComposer";
 import { FileList, keyOf, type FileListActions } from "./FileList";
 import { IgnoreDialog } from "./IgnoreDialog";
+import { BlameView } from "@/features/history/BlameView";
 import { OperationBanner } from "./OperationBanner";
 
 export function ChangesView() {
@@ -32,6 +34,9 @@ export function ChangesView() {
   const [discard, setDiscard] = useState<FileEntry[] | null>(null);
   const [ignoreFiles, setIgnoreFiles] = useState<FileEntry[] | null>(null);
   const [untrackOpen, setUntrackOpen] = useState(false);
+  const [partial, setPartial] = useState<{ path: string; header: string; lines: number[] | null } | null>(null);
+  const [stashFiles, setStashFiles] = useState<FileEntry[] | null>(null);
+  const [blame, setBlame] = useState<{ path: string; rev: string | null } | null>(null);
 
   const files = useMemo(() => status?.files ?? [], [status]);
   const shown = useMemo(() => {
@@ -108,6 +113,8 @@ export function ChangesView() {
       setSection("history");
     },
     ignore: (fs) => setIgnoreFiles(fs),
+    stash: (fs) => setStashFiles(fs),
+    blame: (p) => setBlame({ path: p, rev: null }),
   };
 
   const discardTracked = discard?.filter((f) => f.area === "unstaged") ?? [];
@@ -129,6 +136,19 @@ export function ChangesView() {
       : focused?.area === "staged"
         ? { label: "Unstage hunk", icon: unstageHunkIcon, run: (h: { header: string }) => void run("Unstage hunk", () => api.hunkApply(id, focused.path, h.header, true)) }
         : undefined;
+
+  const discardHunk =
+    focused?.area === "unstaged"
+      ? { label: "Discard hunk", icon: <Undo2 size={13} />, run: (h: { header: string }) => setPartial({ path: focused.path, header: h.header, lines: null }) }
+      : undefined;
+  const discardLines =
+    focused?.area === "unstaged"
+      ? {
+          label: (n: number) => `Discard ${n} ${n === 1 ? "line" : "lines"}`,
+          icon: <Undo2 size={13} />,
+          run: (h: { header: string }, lines: number[]) => setPartial({ path: focused.path, header: h.header, lines }),
+        }
+      : undefined;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -186,6 +206,17 @@ export function ChangesView() {
             highlight={settings?.syntaxHighlighting ?? true}
             hunkAction={hunkAction}
             lineAction={lineAction}
+            discardHunk={discardHunk}
+            discardLines={discardLines}
+            conflict={
+              focused?.area === "conflicted" && diff?.conflictView
+                ? {
+                    resolveBlock: (index, choice) => void run("Resolve conflict", () => api.conflictResolveBlock(id, focused.path, index, choice)),
+                    takeSide: (current) => void run(current ? "Use current version" : "Use incoming version", () => api.conflictTakeSide(id, focused.path, current)),
+                    markResolved: () => void run("Mark resolved", () => api.stagePaths(id, [focused.path]), { success: `${focused.path} marked as resolved` }),
+                  }
+                : undefined
+            }
             busy={!!busy}
             emptyTitle={files.length ? "Select a file to see its changes" : "Working tree clean"}
             emptyBody={files.length ? undefined : "Edit files in your editor and they'll appear here."}
@@ -194,6 +225,25 @@ export function ChangesView() {
       </div>
 
       <IgnoreDialog files={ignoreFiles} onClose={() => setIgnoreFiles(null)} />
+      <StashFilesDialog files={stashFiles} onClose={() => setStashFiles(null)} />
+      <BlameView target={blame} onClose={() => setBlame(null)} />
+
+      <ConfirmDialog
+        open={partial !== null}
+        onClose={() => setPartial(null)}
+        danger
+        title={partial?.lines ? `Discard ${plural(partial.lines.length, "selected line")}?` : "Discard this hunk?"}
+        confirmLabel="Discard"
+        onConfirm={async () => {
+          if (!partial) return;
+          const backup = await run("Discard", () => api.discardPartial(id, partial.path, partial.header, partial.lines), { rethrow: true });
+          notify({ tone: "success", title: "Changes discarded", body: backup ? `A copy of the file was saved to ${backup}` : undefined });
+        }}
+      >
+        <p>
+          {partial?.lines ? "The selected changes" : "This part of your changes"} in <span className="font-mono text-sm">{partial?.path}</span> will be reverted to the last staged or committed version. The rest of the file is kept, and GitPilot saves a copy of the current file first.
+        </p>
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={untrackOpen}
@@ -249,5 +299,52 @@ export function ChangesView() {
         </ul>
       </ConfirmDialog>
     </div>
+  );
+}
+
+function StashFilesDialog({ files, onClose }: { files: FileEntry[] | null; onClose: () => void }) {
+  const { activeRepo, run, notify } = useStore();
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const paths = [...new Set((files ?? []).map((f) => f.path))];
+  const hasUntracked = (files ?? []).some((f) => f.area === "untracked");
+  useEffect(() => {
+    if (files) {
+      setMessage("");
+    }
+  }, [files]);
+  const save = async () => {
+    if (!activeRepo || paths.length === 0) return;
+    setBusy(true);
+    const ok = await run("Stash", () => api.stashPaths(activeRepo.id, message, hasUntracked, paths));
+    setBusy(false);
+    if (ok !== undefined) {
+      notify({ tone: "success", title: `Stashed ${plural(paths.length, "file")}`, body: "Find it under Branches → Stashes to bring it back." });
+      onClose();
+    }
+  };
+  return (
+    <Dialog
+      open={files !== null}
+      onClose={onClose}
+      busy={busy}
+      title={`Stash ${plural(paths.length, "file")}`}
+      description="Puts these changes aside and restores the files to their last committed state. Other files aren't touched."
+      onSubmit={save}
+      footer={
+        <>
+          <Button onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button type="submit" variant="primary" loading={busy}>Stash</Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        <Input aria-label="Stash name" autoFocus placeholder="Name (optional), e.g. half-done login form" value={message} onChange={(e) => setMessage(e.target.value)} />
+        <ul className="selectable max-h-32 overflow-y-auto rounded border border-border bg-surface-2 px-2 py-1 font-mono text-xs">
+          {paths.map((p) => <li key={p} className="truncate">{p}</li>)}
+        </ul>
+        {hasUntracked && <p className="text-sm text-muted">New files are included and will be removed from the folder until you apply the stash.</p>}
+      </div>
+    </Dialog>
   );
 }

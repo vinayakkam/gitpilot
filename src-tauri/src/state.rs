@@ -18,6 +18,7 @@ pub struct AppState {
     pub data_dir: PathBuf,
     locks: Mutex<HashMap<i64, Arc<tokio::sync::Mutex<()>>>>,
     cancels: Mutex<HashMap<String, Arc<tokio::sync::Notify>>>,
+    pub watches: crate::watch::Watches,
 }
 
 impl AppState {
@@ -34,6 +35,7 @@ impl AppState {
             data_dir,
             locks: Mutex::new(HashMap::new()),
             cancels: Mutex::new(HashMap::new()),
+            watches: crate::watch::Watches::default(),
         })
     }
 

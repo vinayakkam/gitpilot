@@ -164,3 +164,28 @@ pub fn repo_open(state: State<'_, AppState>, id: i64) -> AppResult<RepoRecord> {
     state.update_settings(|s| s.last_repo_id = Some(id))?;
     state.db(|c| db::get(c, id))
 }
+
+/// Starts watching a repository's files; the UI receives "repo-changed" events with its id.
+#[tauri::command]
+pub async fn repo_watch(app: AppHandle, state: State<'_, AppState>, id: i64) -> AppResult<()> {
+    use tauri::Emitter;
+    let root = state.repo_path(id)?;
+    state
+        .watches
+        .watch(id, root, move || {
+            let _ = app.emit("repo-changed", id);
+        })
+        .map_err(|e| {
+            AppError::new(
+                ErrorKind::Internal,
+                "Couldn't watch the repository for changes.",
+            )
+            .with_detail(e)
+        })
+}
+
+#[tauri::command]
+pub async fn repo_unwatch(state: State<'_, AppState>, id: i64) -> AppResult<()> {
+    state.watches.unwatch(id);
+    Ok(())
+}

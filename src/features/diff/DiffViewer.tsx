@@ -44,6 +44,15 @@ interface Props {
   highlight: boolean;
   hunkAction?: HunkAction;
   lineAction?: LineAction;
+  /** Conflicted files: keep one side of a conflict block, or of the whole file. */
+  conflict?: {
+    resolveBlock: (index: number, choice: "current" | "incoming" | "both") => void;
+    takeSide: (current: boolean) => void;
+    markResolved: () => void;
+  };
+  /** Throw away a hunk / the selected lines (unstaged changes only). */
+  discardHunk?: HunkAction;
+  discardLines?: LineAction;
   busy?: boolean;
   emptyTitle?: string;
   emptyBody?: string;
@@ -53,7 +62,8 @@ type Ref = { line: DiffLine; li: number };
 type Row =
   | { t: "hunk"; hunk: Hunk; hi: number; key: string }
   | { t: "line"; line: DiffLine; hi: number; li: number; key: string }
-  | { t: "pair"; left: Ref | null; right: Ref | null; hi: number; key: string };
+  | { t: "pair"; left: Ref | null; right: Ref | null; hi: number; key: string }
+  | { t: "conflict"; index: number; key: string };
 
 const LINE_H = 20;
 const HUNK_H = 30;
@@ -62,7 +72,15 @@ function buildRows(diff: FileDiff, mode: DiffMode): Row[] {
   const rows: Row[] = [];
   diff.hunks.forEach((h, hi) => {
     if (h.header) rows.push({ t: "hunk", hunk: h, hi, key: `h${hi}` });
-    if (mode === "unified" || diff.conflictView) {
+    if (diff.conflictView) {
+      let block = 0;
+      h.lines.forEach((l, li) => {
+        if (l.kind === "marker" && l.content.startsWith("<<<<<<<")) rows.push({ t: "conflict", index: block++, key: `c${block}` });
+        rows.push({ t: "line", line: l, hi, li, key: `${hi}:${li}` });
+      });
+      return;
+    }
+    if (mode === "unified") {
       h.lines.forEach((l, li) => rows.push({ t: "line", line: l, hi, li, key: `${hi}:${li}` }));
       return;
     }
@@ -172,10 +190,46 @@ function LineCells({
   );
 }
 
-export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight, hunkAction, lineAction, busy, emptyTitle, emptyBody }: Props) {
+function kb(n: bigint | number | null | undefined): string {
+  if (n == null) return "";
+  const v = Number(n);
+  return v >= 1024 * 1024 ? `${(v / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(v / 1024))} KB`;
+}
+
+/** Before and after an image changed, side by side on a checkerboard (shows transparency). */
+function ImageCompare({ image }: { image: NonNullable<FileDiff["image"]> }) {
+  const side = (label: string, src: string | null, size: number | null, tone: string) => (
+    <figure className="flex min-w-0 flex-1 flex-col gap-2">
+      <figcaption className="flex items-center gap-2 text-sm">
+        <span className={tone}>{label}</span>
+        <span className="text-faint">{kb(size)}</span>
+      </figcaption>
+      <div className="flex min-h-40 flex-1 items-center justify-center rounded border border-border p-3" style={{ backgroundImage: "repeating-conic-gradient(var(--surface-3) 0% 25%, var(--surface) 0% 50%)", backgroundSize: "16px 16px" }}>
+        {src ? <img src={src} alt={label} className="max-h-[60vh] max-w-full object-contain" /> : <span className="text-sm text-muted">{size ? "Too large to preview" : label === "Before" ? "New image" : "Deleted"}</span>}
+      </div>
+    </figure>
+  );
+  return (
+    <div className="flex h-full gap-4 overflow-auto p-4">
+      {side("Before", image.old, image.oldSize, "text-removed")}
+      {side("After", image.new, image.newSize, "text-added")}
+    </div>
+  );
+}
+
+/** Identifies a diff by its content, so equal diffs from separate loads compare equal. */
+export function diffKey(d: FileDiff | null): string {
+  if (!d) return "";
+  return [d.oldPath, d.newPath, ...d.hunks.map((h) => `${h.header}\n${h.lines.map((l) => `${l.kind}:${l.content}`).join("\n")}`)].join("\u0000");
+}
+
+export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight, hunkAction, lineAction, discardHunk, discardLines, conflict, busy, emptyTitle, emptyBody }: Props) {
   const [sel, setSel] = useState<Selection>(null);
-  // A new diff (after staging, or another file) invalidates line indices.
-  useEffect(() => setSel(null), [diff]);
+  // A different diff (after staging, or another file) invalidates line indices. A refresh that
+  // returns the same content (auto-refresh, window focus) keeps the selection.
+  const contentKey = useMemo(() => diffKey(diff), [diff]);
+  const conflictCount = useMemo(() => (diff?.conflictView ? (diff.hunks[0]?.lines.filter((l) => l.kind === "marker" && l.content.startsWith("<<<<<<<")).length ?? 0) : 0), [diff]);
+  useEffect(() => setSel(null), [contentKey]);
   const pick: Pick = {
     enabled: !!lineAction && !!diff?.hunkActions && !busy,
     isSelected: (hi, li) => sel?.hunk === hi && sel.lines.has(li),
@@ -220,7 +274,7 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
   const virt = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: (i) => (rows[i]?.t === "hunk" ? HUNK_H : LINE_H),
+    estimateSize: (i) => (rows[i]?.t === "hunk" || rows[i]?.t === "conflict" ? HUNK_H : LINE_H),
     overscan: 24,
     // Side-by-side wraps long lines, so rows are measured; unified rows have a fixed height.
     measureElement: effectiveMode === "split" && !diff?.conflictView ? (el) => el.getBoundingClientRect().height : undefined,
@@ -252,7 +306,9 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
   const contentWidth = split ? "100%" : `calc(${maxLen}ch + 8.5rem)`;
 
   let body: ReactNode;
-  if (diff.binary) {
+  if (diff.image) {
+    body = <ImageCompare image={diff.image} />;
+  } else if (diff.binary) {
     body = (
       <EmptyState icon={<FileWarning size={22} />} title="Binary file">
         {diff.newFile ? "A new binary file." : diff.deletedFile ? "A binary file was deleted." : "This binary file changed."} Its contents
@@ -277,6 +333,28 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
               ? { position: "absolute" as const, top: 0, left: 0, right: 0, transform: `translateY(${vi.start}px)` }
               : { position: "absolute" as const, top: vi.start, left: 0, right: 0, height: vi.size };
             const measure = split ? { ref: virt.measureElement, "data-index": vi.index } : {};
+            if (r.t === "conflict")
+              return (
+                <div key={r.key} style={style} {...measure} className="flex items-center gap-2 border-y border-conflict/30 bg-conflict-bg pl-3 pr-2 font-sans text-sm">
+                  <span className="sticky left-3 flex flex-1 items-center gap-2" style={{ maxWidth: viewportW ? viewportW - 24 : undefined }}>
+                    <span className="font-medium text-conflict">Conflict {r.index + 1}</span>
+                    <span className="flex-1" />
+                    {conflict && (
+                      <>
+                        <Button size="sm" variant="ghost" disabled={busy} onClick={() => conflict.resolveBlock(r.index, "current")}>
+                          Keep current
+                        </Button>
+                        <Button size="sm" variant="ghost" disabled={busy} onClick={() => conflict.resolveBlock(r.index, "incoming")}>
+                          Keep incoming
+                        </Button>
+                        <Button size="sm" variant="ghost" disabled={busy} onClick={() => conflict.resolveBlock(r.index, "both")}>
+                          Keep both
+                        </Button>
+                      </>
+                    )}
+                  </span>
+                </div>
+              );
             if (r.t === "hunk")
               return (
                 <div
@@ -293,6 +371,11 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
                         <Button size="sm" variant="ghost" disabled={busy} onClick={() => setSel(null)} className="shrink-0">
                           Clear
                         </Button>
+                        {discardLines && (
+                          <Button size="sm" variant="danger-ghost" icon={discardLines.icon} disabled={busy} onClick={() => discardLines.run(r.hunk, [...sel.lines].sort((a, b) => a - b))} className="shrink-0">
+                            {discardLines.label(sel.lines.size)}
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="primary"
@@ -305,11 +388,19 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
                         </Button>
                       </>
                     ) : (
-                      hunkAction &&
                       diff.hunkActions && (
-                        <Button size="sm" variant="ghost" icon={hunkAction.icon} disabled={busy} onClick={() => hunkAction.run(r.hunk)} className="shrink-0">
-                          {hunkAction.label}
-                        </Button>
+                        <>
+                          {discardHunk && (
+                            <Button size="sm" variant="danger-ghost" icon={discardHunk.icon} disabled={busy} onClick={() => discardHunk.run(r.hunk)} className="shrink-0">
+                              {discardHunk.label}
+                            </Button>
+                          )}
+                          {hunkAction && (
+                            <Button size="sm" variant="ghost" icon={hunkAction.icon} disabled={busy} onClick={() => hunkAction.run(r.hunk)} className="shrink-0">
+                              {hunkAction.label}
+                            </Button>
+                          )}
+                        </>
                       )
                     )}
                   </div>
@@ -383,7 +474,32 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
           This diff is very large, so only the first part is shown. Hunk and line staging are disabled for it.
         </div>
       )}
-      {diff.conflictView && !diff.deletedFile && (
+      {diff.conflictView && conflict && (
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-conflict-bg px-3 py-1.5 text-sm">
+          {conflictCount > 0 ? (
+            <span className="flex-1">
+              {conflictCount === 1 ? "1 conflict" : `${conflictCount} conflicts`} left. Pick a side for each, or for the whole file:
+            </span>
+          ) : (
+            <span className="flex-1 font-medium">No conflicts left in this file.</span>
+          )}
+          {conflictCount > 0 ? (
+            <>
+              <Button size="sm" disabled={busy} onClick={() => conflict.takeSide(true)}>
+                Use current version
+              </Button>
+              <Button size="sm" disabled={busy} onClick={() => conflict.takeSide(false)}>
+                Use incoming version
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" variant="primary" disabled={busy} onClick={conflict.markResolved}>
+              Mark as resolved
+            </Button>
+          )}
+        </div>
+      )}
+      {diff.conflictView && !diff.deletedFile && !conflict && (
         <div className="shrink-0 border-b border-border bg-conflict-bg px-3 py-1.5 text-sm text-text">
           Edit the file in your editor to keep the lines you want and remove the conflict markers, then stage it to mark it resolved.
           <span className="ml-2 inline-flex items-center gap-3 text-muted">
