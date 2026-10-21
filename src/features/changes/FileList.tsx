@@ -1,5 +1,5 @@
 import { useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
-import { Check, ChevronRight, Copy, History, Minus, Plus, Trash2, Undo2 } from "lucide-react";
+import { Check, ChevronRight, Copy, EyeOff, History, Minus, Plus, Trash2, Undo2 } from "lucide-react";
 import type { Area } from "@/bindings/Area";
 import type { FileEntry } from "@/bindings/FileEntry";
 import { Button } from "@/components/ui/Button";
@@ -26,6 +26,7 @@ export interface FileListActions {
   unstageAll: () => void;
   copyPath: (path: string) => void;
   showHistory: (path: string) => void;
+  ignore: (files: FileEntry[]) => void;
 }
 
 interface Props {
@@ -97,6 +98,7 @@ export function FileList({ files, selected, focusKey, onSelect, actions, disable
     if (f.area === "untracked")
       items.push({ label: n > 1 ? `Move ${n} files to trash…` : "Move to trash…", icon: <Trash2 size={14} />, danger: true, onSelect: () => actions.discard(targets) });
     items.push({ type: "separator" });
+    if (f.area !== "conflicted") items.push({ label: "Add to .gitignore…", icon: <EyeOff size={14} />, onSelect: () => actions.ignore(targets) });
     items.push({ label: "Copy path", icon: <Copy size={14} />, onSelect: () => actions.copyPath(f.path) });
     if (f.area !== "untracked") items.push({ label: "Show file history", icon: <History size={14} />, onSelect: () => actions.showHistory(f.path) });
     setMenu({ at: { x: e.clientX, y: e.clientY }, items });
@@ -199,12 +201,17 @@ export function FileList({ files, selected, focusKey, onSelect, actions, disable
                         focusKey === k && "group-focus-visible/list:ring-2 group-focus-visible/list:ring-inset group-focus-visible/list:ring-accent/50",
                       )}
                       style={{ height: "var(--row-h)" }}
-                      title={f.origPath ? `${f.origPath} → ${f.path}` : f.path}
+                      title={f.origPath ? `${f.origPath} → ${f.path}` : undefined}
                     >
                       <StatusGlyph change={f.change} />
                       <span className="min-w-0 flex-1 truncate">
                         <span className="text-base">{name}</span>
                         {f.conflict && <span className="ml-1.5 text-xs text-conflict">{f.conflict}</span>}
+                        {f.ignored && (
+                          <span className="ml-1.5 rounded bg-warning-bg px-1 text-xs text-warning" title="Matches .gitignore, but Git still tracks it because it was committed before the rule was added.">
+                            ignored
+                          </span>
+                        )}
                         {dir && <span className="ml-1.5 text-sm text-faint">{dir}</span>}
                       </span>
                       <span className={cx("flex shrink-0 items-center", !isSel && "opacity-0 group-hover:opacity-100")}>

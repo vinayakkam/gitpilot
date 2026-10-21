@@ -1110,3 +1110,63 @@ fn walk(dir: &Path) -> Vec<PathBuf> {
     }
     out
 }
+
+/// Files committed before a .gitignore rule keep showing up as changes. GitPilot marks them,
+/// can stop tracking them (keeping them on disk) and can add new ignore rules.
+#[tokio::test]
+async fn gitignore_tracked_files_and_ignore_rules() {
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    write(&root, "src/main.rs", "fn main() {}\n");
+    write(&root, "build/out.txt", "v1\n");
+    r.stage_all().await.unwrap();
+    r.commit("Initial").await.unwrap();
+
+    // The build folder is ignored only after it was committed, and then changes.
+    write(&root, ".gitignore", "build/\n");
+    write(&root, "build/out.txt", "v2\n");
+    write(&root, "debug.log", "noise\n");
+    let st = r.status().await.unwrap();
+    let out = st.files.iter().find(|f| f.path == "build/out.txt").unwrap();
+    assert!(out.ignored, "tracked file matching .gitignore is flagged");
+    assert!(!st.files.iter().any(|f| f.path == ".gitignore" && f.ignored));
+    assert!(st
+        .files
+        .iter()
+        .any(|f| f.path == "debug.log" && f.area == Area::Untracked));
+
+    // Ignore a new pattern: the untracked log disappears; duplicates aren't added twice.
+    let added = r
+        .ignore_add(&["*.log".into(), "build/".into(), " *.log ".into()])
+        .await
+        .unwrap();
+    assert_eq!(added, vec!["*.log".to_string()]);
+    assert_eq!(
+        std::fs::read_to_string(root.join(".gitignore")).unwrap(),
+        "build/\n*.log\n"
+    );
+    let st = r.status().await.unwrap();
+    assert!(!st.files.iter().any(|f| f.path == "debug.log"));
+    assert!(r.ignore_add(&["a\nb".into()]).await.is_err());
+    // Ignoring without untracking anything (the common case) must not fail.
+    r.untrack(&[]).await.unwrap();
+
+    // Stop tracking: staged deletion, file still on disk, no longer flagged.
+    r.untrack(&["build".into()]).await.unwrap();
+    assert!(root.join("build/out.txt").exists());
+    let st = r.status().await.unwrap();
+    let gone = st.files.iter().find(|f| f.path == "build/out.txt").unwrap();
+    assert_eq!(gone.area, Area::Staged);
+    assert_eq!(gone.change, ChangeType::Deleted);
+    assert!(!gone.ignored);
+    r.stage(&[".gitignore".into()]).await.unwrap();
+    r.commit("Stop tracking build output").await.unwrap();
+    assert!(
+        r.status().await.unwrap().files.is_empty(),
+        "nothing left to show"
+    );
+}

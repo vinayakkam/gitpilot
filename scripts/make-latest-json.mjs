@@ -7,6 +7,7 @@
 // Download URLs point at the GitHub release "v<version>" of <owner/repo>.
 import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
+import { plainNotes } from "./notes.mjs";
 
 const [dir, repo, version, out = "latest.json"] = process.argv.slice(2);
 if (!dir || !repo || !version) {
@@ -52,7 +53,7 @@ let notes = `GitPilot ${version}`;
 try {
   const log = readFileSync("CHANGELOG.md", "utf8");
   const m = log.match(new RegExp(`^## ${version.replace(/\./g, "\\.")}[^\\n]*\\n([\\s\\S]*?)(?=^## |$(?![\\s\\S]))`, "m"));
-  if (m) notes = m[1].trim();
+  if (m) notes = plainNotes(m[1]);
 } catch {
   /* no changelog */
 }

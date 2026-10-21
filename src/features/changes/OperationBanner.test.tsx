@@ -35,7 +35,7 @@ beforeEach(() => {
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
 });
 
-const conflict = { path: "c.txt", origPath: null, area: "conflicted" as const, change: "conflicted" as const, conflict: "both modified", submodule: false };
+const conflict = { path: "c.txt", origPath: null, area: "conflicted" as const, change: "conflicted" as const, conflict: "both modified", submodule: false, ignored: false };
 const rebasing = (files: RepoStatus["files"]): RepoStatus => ({ ...status(files), state: "rebasing" });
 
 function setup(s: RepoStatus) {

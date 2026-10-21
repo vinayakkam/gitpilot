@@ -136,7 +136,7 @@ libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev build-essential file`.
   Command fns stay thin; logic lives in `git/`, `db.rs`, etc. and is unit-tested there.
 - Security: no shell invocation; validate every frontend input in Rust; redact URLs
   and output; never log secrets; Tauri capabilities stay minimal (dialog open,
-  clipboard write-text, opener for URLs only).
+  clipboard write-text, opener for https URLs only).
 - Destructive operations require an explicit confirmation dialog that names the
   consequence; the backend command also requires an explicit flag (e.g. `force: true`).
   No force-push without `--force-with-lease` and a second confirmation. No auto-stash.
@@ -178,6 +178,8 @@ Key decisions:
 - Line-ending guard (`git/eol.rs`): flags staged CRLF in LF repositories before commit; fixes by rewriting the index blob (`hash-object --no-filters` + `update-index --cacheinfo`) and the backed-up working file. `.gitattributes` rules are prepended, never appended.
 - AI providers: OpenRouter (default), Claude Code (user's Claude account via `claude -p`, no tools, empty temp cwd, input on stdin), Anthropic, OpenAI-compatible. `Settings::migrate()` + `settings_version` upgrade old settings files.
 - Fetch freshness comes from `FETCH_HEAD` mtime, not stored state.
+- External links: always `openLink()` from `src/lib/links.ts` (never `openUrl` directly). The opener capability is scoped to `https://*`; a URL outside the scope fails and shows a Copy link toast.
+- Update notes: `latest.json` gets plain text (`scripts/notes.mjs`) because older versions display it raw; `ReleaseNotes` renders both plain and Markdown.
 
 ## Session continuity rules
 

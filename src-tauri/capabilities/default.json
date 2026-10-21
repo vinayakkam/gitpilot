@@ -10,7 +10,14 @@
     "dialog:allow-open",
     "dialog:allow-ask",
     "clipboard-manager:allow-write-text",
-    "opener:allow-open-url",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "https://*"
+        }
+      ]
+    },
     "updater:default",
     "process:allow-restart"
   ]

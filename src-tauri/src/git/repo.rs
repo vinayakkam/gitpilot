@@ -322,7 +322,13 @@ impl Repo<'_> {
                 RunOpts::read(),
             )
             .await?;
-        let parsed = status::parse(&out.stdout);
+        let mut parsed = status::parse(&out.stdout);
+        let ignored = self.tracked_ignored().await;
+        if !ignored.is_empty() {
+            for f in &mut parsed.files {
+                f.ignored = f.area != Area::Untracked && ignored.contains(&f.path);
+            }
+        }
         let (git_dir, common) = self.dirs().await?;
         let state =
             if git_dir.join("rebase-merge").exists() || git_dir.join("rebase-apply").exists() {
@@ -355,6 +361,88 @@ impl Repo<'_> {
             stash_count,
             remote_twin,
         })
+    }
+
+    /// Tracked files that .gitignore says should be ignored.
+    async fn tracked_ignored(&self) -> std::collections::HashSet<String> {
+        let Ok(out) = self
+            .git
+            .run(
+                self.path,
+                [
+                    "ls-files",
+                    "-z",
+                    "--cached",
+                    "--ignored",
+                    "--exclude-standard",
+                ],
+                RunOpts::read(),
+            )
+            .await
+        else {
+            return Default::default();
+        };
+        out.stdout
+            .split(|b| *b == 0)
+            .filter(|s| !s.is_empty())
+            .map(|s| String::from_utf8_lossy(s).into_owned())
+            .collect()
+    }
+
+    /// Adds patterns to the repository's top-level .gitignore (skipping ones already there).
+    /// Returns the patterns that were added.
+    pub async fn ignore_add(&self, patterns: &[String]) -> AppResult<Vec<String>> {
+        let mut clean = Vec::new();
+        for p in patterns {
+            let p = p.trim();
+            if p.is_empty() {
+                continue;
+            }
+            if p.len() > 400 || p.contains(['\n', '\r', '\0']) {
+                return Err(AppError::invalid(
+                    "An ignore pattern must be a single line.",
+                ));
+            }
+            if !clean.iter().any(|c: &String| c == p) {
+                clean.push(p.to_string());
+            }
+        }
+        if clean.is_empty() {
+            return Err(AppError::invalid("Enter a pattern to ignore."));
+        }
+        let file = self.path.join(".gitignore");
+        let existing = std::fs::read_to_string(&file).unwrap_or_default();
+        let have: std::collections::HashSet<&str> = existing.lines().map(str::trim).collect();
+        let added: Vec<String> = clean
+            .into_iter()
+            .filter(|p| !have.contains(p.as_str()))
+            .collect();
+        if added.is_empty() {
+            return Ok(added);
+        }
+        let mut content = existing.clone();
+        if !content.is_empty() && !content.ends_with('\n') {
+            content.push('\n');
+        }
+        for p in &added {
+            content.push_str(p);
+            content.push('\n');
+        }
+        std::fs::write(&file, content)?;
+        Ok(added)
+    }
+
+    /// Stops tracking files (or folders) without deleting them from disk: `git rm --cached`.
+    /// The removal is staged; committing it removes the files from the repository.
+    pub async fn untrack(&self, paths: &[String]) -> AppResult<()> {
+        if paths.is_empty() {
+            return Ok(());
+        }
+        let paths = v::rel_paths(paths)?;
+        let mut args = vec!["rm", "--cached", "-r", "-q", "--ignore-unmatch", "--"];
+        args.extend(paths);
+        self.write(args).await?;
+        Ok(())
     }
 
     /// Finds `<remote>/<branch>` for a branch without upstream, preferring "origin".

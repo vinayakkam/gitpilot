@@ -38,6 +38,9 @@ pub struct FileEntry {
     /// Human description for conflicts, e.g. "both modified".
     pub conflict: Option<String>,
     pub submodule: bool,
+    /// Tracked by Git but matched by .gitignore (committed before the rule was added),
+    /// so its changes keep showing up. Set by `Repo::status`.
+    pub ignored: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, TS)]
@@ -122,6 +125,7 @@ pub fn parse(raw: &[u8]) -> ParsedStatus {
                         change: c,
                         conflict: None,
                         submodule,
+                        ignored: false,
                     });
                 }
                 if let Some(c) = xy.get(1).copied().and_then(change_from) {
@@ -133,6 +137,7 @@ pub fn parse(raw: &[u8]) -> ParsedStatus {
                         change: c,
                         conflict: None,
                         submodule,
+                        ignored: false,
                     });
                 }
             }
@@ -149,6 +154,7 @@ pub fn parse(raw: &[u8]) -> ParsedStatus {
                     change: ChangeType::Conflicted,
                     conflict: Some(conflict_desc(parts[1]).to_string()),
                     submodule: parts[2].starts_with('S'),
+                    ignored: false,
                 });
             }
             b'?' => {
@@ -160,6 +166,7 @@ pub fn parse(raw: &[u8]) -> ParsedStatus {
                         change: ChangeType::Untracked,
                         conflict: None,
                         submodule: false,
+                        ignored: false,
                     });
                 }
             }

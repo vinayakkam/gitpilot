@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CircleCheck, CircleDashed, Copy, ExternalLink, SquareTerminal } from "lucide-react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openLink } from "@/lib/links";
 import type { CommitSummary } from "@/bindings/CommitSummary";
 import type { RepoStatus } from "@/bindings/RepoStatus";
 import { Button } from "@/components/ui/Button";
@@ -198,7 +198,7 @@ export function AssistantView() {
             <>
               <CircleDashed size={15} className="shrink-0 text-faint" />
               <span className="flex-1">Claude Code wasn't found on this computer. Install it, or set its location in Settings.</span>
-              <Button size="sm" icon={<ExternalLink size={12} />} onClick={() => void openUrl("https://docs.claude.com/en/docs/claude-code/setup")}>Install guide</Button>
+              <Button size="sm" icon={<ExternalLink size={12} />} onClick={() => void openLink("https://docs.claude.com/en/docs/claude-code/setup")}>Install guide</Button>
               <Button size="sm" onClick={() => setPage("settings")}>Settings</Button>
             </>
           )}

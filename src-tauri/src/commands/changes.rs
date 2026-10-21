@@ -209,3 +209,39 @@ pub async fn eol_add_gitattributes(state: State<'_, AppState>, id: i64) -> AppRe
     repo!(state, id, git, root, r);
     r.eol_add_gitattributes().await
 }
+
+/// Adds patterns to .gitignore. Paths in `untrack` are also removed from Git's index
+/// (kept on disk), which needs `confirmed` because committing it removes them for everyone.
+#[tauri::command]
+pub async fn gitignore_add(
+    state: State<'_, AppState>,
+    id: i64,
+    patterns: Vec<String>,
+    untrack: Vec<String>,
+    confirmed: bool,
+) -> AppResult<Vec<String>> {
+    if !untrack.is_empty() {
+        require_confirmation(confirmed)?;
+    }
+    let lock = state.repo_lock(id);
+    let _g = lock.lock().await;
+    repo!(state, id, git, root, r);
+    let added = r.ignore_add(&patterns).await?;
+    r.untrack(&untrack).await?;
+    Ok(added)
+}
+
+/// Stops tracking files without deleting them (`git rm --cached`). Needs `confirmed`.
+#[tauri::command]
+pub async fn untrack_paths(
+    state: State<'_, AppState>,
+    id: i64,
+    paths: Vec<String>,
+    confirmed: bool,
+) -> AppResult<()> {
+    require_confirmation(confirmed)?;
+    let lock = state.repo_lock(id);
+    let _g = lock.lock().await;
+    repo!(state, id, git, root, r);
+    r.untrack(&paths).await
+}

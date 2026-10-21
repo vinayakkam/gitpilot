@@ -1,9 +1,10 @@
 import { useEffect, useRef } from "react";
 import { ExternalLink } from "lucide-react";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openLink } from "@/lib/links";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorNotice } from "@/components/ui/Misc";
+import { ReleaseNotes } from "@/components/ui/ReleaseNotes";
 import { useStore } from "@/store/AppStore";
 import { useUpdates } from "./UpdateProvider";
 
@@ -57,7 +58,7 @@ export function UpdateDialog() {
         ) : (
           <>
             <Button onClick={() => setDialogOpen(false)}>Close</Button>
-            <Button variant="primary" icon={<ExternalLink size={13} />} onClick={() => void openUrl(RELEASES)}>
+            <Button variant="primary" icon={<ExternalLink size={13} />} onClick={() => void openLink(RELEASES)}>
               Open release page
             </Button>
           </>
@@ -65,9 +66,7 @@ export function UpdateDialog() {
       }
     >
       {update?.body && phase.kind !== "restartPending" && (
-        <div className="selectable max-h-64 overflow-y-auto whitespace-pre-wrap rounded border border-border bg-surface-2 px-3 py-2 text-sm text-text">
-          {update.body.trim()}
-        </div>
+        <ReleaseNotes source={update.body} className="selectable max-h-72 overflow-y-auto rounded border border-border bg-surface-2 px-3.5 py-3 text-sm leading-relaxed" />
       )}
       {phase.kind === "downloading" && (
         <div className="mt-3" aria-live="polite">

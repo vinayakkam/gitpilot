@@ -5,7 +5,7 @@
 - **Phase:** 6 — reliability and refinement (phases 1–5 implemented for Linux; Windows not started)
 - **Overall:** core Git workflow, branches, remotes, sync, AI provider integration, Claude Code integration and settings are implemented and verified on Linux against real repositories. Linux packages (deb, AppImage) build and launch.
 - **Current working area:** cross-platform verification and remaining feature gaps
-- **Most recently completed:** v0.3.0 — accent colours, line-ending guard, OpenRouter default provider, Claude Code account provider, rearranged settings (session 6)
+- **Most recently completed:** v0.3.1 — readable update notes, Add to .gitignore, tracked-but-ignored files (session 7). Before that: v0.3.0 — accent colours, line-ending guard, OpenRouter default provider, Claude Code account provider, rearranged settings (session 6)
 - **Blocker:** Windows cannot be built or type-checked in this environment (no Windows host; `rustup target add x86_64-pc-windows-gnu` is blocked by the network allowlist)
 - **Immediate next task:** build and run on Windows (see handoff)
 
@@ -29,11 +29,13 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 - [x] Merge, rebase, cherry-pick, revert with continue/skip/abort
 - [~] AI commit message generation (OpenRouter default, Claude Code account, Anthropic, OpenAI-compatible). **Claude Code provider verified live in the real app.** OpenRouter/Anthropic/OpenAI request shapes unit-tested only (openrouter.ai unreachable from the build sandbox)
 - [x] Accent colours (11 presets + custom; OKLCH-derived tokens; contrast unit-tested for every preset in both themes)
+- [x] .gitignore support (Add to .gitignore dialog; tracked-but-ignored files flagged with Stop tracking; integration-tested and verified in the real app)
+- [x] .gitignore support (Add to .gitignore dialog; tracked-but-ignored files flagged with Stop tracking; integration-tested and verified in the real app)
 - [x] Line-ending guard (CRLF into LF repos; detection + fix + .gitattributes; integration-tested and verified in the real app)
 - [x] Claude Code integration (detection verified with real CLI 2.1.304; terminal launch verified with xterm + stand-in executable; prompt passed as one argv entry)
 - [x] Application settings (persisted JSON, validated; keychain for keys with env fallback)
 - [x] Error handling and safety (classified errors, plain messages + technical details, confirmations + backend flags)
-- [x] Automated tests (Rust 84 unit + 17 integration on temp repos; frontend 42 vitest)
+- [x] Automated tests (Rust 84 unit + 18 integration on temp repos; frontend 52 vitest)
 - [~] UI polish and visual QA (all main screens inspected on Linux/Xvfb, light + dark, min size; no screen-reader testing)
 - [-] Windows packaging (MSI + NSIS configured; GitHub Actions workflow `.github/workflows/build-installers.yml` builds them on windows-latest; workflow not yet run)
 - [x] Linux packaging (deb 5.1 MB and AppImage 80 MB built; AppImage launched; Arch/CachyOS `gitpilot-bin` package built with makepkg from `packaging/arch/PKGBUILD` — not yet installed on a real Arch system)
@@ -41,6 +43,23 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 - [~] Documentation and release preparation (README, CLAUDE.md, this file; no signing, no CI)
 
 ## Work log
+
+### Session 7 — 2026-10-21 (v0.3.1)
+- User reports: update window showed release notes as raw Markdown; git-ignored files appeared in Changes; no way to ignore files.
+- **Update notes:** `components/ui/ReleaseNotes.tsx` renders a Markdown subset (headings, bullets, **bold**, `code`, links, tables) and the plain form ("Title" line + "•" bullets, bold lead sentence) as React elements — no HTML injection. `scripts/notes.mjs::plainNotes` converts the CHANGELOG section for `latest.json`, because the dialog that shows notes belongs to the *old* version (0.3.0 and earlier show plain text).
+- **Ignored files:** the files the user saw were tracked before the rule existed (status already respected .gitignore). `FileEntry.ignored` from `ls-files -c -i --exclude-standard`; badge + Changes notice with Stop tracking (`git rm --cached -r`, confirmed). `Repo::ignore_add` appends deduplicated, single-line patterns to the root .gitignore. `IgnoreDialog`: this file (`/path`, escaped), all `*.ext`, folder, custom; offers stop-tracking for tracked selections. Commands `gitignore_add`, `untrack_paths`.
+- Bug found in real-app QA: ignoring with nothing to untrack failed ("No files were selected") because `untrack([])` validated first → empty check moved first; regression assertion added.
+- File rows no longer set a native `title` (GTK tooltips covered the context menu); renames keep it.
+- Checks: cargo fmt, clippy, cargo test 84 + 18, tsc, eslint, vitest 52 — pass. Verified in the real app: ignored badge + notice; right-click → Add to .gitignore → *.log (file written, debug.log gone); Stop tracking → staged deletions, files still on disk. Update notes rendering checked with the app CSS (not inside a real update; a test AppImage build was stopped at the user's request).
+
+### Session 7 — 2026-10-21 (v0.3.1)
+- User reports: update window showed release notes as raw Markdown; git-ignored files appeared in Changes; no way to ignore files; About buttons did nothing.
+- **Links:** capability had `opener:allow-open-url` with no URL scope, so every `openUrl` was rejected (and `void openUrl(...)` hid it) since 0.1.0. Now `{"identifier":"opener:allow-open-url","allow":[{"url":"https://*"}]}`; all calls go through `lib/links.ts::openLink`, which dispatches `gitpilot:link-failed` → store toast with Copy link. Verified in the real app with a logging stand-in `xdg-open`: 0.3.1 opens all three About links; the 0.3.0 AppImage opened none (bug reproduced). Vitest asserts the capability scope.
+- **Update notes:** `components/ui/ReleaseNotes.tsx` renders a Markdown subset (headings, bullets, **bold**, `code`, links, tables) and the plain form ("Title" line + "•" bullets, bold lead sentence) as React elements — no HTML injection. `scripts/notes.mjs::plainNotes` converts the CHANGELOG section for `latest.json`, because the dialog that shows notes belongs to the *old* version (0.3.0 and earlier show plain text).
+- **Ignored files:** the files the user saw were tracked before the rule existed (status already respected .gitignore). `FileEntry.ignored` from `ls-files -c -i --exclude-standard`; badge + Changes notice with Stop tracking (`git rm --cached -r`, confirmed). `Repo::ignore_add` appends deduplicated single-line patterns to the root .gitignore. `IgnoreDialog`: this file (`/path`, escaped), all `*.ext`, folder, custom; offers stop-tracking for tracked selections. Commands `gitignore_add`, `untrack_paths`.
+- Bug found in real-app QA: ignoring with nothing to untrack failed ("No files were selected") → empty check moved before validation; regression assertion added.
+- File rows no longer set a native `title` (GTK tooltips covered the context menu); renames keep it.
+- Checks: cargo fmt, clippy, cargo test 84 + 18, tsc, eslint, vitest 55 — pass. Real app: ignored badge + notice; right-click → Add to .gitignore → *.log; Stop tracking → staged deletions, files kept on disk. Update notes rendering checked with the app CSS, not inside a real update.
 
 ### Session 6 — 2026-10-21 (v0.3.0)
 - Objective (user): keep classic blue but allow changing the app colour; stop GitHub PRs showing "context doesn't match" (user confirmed it happens on GitHub's PR page → line endings); rearrange settings; OpenRouter as default AI with the user's key; Claude Code with the user's own Claude account.
@@ -151,7 +170,7 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 2. **AI providers not tested live** — request shapes for Anthropic Messages API (`anthropic-version: 2023-06-01`) and `/chat/completions` are written to the documented formats but no real call was made. Verify the default model id.
 3. **Real Claude Code session not observed** — with the real CLI in this sandbox the terminal opened and closed immediately (the sandboxed CLI exits); the mechanism was verified with a stand-in executable. Check on a normal desktop.
 4. **Detection of a hanging `claude --version`** waits up to 10 s before the Assistant enables its launch button.
-5. **Native `title` tooltips** on file rows render as GTK tooltips (black) and can cover the next row.
+5. **Native `title` tooltips** elsewhere (not file rows, fixed in 0.3.1) still render as GTK tooltips.
 6. **Sidebar doesn't auto-collapse** at narrow widths (user can collapse it).
 8. **No CI** configured.
 

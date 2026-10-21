@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Download, GitBranch, Info, Palette, Search, Settings2, Sparkles, Terminal } from "lucide-react";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openLink } from "@/lib/links";
 import type { Settings } from "@/bindings/Settings";
 import { Button } from "@/components/ui/Button";
 import { cx } from "@/components/ui/cx";
@@ -233,9 +233,9 @@ function AboutPane() {
         </dl>
         <p className="text-sm text-faint">Backups of discarded changes and line-ending conversions are kept in discard-backups inside the data folder.</p>
         <div className="flex gap-2">
-          <Button size="sm" onClick={() => void openUrl("https://olittechnologies.co.in/projects/git-pilot/")}>Website</Button>
-          <Button size="sm" onClick={() => void openUrl("https://github.com/vinayakkam/gitpilot")}>Source on GitHub</Button>
-          <Button size="sm" variant="ghost" onClick={() => void openUrl("https://github.com/vinayakkam/gitpilot/releases")}>Release notes</Button>
+          <Button size="sm" onClick={() => void openLink("https://olittechnologies.co.in/projects/git-pilot/")}>Website</Button>
+          <Button size="sm" onClick={() => void openLink("https://github.com/vinayakkam/gitpilot")}>Source on GitHub</Button>
+          <Button size="sm" variant="ghost" onClick={() => void openLink("https://github.com/vinayakkam/gitpilot/releases")}>Release notes</Button>
         </div>
         <p className="text-sm text-faint">Made by OLIT Technologies.</p>
       </Group>

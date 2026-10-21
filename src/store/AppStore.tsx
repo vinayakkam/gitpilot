@@ -4,7 +4,9 @@ import type { AppInfo } from "@/bindings/AppInfo";
 import type { RepoRecord } from "@/bindings/RepoRecord";
 import type { RepoStatus } from "@/bindings/RepoStatus";
 import type { Settings } from "@/bindings/Settings";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { applyAccent } from "@/lib/accent";
+import { LINK_FAILED_EVENT } from "@/lib/links";
 import { api, onProgress } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
 
@@ -109,6 +111,21 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     if (t.tone !== "error") window.setTimeout(() => setToasts((ts) => ts.filter((x) => x.id !== id)), 3500);
   }, []);
   const dismiss = useCallback((id: number) => setToasts((ts) => ts.filter((t) => t.id !== id)), []);
+
+  // Links that couldn't be opened (see lib/links.ts) get a message with a way to copy them.
+  useEffect(() => {
+    const onFail = (e: Event) => {
+      const url = (e as CustomEvent<string>).detail;
+      notify({
+        tone: "error",
+        title: "Couldn't open your browser",
+        body: url,
+        action: { label: "Copy link", run: () => void writeText(url).then(() => notify({ tone: "success", title: "Link copied" })) },
+      });
+    };
+    window.addEventListener(LINK_FAILED_EVENT, onFail);
+    return () => window.removeEventListener(LINK_FAILED_EVENT, onFail);
+  }, [notify]);
 
   const refreshStatus = useCallback(async () => {
     const id = activeIdRef.current;

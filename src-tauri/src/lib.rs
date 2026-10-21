@@ -63,6 +63,8 @@ pub fn run() {
             commands::changes::eol_check,
             commands::changes::eol_fix,
             commands::changes::eol_add_gitattributes,
+            commands::changes::gitignore_add,
+            commands::changes::untrack_paths,
             commands::history::log_get,
             commands::history::commit_get,
             commands::history::commit_diff_file,

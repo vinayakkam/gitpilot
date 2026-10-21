@@ -59,6 +59,9 @@ export const api = {
   unstagePaths: (id: number, paths: string[]) => invoke<void>("unstage_paths", { id, paths }),
   stageAll: (id: number) => invoke<void>("stage_all", { id }),
   unstageAll: (id: number) => invoke<void>("unstage_all", { id }),
+  gitignoreAdd: (id: number, patterns: string[], untrack: string[]) =>
+    invoke<string[]>("gitignore_add", { id, patterns, untrack, confirmed: untrack.length > 0 }),
+  untrackPaths: (id: number, paths: string[]) => invoke<void>("untrack_paths", { id, paths, confirmed: true }),
   eolCheck: (id: number) => invoke<EolReport>("eol_check", { id }),
   eolFix: (id: number, paths: string[]) => invoke<number>("eol_fix", { id, paths }),
   eolAddGitattributes: (id: number) => invoke<boolean>("eol_add_gitattributes", { id }),

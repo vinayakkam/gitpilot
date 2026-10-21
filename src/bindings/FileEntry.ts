@@ -6,4 +6,9 @@ export type FileEntry = { path: string, origPath: string | null, area: Area, cha
 /**
  * Human description for conflicts, e.g. "both modified".
  */
-conflict: string | null, submodule: boolean, };
+conflict: string | null, submodule: boolean, 
+/**
+ * Tracked by Git but matched by .gitignore (committed before the rule was added),
+ * so its changes keep showing up. Set by `Repo::status`.
+ */
+ignored: boolean, };

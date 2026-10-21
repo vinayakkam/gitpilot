@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.1 — 2026-10-21
+
+### Added
+- **Add to .gitignore.** Right-click any changed or new file and choose **Add to .gitignore…** to ignore that file, every file with the same extension, its whole folder, or a custom pattern. You see exactly what will be added before anything changes.
+- **Files that are ignored but still tracked are explained.** Files committed before they were added to .gitignore kept showing up as changes with no explanation. They're now marked "ignored", and a notice offers **Stop tracking…**, which removes them from Git but keeps them on your computer.
+
+### Fixed
+- **Links open again.** Website, Source on GitHub, Release notes, Get a key, How to install and Open release page did nothing when clicked: GitPilot's permissions allowed opening links but not any actual address. Web links now open in your browser, and if a browser can't be opened you get a message with a Copy link button instead of silence.
+- **Update notes are readable.** The update window showed release notes as raw text full of formatting symbols. It now shows proper headings, bullet points and bold text.
+- **Notes look right when updating from older versions too.** The notes GitPilot downloads with an update are now clean plain text, so 0.3.0 and earlier show them neatly as well.
+
 ## 0.3.0 — 2026-10-21
 
 ### Added

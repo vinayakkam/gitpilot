@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Bot, Check, ExternalLink, KeyRound, Search, ShieldCheck, Sparkles, Terminal } from "lucide-react";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openLink } from "@/lib/links";
 import type { AiProviderKind } from "@/bindings/AiProviderKind";
 import type { AppError } from "@/bindings/AppError";
 import type { KeyStatus } from "@/bindings/KeyStatus";
@@ -132,7 +132,7 @@ function ApiKey({ provider, getKeyUrl, onChanged }: { provider: AiProviderKind; 
           <KeyRound size={14} className={key.data.stored || key.data.envVar ? "text-success" : "text-faint"} />
           {key.data.stored ? "A key is saved in the keychain." : key.data.envVar ? `Using the ${key.data.envVar} environment variable.` : provider === "openAiCompatible" ? "No key saved. Local servers often don't need one." : "No key saved yet."}
           {getKeyUrl && (
-            <button type="button" onClick={() => void openUrl(getKeyUrl)} className="ml-auto flex items-center gap-1 text-sm text-accent-text hover:underline">
+            <button type="button" onClick={() => void openLink(getKeyUrl)} className="ml-auto flex items-center gap-1 text-sm text-accent-text hover:underline">
               Get a key <ExternalLink size={11} />
             </button>
           )}

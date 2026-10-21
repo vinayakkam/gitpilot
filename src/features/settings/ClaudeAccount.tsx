@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { CircleCheck, CircleDashed, LogIn, RefreshCw } from "lucide-react";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openLink } from "@/lib/links";
 import { Button } from "@/components/ui/Button";
 import { ErrorNotice } from "@/components/ui/Misc";
 import { Spinner } from "@/components/ui/Spinner";
@@ -41,7 +41,7 @@ export function ClaudeAccount({ compact }: { compact?: boolean }) {
         </p>
         <p className="text-muted">Install Claude Code, then sign in with your Claude account. GitPilot will use it to write commit messages, with no API key needed.</p>
         <div className="flex gap-2">
-          <Button size="sm" onClick={() => void openUrl("https://docs.claude.com/en/docs/claude-code/setup")}>How to install</Button>
+          <Button size="sm" onClick={() => void openLink("https://docs.claude.com/en/docs/claude-code/setup")}>How to install</Button>
           <Button size="sm" variant="ghost" icon={<RefreshCw size={12} />} onClick={() => void det.reload()}>Check again</Button>
         </div>
       </div>

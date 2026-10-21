@@ -3,15 +3,15 @@ import type { FileEntry } from "@/bindings/FileEntry";
 import { FileList, keyOf, type FileListActions } from "./FileList";
 
 const files: FileEntry[] = [
-  { path: "src/a.ts", origPath: null, area: "staged", change: "modified", conflict: null, submodule: false },
-  { path: "src/b.ts", origPath: null, area: "unstaged", change: "modified", conflict: null, submodule: false },
-  { path: "src/c.ts", origPath: null, area: "unstaged", change: "deleted", conflict: null, submodule: false },
-  { path: "new.md", origPath: null, area: "untracked", change: "untracked", conflict: null, submodule: false },
-  { path: "merge.txt", origPath: null, area: "conflicted", change: "conflicted", conflict: "both modified", submodule: false },
+  { path: "src/a.ts", origPath: null, area: "staged", change: "modified", conflict: null, submodule: false, ignored: false },
+  { path: "src/b.ts", origPath: null, area: "unstaged", change: "modified", conflict: null, submodule: false, ignored: false },
+  { path: "src/c.ts", origPath: null, area: "unstaged", change: "deleted", conflict: null, submodule: false, ignored: false },
+  { path: "new.md", origPath: null, area: "untracked", change: "untracked", conflict: null, submodule: false, ignored: false },
+  { path: "merge.txt", origPath: null, area: "conflicted", change: "conflicted", conflict: "both modified", submodule: false, ignored: false },
 ];
 
 function actions(): FileListActions {
-  return { stage: vi.fn(), unstage: vi.fn(), discard: vi.fn(), stageAll: vi.fn(), unstageAll: vi.fn(), copyPath: vi.fn(), showHistory: vi.fn() };
+  return { stage: vi.fn(), unstage: vi.fn(), discard: vi.fn(), stageAll: vi.fn(), unstageAll: vi.fn(), copyPath: vi.fn(), showHistory: vi.fn(), ignore: vi.fn() };
 }
 
 describe("FileList", () => {

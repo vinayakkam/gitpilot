@@ -17,7 +17,7 @@ const api = vi.hoisted(() => ({
 
 vi.mock("@/lib/api", () => ({ api, onProgress: () => Promise.resolve(() => {}) }));
 
-const staged = [{ path: "a.ts", origPath: null, area: "staged" as const, change: "modified" as const, conflict: null, submodule: false }];
+const staged = [{ path: "a.ts", origPath: null, area: "staged" as const, change: "modified" as const, conflict: null, submodule: false, ignored: false }];
 
 beforeEach(() => {
   Object.values(api).forEach((f) => f.mockReset());

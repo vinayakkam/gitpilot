@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { CircleCheck } from "lucide-react";
+import { CircleCheck, EyeOff } from "lucide-react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import type { AppError } from "@/bindings/AppError";
 import type { FileDiff } from "@/bindings/FileDiff";
 import type { FileEntry } from "@/bindings/FileEntry";
+import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/Dialog";
 import { EmptyState, ErrorNotice } from "@/components/ui/Misc";
 import { SearchField } from "@/components/ui/SearchField";
@@ -15,6 +16,7 @@ import { plural } from "@/lib/format";
 import { useStore } from "@/store/AppStore";
 import { CommitComposer } from "./CommitComposer";
 import { FileList, keyOf, type FileListActions } from "./FileList";
+import { IgnoreDialog } from "./IgnoreDialog";
 import { OperationBanner } from "./OperationBanner";
 
 export function ChangesView() {
@@ -28,6 +30,8 @@ export function ChangesView() {
   const [diffLoading, setDiffLoading] = useState(false);
   const [diffError, setDiffError] = useState<AppError | null>(null);
   const [discard, setDiscard] = useState<FileEntry[] | null>(null);
+  const [ignoreFiles, setIgnoreFiles] = useState<FileEntry[] | null>(null);
+  const [untrackOpen, setUntrackOpen] = useState(false);
 
   const files = useMemo(() => status?.files ?? [], [status]);
   const shown = useMemo(() => {
@@ -37,6 +41,7 @@ export function ChangesView() {
   const focused = useMemo(() => files.find((f) => keyOf(f) === focusKey) ?? null, [files, focusKey]);
   const stagedCount = files.filter((f) => f.area === "staged").length;
   const conflicts = files.filter((f) => f.area === "conflicted");
+  const ignoredTracked = useMemo(() => [...new Set(files.filter((f) => f.ignored).map((f) => f.path))], [files]);
 
   // Keep selection valid when status changes; pick the first file when nothing is selected.
   useEffect(() => {
@@ -102,6 +107,7 @@ export function ChangesView() {
       setHistoryPath(p);
       setSection("history");
     },
+    ignore: (fs) => setIgnoreFiles(fs),
   };
 
   const discardTracked = discard?.filter((f) => f.area === "unstaged") ?? [];
@@ -132,6 +138,20 @@ export function ChangesView() {
           {files.length > 0 && (
             <div className="shrink-0 px-2 pb-1 pt-2">
               <SearchField label="Filter changed files" placeholder="Filter files" value={filter} onChange={setFilter} />
+            </div>
+          )}
+          {ignoredTracked.length > 0 && (
+            <div className="mx-2 mb-1 flex items-start gap-2 rounded border border-warning/30 bg-warning-bg px-2 py-1.5 text-sm" role="status">
+              <EyeOff size={13} className="mt-0.5 shrink-0 text-warning" />
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">
+                  {plural(ignoredTracked.length, "file")} {ignoredTracked.length === 1 ? "is" : "are"} in .gitignore but still tracked
+                </p>
+                <p className="text-muted">{ignoredTracked.length === 1 ? "It was" : "They were"} committed before the rule was added, so Git keeps showing changes.</p>
+                <Button size="sm" className="mt-1.5" disabled={!!busy} onClick={() => setUntrackOpen(true)}>
+                  Stop tracking…
+                </Button>
+              </div>
             </div>
           )}
           {files.length === 0 ? (
@@ -172,6 +192,26 @@ export function ChangesView() {
           />
         </div>
       </div>
+
+      <IgnoreDialog files={ignoreFiles} onClose={() => setIgnoreFiles(null)} />
+
+      <ConfirmDialog
+        open={untrackOpen}
+        onClose={() => setUntrackOpen(false)}
+        title={`Stop tracking ${plural(ignoredTracked.length, "file")}?`}
+        confirmLabel="Stop tracking"
+        onConfirm={async () => {
+          await run("Stop tracking", () => api.untrackPaths(id, ignoredTracked), { rethrow: true });
+          notify({ tone: "success", title: `Stopped tracking ${plural(ignoredTracked.length, "file")}`, body: "The removal is staged. Commit to finish; the files stay on your computer." });
+        }}
+      >
+        <p>
+          The files stay on your computer, and .gitignore keeps them out from now on. After you commit and push, they're removed from the repository, and from other people's copies when they pull.
+        </p>
+        <ul className="selectable mt-2 max-h-36 overflow-y-auto rounded border border-border bg-surface-2 px-2 py-1 font-mono text-xs text-text">
+          {ignoredTracked.map((p) => <li key={p} className="truncate">{p}</li>)}
+        </ul>
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={discard !== null}

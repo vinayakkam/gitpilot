@@ -16,7 +16,7 @@ const api = vi.hoisted(() => ({
 
 vi.mock("@/lib/api", () => ({ api, onProgress: () => Promise.resolve(() => {}) }));
 
-const staged = [{ path: "src/app.ts", origPath: null, area: "staged" as const, change: "modified" as const, conflict: null, submodule: false }];
+const staged = [{ path: "src/app.ts", origPath: null, area: "staged" as const, change: "modified" as const, conflict: null, submodule: false, ignored: false }];
 const report = {
   issues: [
     { path: "src/app.ts", kind: "lineEndingsOnly" as const, crlfLines: 40, newFile: false },
