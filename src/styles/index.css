@@ -37,6 +37,7 @@
   --color-danger-hover: var(--danger-hover);
   --color-success: var(--success);
   --color-selection: var(--selection);
+  --color-focus: var(--focus);
   --font-sans: var(--font-ui);
   --font-mono: var(--font-mono);
   --radius-sm: 3px;

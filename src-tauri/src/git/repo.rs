@@ -1507,7 +1507,7 @@ pub async fn git_version(git: &Git) -> AppResult<String> {
     Ok(out.trim().trim_start_matches("git version ").to_string())
 }
 
-fn chrono_stamp() -> String {
+pub(crate) fn chrono_stamp() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis())

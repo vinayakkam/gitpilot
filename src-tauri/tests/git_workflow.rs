@@ -1003,3 +1003,110 @@ async fn diverged_pull_reports_choice_and_merge_override_works() {
     rb.pull(PullStrategy::FfOnly, merge, |_| {}).await.unwrap();
     assert!(b.join("a.txt").exists() && b.join("b.txt").exists());
 }
+
+/// A Windows editor saving an LF file with CRLF would make GitHub show every line changed
+/// (and PR suggestions fail with "context doesn't match"). GitPilot flags it and fixes it.
+#[tokio::test]
+async fn line_ending_guard_detects_and_fixes_crlf() {
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    // Make sure local config can't convert line endings behind our back.
+    g.run(
+        &root,
+        ["config", "core.autocrlf", "false"],
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    write(&root, "src/app.ts", "const a = 1;\nconst b = 2;\n");
+    write(&root, "tools/run.bat", "@echo off\r\necho hi\r\n");
+    write(&root, ".gitattributes", "*.bat eol=crlf\n");
+    r.stage(&[
+        "src/app.ts".into(),
+        "tools/run.bat".into(),
+        ".gitattributes".into(),
+    ])
+    .await
+    .unwrap();
+    r.commit("Initial").await.unwrap();
+
+    // Same content, CRLF endings + a new CRLF file + an LF change that must not be flagged.
+    write(&root, "src/app.ts", "const a = 1;\r\nconst b = 2;\r\n");
+    write(&root, "src/new.ts", "export {};\r\n");
+    write(&root, "README.md", "# ok\n");
+    write(&root, "tools/run.bat", "@echo off\r\necho bye\r\n");
+    r.stage(&[
+        "src/app.ts".into(),
+        "src/new.ts".into(),
+        "README.md".into(),
+        "tools/run.bat".into(),
+    ])
+    .await
+    .unwrap();
+
+    let report = r.eol_check().await.unwrap();
+    let mut flagged: Vec<(&str, gitpilot_lib::git::eol::EolKind)> = report
+        .issues
+        .iter()
+        .map(|i| (i.path.as_str(), i.kind))
+        .collect();
+    flagged.sort_by_key(|f| f.0);
+    use gitpilot_lib::git::eol::EolKind;
+    assert_eq!(
+        flagged,
+        vec![
+            ("src/app.ts", EolKind::LineEndingsOnly),
+            ("src/new.ts", EolKind::CrlfIntroduced)
+        ],
+        "the .bat file is meant to keep CRLF and README uses LF"
+    );
+    assert!(!report.has_text_rule);
+    assert_eq!(report.autocrlf.as_deref(), Some("false"));
+
+    let backups = tempfile::tempdir().unwrap();
+    let paths: Vec<String> = report.issues.iter().map(|i| i.path.clone()).collect();
+    assert_eq!(r.eol_fix(&paths, backups.path()).await.unwrap(), 2);
+
+    // Index and working copy are LF now; app.ts has no change left at all.
+    assert!(r.eol_check().await.unwrap().issues.is_empty());
+    assert_eq!(
+        std::fs::read_to_string(root.join("src/app.ts")).unwrap(),
+        "const a = 1;\nconst b = 2;\n"
+    );
+    let st = r.status().await.unwrap();
+    assert!(
+        !st.files.iter().any(|f| f.path == "src/app.ts"),
+        "a line-endings-only change disappears once fixed"
+    );
+    assert!(st
+        .files
+        .iter()
+        .any(|f| f.path == "src/new.ts" && f.area == Area::Staged));
+    // The original CRLF copy was backed up.
+    let saved = walk(backups.path());
+    assert!(saved.iter().any(|p| p.ends_with("src/app.ts")));
+
+    // .gitattributes: the catch-all rule goes first so `*.bat eol=crlf` still wins.
+    assert!(r.eol_add_gitattributes().await.unwrap());
+    let ga = std::fs::read_to_string(root.join(".gitattributes")).unwrap();
+    let rule = ga.find("* text=auto").unwrap();
+    assert!(rule < ga.find("*.bat eol=crlf").unwrap());
+    assert!(!r.eol_add_gitattributes().await.unwrap(), "added only once");
+}
+
+fn walk(dir: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    for e in std::fs::read_dir(dir).unwrap().flatten() {
+        let p = e.path();
+        if p.is_dir() {
+            out.extend(walk(&p));
+        } else {
+            out.push(p);
+        }
+    }
+    out
+}

@@ -163,10 +163,40 @@ pub fn parse_reply(text: &str) -> AppResult<Vec<Suggestion>> {
     Ok(out)
 }
 
+pub const OPENROUTER_BASE: &str = "https://openrouter.ai/api/v1";
+
+fn openrouter_base(cfg: &AiSettings) -> String {
+    let b = cfg.base_url.trim().trim_end_matches('/');
+    if b.is_empty() {
+        OPENROUTER_BASE.to_string()
+    } else {
+        b.to_string()
+    }
+}
+
+/// OpenRouter asks apps to identify themselves; this shows GitPilot in the user's activity list.
+fn openrouter_headers(req: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+    req.header(
+        "HTTP-Referer",
+        "https://olittechnologies.co.in/projects/git-pilot/",
+    )
+    .header("X-Title", "GitPilot")
+}
+
+fn http_client() -> AppResult<reqwest::Client> {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(90))
+        .build()
+        .map_err(|e| {
+            AppError::internal("Couldn't create an HTTP client.").with_detail(e.to_string())
+        })
+}
+
 pub async fn suggest(
     cfg: &AiSettings,
     convention: CommitConvention,
     api_key: Option<String>,
+    claude: Option<std::path::PathBuf>,
     raw_diff: &str,
 ) -> AppResult<AiSuggestions> {
     if !cfg.enabled {
@@ -185,14 +215,51 @@ pub async fn suggest(
     }
     let system = system_prompt(convention, cfg.include_body);
     let user = format!("Staged diff:\n\n{}", prepared.text);
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(90))
-        .build()
-        .map_err(|e| {
-            AppError::internal("Couldn't create an HTTP client.").with_detail(e.to_string())
-        })?;
+    let client = http_client()?;
 
     let text = match cfg.provider {
+        AiProviderKind::OpenRouter => {
+            let key = api_key.ok_or_else(|| {
+                AppError::new(
+                    ErrorKind::AiNotConfigured,
+                    "Add your OpenRouter key in Settings → AI. You can create one at openrouter.ai/keys.",
+                )
+            })?;
+            let req = client
+                .post(format!("{}/chat/completions", openrouter_base(cfg)))
+                .bearer_auth(key)
+                .json(&json!({
+                    "model": cfg.model.trim(),
+                    "temperature": 0.2,
+                    "max_tokens": 800,
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user}
+                    ],
+                }));
+            let body: serde_json::Value =
+                check(openrouter_headers(req).send().await.map_err(network_err)?).await?;
+            if let Some(msg) = body["error"]["message"].as_str() {
+                return Err(
+                    AppError::new(ErrorKind::AiFailed, "OpenRouter returned an error.")
+                        .with_detail(msg.to_string()),
+                );
+            }
+            body["choices"][0]["message"]["content"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string()
+        }
+        AiProviderKind::ClaudeCode => {
+            let path = claude.ok_or_else(|| {
+                AppError::new(
+                    ErrorKind::ClaudeCodeNotFound,
+                    "Claude Code isn't installed or couldn't be found. Install it, or set its path in Settings → Claude Code.",
+                )
+            })?;
+            let input = format!("{system}\n\n{user}");
+            crate::claude_code::print(&path, &cfg.model, &input).await?
+        }
         AiProviderKind::Anthropic => {
             let key = api_key.ok_or_else(|| {
                 AppError::new(
@@ -252,8 +319,126 @@ pub async fn suggest(
         suggestions: parse_reply(&text)?,
         excluded_files: prepared.excluded,
         truncated: prepared.truncated,
-        model: cfg.model.trim().to_string(),
+        model: match (cfg.provider, cfg.model.trim()) {
+            (AiProviderKind::ClaudeCode, "") => "Claude Code".to_string(),
+            (AiProviderKind::ClaudeCode, m) => format!("Claude Code · {m}"),
+            (_, m) => m.to_string(),
+        },
     })
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct OpenRouterModel {
+    pub id: String,
+    pub name: String,
+    #[ts(type = "number | null")]
+    pub context_length: Option<u64>,
+    /// US dollars per million input tokens.
+    pub prompt_per_million: Option<f64>,
+    /// US dollars per million output tokens.
+    pub completion_per_million: Option<f64>,
+    pub free: bool,
+}
+
+fn per_million(v: &serde_json::Value) -> Option<f64> {
+    let n = match v {
+        serde_json::Value::String(s) => s.parse::<f64>().ok()?,
+        serde_json::Value::Number(n) => n.as_f64()?,
+        _ => return None,
+    };
+    // Negative prices mark variable-price routers such as openrouter/auto.
+    (n >= 0.0).then(|| (n * 1_000_000.0 * 1000.0).round() / 1000.0)
+}
+
+/// Parses the `/models` listing, keeping models that can write text.
+pub fn parse_models(body: &serde_json::Value) -> Vec<OpenRouterModel> {
+    let Some(list) = body["data"].as_array() else {
+        return Vec::new();
+    };
+    list.iter()
+        .filter_map(|m| {
+            let id = m["id"].as_str()?.to_string();
+            let outputs = &m["architecture"]["output_modalities"];
+            if let Some(o) = outputs.as_array() {
+                if !o.iter().any(|x| x.as_str() == Some("text")) {
+                    return None;
+                }
+            }
+            let prompt = per_million(&m["pricing"]["prompt"]);
+            let completion = per_million(&m["pricing"]["completion"]);
+            Some(OpenRouterModel {
+                name: m["name"].as_str().unwrap_or(&id).to_string(),
+                context_length: m["context_length"].as_u64(),
+                free: id.ends_with(":free") || (prompt == Some(0.0) && completion == Some(0.0)),
+                prompt_per_million: prompt,
+                completion_per_million: completion,
+                id,
+            })
+        })
+        .collect()
+}
+
+pub async fn openrouter_models(
+    cfg: &AiSettings,
+    key: Option<String>,
+) -> AppResult<Vec<OpenRouterModel>> {
+    let mut req = http_client()?.get(format!("{}/models", openrouter_base(cfg)));
+    if let Some(k) = key {
+        req = req.bearer_auth(k);
+    }
+    let body = check(openrouter_headers(req).send().await.map_err(network_err)?).await?;
+    let models = parse_models(&body);
+    if models.is_empty() {
+        return Err(AppError::new(
+            ErrorKind::AiFailed,
+            "OpenRouter didn't return any models.",
+        ));
+    }
+    Ok(models)
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct OpenRouterKeyInfo {
+    pub label: String,
+    /// Credits used so far, in US dollars.
+    pub usage: f64,
+    /// Spending limit on this key, if any.
+    pub limit: Option<f64>,
+    pub limit_remaining: Option<f64>,
+    pub is_free_tier: bool,
+}
+
+pub fn parse_key_info(body: &serde_json::Value) -> OpenRouterKeyInfo {
+    let d = &body["data"];
+    OpenRouterKeyInfo {
+        label: d["label"].as_str().unwrap_or("").to_string(),
+        usage: d["usage"].as_f64().unwrap_or(0.0),
+        limit: d["limit"].as_f64(),
+        limit_remaining: d["limit_remaining"].as_f64(),
+        is_free_tier: d["is_free_tier"].as_bool().unwrap_or(false),
+    }
+}
+
+/// Checks a key and returns its usage and limits.
+pub async fn openrouter_key_info(
+    cfg: &AiSettings,
+    key: Option<String>,
+) -> AppResult<OpenRouterKeyInfo> {
+    let key = key.ok_or_else(|| {
+        AppError::new(
+            ErrorKind::AiNotConfigured,
+            "No OpenRouter key is saved yet.",
+        )
+    })?;
+    let req = http_client()?
+        .get(format!("{}/key", openrouter_base(cfg)))
+        .bearer_auth(key);
+    let body = check(openrouter_headers(req).send().await.map_err(network_err)?).await?;
+    Ok(parse_key_info(&body))
 }
 
 fn network_err(e: reqwest::Error) -> AppError {
@@ -281,6 +466,9 @@ async fn check(resp: reqwest::Response) -> AppResult<serde_json::Value> {
         404 => {
             "The AI provider couldn't find that model or URL. Check the model name and base URL."
         }
+        402 => {
+            "The AI provider says the account is out of credits. Add credits or pick a free model."
+        }
         429 => "The AI provider is rate-limiting requests. Try again shortly.",
         500..=599 => "The AI provider had a server error. Try again later.",
         _ => "The AI provider returned an error.",
@@ -306,6 +494,35 @@ mod tests {
         let p = prepare_diff(&big);
         assert!(p.truncated);
         assert!(p.text.len() <= MAX_PROMPT_DIFF_CHARS + 20);
+    }
+
+    #[test]
+    fn parses_openrouter_models_and_key() {
+        let body = serde_json::json!({"data": [
+            {"id": "openrouter/auto", "name": "Auto Router", "context_length": 2000000,
+             "pricing": {"prompt": "-1", "completion": "-1"},
+             "architecture": {"output_modalities": ["text"]}},
+            {"id": "acme/small:free", "name": "Acme Small (free)", "context_length": 8192,
+             "pricing": {"prompt": "0", "completion": "0"}},
+            {"id": "acme/large", "name": "Acme Large",
+             "pricing": {"prompt": "0.000003", "completion": "0.000015"},
+             "architecture": {"output_modalities": ["text"]}},
+            {"id": "acme/painter", "name": "Painter",
+             "architecture": {"output_modalities": ["image"]}}
+        ]});
+        let m = parse_models(&body);
+        assert_eq!(m.len(), 3);
+        assert_eq!(m[0].prompt_per_million, None);
+        assert!(m[1].free);
+        assert_eq!(m[2].prompt_per_million, Some(3.0));
+        assert_eq!(m[2].completion_per_million, Some(15.0));
+        assert!(!m[2].free);
+
+        let k = parse_key_info(
+            &serde_json::json!({"data": {"label": "sk-or-v1-abc...", "usage": 1.25, "limit": null, "limit_remaining": null, "is_free_tier": false}}),
+        );
+        assert_eq!(k.usage, 1.25);
+        assert_eq!(k.limit, None);
     }
 
     #[test]

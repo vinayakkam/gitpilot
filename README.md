@@ -19,11 +19,12 @@ Available now:
 - **Branches** — local and remote-tracking branches with upstream ahead/behind, merged status, create/switch/rename/delete, check out remote branches, compare branches, set/unset upstream, stashes. Switching with uncommitted changes asks whether to bring them along or stash first.
 - **Merge, rebase, cherry-pick, revert** — from Branches, Compare and History, with Continue / Skip / Abort when Git pauses for conflicts. Rebasing a published branch asks for explicit acknowledgement.
 - **Remotes & sync** — add/edit/remove remotes (any Git host), fetch/pull/push with progress (fetch, push and clone can be cancelled), publish new branches, sync status that distinguishes up to date / ahead / behind / diverged / never fetched / no upstream. Pull is fast-forward-only by default. Force push exists only as an advanced, double-confirmed `--force-with-lease`.
-- **AI commit messages (optional, off by default)** — Anthropic Claude API or any OpenAI-compatible API (OpenAI, Ollama, LM Studio…). Sends only the staged diff, skips files that look like secrets, never commits for you.
+- **AI commit messages (optional, off by default)** — OpenRouter (default: hundreds of models with one key, including free ones), your own Claude account through Claude Code (no API key), the Anthropic API, or any OpenAI-compatible API (OpenAI, Ollama, LM Studio…). Sends only the staged diff, skips files that look like secrets, never commits for you.
+- **Line-ending guard** — warns before you commit Windows (CRLF) line endings into an LF repository, which makes GitHub show every line as changed and breaks pull request suggestions ("context doesn't match"). One click converts the files.
 - **Claude Code** — detects the `claude` CLI, opens it in a terminal in the repository, with prompt templates filled from real repository context (branch, counts, file names, recent commits).
 - **Updates in place** — checks GitHub Releases and installs signed updates without uninstalling (Windows installers, AppImage, .deb). See [docs/UPDATES.md](docs/UPDATES.md).
 - **Command palette** (`Ctrl+K`) — actions, branches, repositories, file history and commit search.
-- Light, dark and system themes; comfortable/compact density; keyboard navigation throughout.
+- Light, dark and system themes; accent colours (classic blue by default, presets or any custom colour); comfortable/compact density; keyboard navigation throughout.
 
 ## Install
 
@@ -83,10 +84,11 @@ See [CLAUDE.md](CLAUDE.md) for architecture and conventions and [DEVELOPMENT.md]
 Settings → AI:
 
 1. Read the privacy notice and tick the acknowledgement. Staged diffs may contain proprietary code.
-2. Enable suggestions, choose a provider and model.
-3. Save an API key. Keys go to the OS keychain (Secret Service on Linux, Credential Manager on Windows), never to the settings file. Without a keychain, set `GITPILOT_AI_API_KEY` (or `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`) before starting GitPilot.
-
-For a local model, choose "OpenAI-compatible" with a base URL like `http://localhost:11434/v1`.
+2. Enable suggestions and choose a provider:
+   - **OpenRouter** (default): create a key at openrouter.ai/keys, paste it, then pick a model from the list (search, prices, "Free only"). The default is OpenRouter's Auto router.
+   - **Claude Code**: uses the Claude account you're signed in to in Claude Code (Pro, Max, Team or Enterprise), so no API key is needed. Click **Sign in with Claude** if you aren't signed in yet. Pick Haiku, Sonnet or Opus. Usage counts toward your plan's limits.
+   - **Anthropic API** or **OpenAI-compatible** (for a local model, use a base URL like `http://localhost:11434/v1`).
+3. Keys go to the OS keychain (Secret Service on Linux, Credential Manager on Windows), never to the settings file. Without a keychain, set `GITPILOT_AI_API_KEY` (or `OPENROUTER_API_KEY` / `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`) before starting GitPilot.
 
 ## Claude Code integration
 

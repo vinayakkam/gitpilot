@@ -7,7 +7,15 @@ import type { DiffMode } from "./DiffMode";
 import type { PullStrategy } from "./PullStrategy";
 import type { Theme } from "./Theme";
 
-export type Settings = { theme: Theme, density: Density, diffMode: DiffMode, syntaxHighlighting: boolean, 
+export type Settings = { 
+/**
+ * Bumped when defaults change in a way existing settings files should pick up (see `migrate`).
+ */
+settingsVersion: number, theme: Theme, 
+/**
+ * Accent colour: a preset name from `ACCENT_PRESETS` or a custom `#rrggbb`.
+ */
+accent: string, density: Density, diffMode: DiffMode, syntaxHighlighting: boolean, 
 /**
  * Explicit git executable; empty = auto-detect.
  */
@@ -15,7 +23,11 @@ gitPath: string,
 /**
  * Initial branch name used when GitPilot initializes a repository; empty = Git's default.
  */
-defaultBranch: string, pullStrategy: PullStrategy, commitConvention: CommitConvention, ai: AiSettings, claudeCode: ClaudeCodeSettings, 
+defaultBranch: string, pullStrategy: PullStrategy, commitConvention: CommitConvention, 
+/**
+ * Warn before committing files with Windows (CRLF) line endings into an LF repository.
+ */
+checkLineEndings: boolean, ai: AiSettings, claudeCode: ClaudeCodeSettings, 
 /**
  * Reopen the last repository on startup.
  */

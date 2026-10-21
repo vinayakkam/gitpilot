@@ -1,8 +1,8 @@
 # Maintainer: kvk250 (OLIT Technologies)
 # Repackages the GitPilot .deb for Arch Linux / CachyOS / Manjaro / EndeavourOS.
-# Build: put GitPilot_0.1.0_amd64.deb next to this file, then run `makepkg -si`.
+# Build: put GitPilot_<version>_amd64.deb next to this file, then run `makepkg -si`.
 pkgname=gitpilot-bin
-pkgver=0.2.1
+pkgver=0.3.0
 pkgrel=1
 pkgdesc="Desktop Git manager: changes, diffs, hunk staging, history, branches, remotes"
 arch=('x86_64')
@@ -18,7 +18,7 @@ provides=('gitpilot')
 conflicts=('gitpilot')
 options=('!strip' '!debug')
 source=("GitPilot_${pkgver}_amd64.deb")
-sha256sums=('1b390b4a9c8ea383853501d17cbf1e2d18b8b6615dcfd579a324d28c393b8253')
+sha256sums=('589f5f8619faf8ab187254dfd91c51af4a96f10166cb3437baca29f4c1996269')
 
 package() {
   bsdtar -xf "${srcdir}/data.tar.gz" -C "${pkgdir}"

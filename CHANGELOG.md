@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0 — 2026-10-21
+
+### Added
+- **Accent colours.** Classic blue stays the default. Settings → Appearance has 11 preset colours plus a custom colour picker, with a live preview. Buttons, selection, links and focus rings follow your choice in both light and dark themes, with readable contrast checked for every preset.
+- **Line-ending guard.** Before you commit, GitPilot checks staged files for Windows line endings (CRLF) in repositories that use LF. Those commits make GitHub show every line of a file as changed, and pull request suggestions then fail with "context doesn't match". The commit box warns you and **Convert to LF** fixes the staged files and your working copies (originals are backed up). A one-click link adds `* text=auto` to `.gitattributes` so it doesn't happen again. Files meant to keep CRLF (`eol=crlf`, binary) are left alone. Can be turned off in Settings → Git.
+- **OpenRouter is the default AI provider.** Save your OpenRouter key (kept in the system keychain), see that it works and how much you've used, and pick from OpenRouter's full model list with search, prices and a "Free only" filter. The default model is OpenRouter's Auto router.
+- **Claude Code with your Claude account.** New AI provider: commit messages are written by Claude Code in the background using the Claude account you're signed in with (Pro, Max, Team or Enterprise), so no API key is needed. Choose Haiku, Sonnet or Opus. Settings shows whether you're signed in and has **Sign in with Claude**, which opens Claude Code's sign-in in a terminal.
+
+### Changed
+- **Settings rearranged** into General, Appearance, Git, AI, Claude Code, Updates and About, with icons and a search box. Updates and About have their own sections; line endings and commit conventions are together under Git → Committing.
+- AI settings show providers as cards. Existing setups that never turned AI on move to OpenRouter; anyone who had configured a provider keeps it.
+- Suggested commit message descriptions are shown reflowed in the suggestions list (the inserted text keeps its line breaks).
+
 ## 0.2.1 — 2026-10-20
 
 ### Fixed

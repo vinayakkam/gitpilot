@@ -7,14 +7,18 @@ import type { AppInfo } from "@/bindings/AppInfo";
 import type { Area } from "@/bindings/Area";
 import type { Branch } from "@/bindings/Branch";
 import type { BranchComparison } from "@/bindings/BranchComparison";
+import type { ClaudeAuthStatus } from "@/bindings/ClaudeAuthStatus";
 import type { ClaudeCodeInfo } from "@/bindings/ClaudeCodeInfo";
 import type { CommitDetail } from "@/bindings/CommitDetail";
 import type { DiscardResult } from "@/bindings/DiscardResult";
+import type { EolReport } from "@/bindings/EolReport";
 import type { FileDiff } from "@/bindings/FileDiff";
 import type { Identity } from "@/bindings/Identity";
 import type { KeyStatus } from "@/bindings/KeyStatus";
 import type { LogPage } from "@/bindings/LogPage";
 import type { LogQuery } from "@/bindings/LogQuery";
+import type { OpenRouterKeyInfo } from "@/bindings/OpenRouterKeyInfo";
+import type { OpenRouterModel } from "@/bindings/OpenRouterModel";
 import type { PathInspection } from "@/bindings/PathInspection";
 import type { PullOptions } from "@/bindings/PullOptions";
 import type { ProgressEvent } from "@/bindings/ProgressEvent";
@@ -55,6 +59,9 @@ export const api = {
   unstagePaths: (id: number, paths: string[]) => invoke<void>("unstage_paths", { id, paths }),
   stageAll: (id: number) => invoke<void>("stage_all", { id }),
   unstageAll: (id: number) => invoke<void>("unstage_all", { id }),
+  eolCheck: (id: number) => invoke<EolReport>("eol_check", { id }),
+  eolFix: (id: number, paths: string[]) => invoke<number>("eol_fix", { id, paths }),
+  eolAddGitattributes: (id: number) => invoke<boolean>("eol_add_gitattributes", { id }),
   hunkApply: (id: number, path: string, header: string, unstage: boolean) =>
     invoke<void>("hunk_apply", { id, path, header, unstage }),
   discardTracked: (id: number, paths: string[]) =>
@@ -127,6 +134,10 @@ export const api = {
   aiSuggestCommit: (id: number) => invoke<AiSuggestions>("ai_suggest_commit", { id }),
   claudeDetect: () => invoke<ClaudeCodeInfo>("claude_detect"),
   claudeLaunch: (id: number, prompt: string | null) => invoke<void>("claude_launch", { id, prompt }),
+  claudeAuthStatus: () => invoke<ClaudeAuthStatus>("claude_auth_status"),
+  claudeLogin: () => invoke<void>("claude_login"),
+  openRouterModels: () => invoke<OpenRouterModel[]>("openrouter_models"),
+  openRouterKeyInfo: () => invoke<OpenRouterKeyInfo>("openrouter_key_info"),
 };
 
 export function onProgress(cb: (e: ProgressEvent) => void): Promise<UnlistenFn> {

@@ -60,6 +60,9 @@ pub fn run() {
             commands::changes::identity_set,
             commands::changes::files_search,
             commands::changes::lines_apply,
+            commands::changes::eol_check,
+            commands::changes::eol_fix,
+            commands::changes::eol_add_gitattributes,
             commands::history::log_get,
             commands::history::commit_get,
             commands::history::commit_diff_file,
@@ -93,6 +96,10 @@ pub fn run() {
             commands::assist::claude_detect,
             commands::assist::claude_launch,
             commands::assist::staged_diff_text,
+            commands::assist::claude_auth_status,
+            commands::assist::claude_login,
+            commands::assist::openrouter_models,
+            commands::assist::openrouter_key_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running GitPilot");

@@ -2,7 +2,9 @@ import type { RepoStatus } from "@/bindings/RepoStatus";
 import type { Settings } from "@/bindings/Settings";
 
 export const settings: Settings = {
+  settingsVersion: 2,
   theme: "light",
+  accent: "blue",
   density: "comfortable",
   diffMode: "unified",
   syntaxHighlighting: true,
@@ -10,7 +12,8 @@ export const settings: Settings = {
   defaultBranch: "",
   pullStrategy: "ffOnly",
   commitConvention: "none",
-  ai: { enabled: false, provider: "anthropic", model: "claude-haiku-5-5", baseUrl: "", includeBody: true, privacyAcknowledged: false },
+  checkLineEndings: true,
+  ai: { enabled: false, provider: "openRouter", model: "openrouter/auto", baseUrl: "", includeBody: true, privacyAcknowledged: false },
   claudeCode: { path: "", terminal: "", sendPromptOnLaunch: true },
   reopenLastRepo: true,
   successNotifications: true,

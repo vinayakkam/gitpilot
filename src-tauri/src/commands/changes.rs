@@ -181,3 +181,31 @@ pub async fn lines_apply(
     repo!(state, id, git, root, r);
     r.apply_lines(&path, &header, &lines, unstage).await
 }
+
+/// Staged files that would be committed with Windows (CRLF) line endings.
+#[tauri::command]
+pub async fn eol_check(
+    state: State<'_, AppState>,
+    id: i64,
+) -> AppResult<crate::git::eol::EolReport> {
+    repo!(state, id, git, root, r);
+    r.eol_check().await
+}
+
+/// Rewrites the given staged files (and their working copies, after a backup) with LF endings.
+#[tauri::command]
+pub async fn eol_fix(state: State<'_, AppState>, id: i64, paths: Vec<String>) -> AppResult<u32> {
+    let lock = state.repo_lock(id);
+    let _g = lock.lock().await;
+    repo!(state, id, git, root, r);
+    r.eol_fix(&paths, &state.backup_dir()).await
+}
+
+/// Adds `* text=auto` to .gitattributes so Git normalizes line endings from now on.
+#[tauri::command]
+pub async fn eol_add_gitattributes(state: State<'_, AppState>, id: i64) -> AppResult<bool> {
+    let lock = state.repo_lock(id);
+    let _g = lock.lock().await;
+    repo!(state, id, git, root, r);
+    r.eol_add_gitattributes().await
+}

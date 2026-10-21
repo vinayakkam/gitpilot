@@ -16,8 +16,15 @@ import { toAppError } from "@/lib/errors";
 import { plural } from "@/lib/format";
 import { hasMod, modKey } from "@/lib/platform";
 import { useStore } from "@/store/AppStore";
+import { LineEndingNotice } from "./LineEndingNotice";
 
 const SUMMARY_LIMIT = 72;
+
+/** For previews: joins lines the model wrapped at 72 columns, keeping paragraph breaks and lists. */
+function reflow(body: string): string {
+  return body.replace(/([^\n])\n(?![\n\-*•]|\d+[.)] )/g, "$1 ");
+}
+
 const CONVENTIONAL = /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?!?: \S/;
 
 // Drafts survive switching views and repositories (per repo, per session).
@@ -142,7 +149,7 @@ export function CommitComposer({ stagedCount }: { stagedCount: number }) {
                       className="w-full px-3 py-1.5 text-left hover:bg-surface-2"
                     >
                       <span className="block font-mono text-sm">{s.subject}</span>
-                      {s.body && <span className="mt-0.5 block whitespace-pre-wrap text-sm text-muted">{s.body}</span>}
+                      {s.body && <span className="mt-0.5 block whitespace-pre-wrap text-sm text-muted">{reflow(s.body)}</span>}
                     </button>
                   </li>
                 ))}
@@ -168,6 +175,8 @@ export function CommitComposer({ stagedCount }: { stagedCount: number }) {
           </Button>
         </div>
       )}
+
+      <LineEndingNotice stagedCount={stagedCount} />
 
       <div className="relative">
         <Input

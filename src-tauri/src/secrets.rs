@@ -10,6 +10,9 @@ const SERVICE: &str = "GitPilot";
 
 fn account(p: AiProviderKind) -> &'static str {
     match p {
+        AiProviderKind::OpenRouter => "ai-openrouter",
+        // Claude Code uses its own sign-in; nothing is stored under this name.
+        AiProviderKind::ClaudeCode => "ai-claude-code",
         AiProviderKind::Anthropic => "ai-anthropic",
         AiProviderKind::OpenAiCompatible => "ai-openai-compatible",
     }
@@ -17,6 +20,8 @@ fn account(p: AiProviderKind) -> &'static str {
 
 fn env_vars(p: AiProviderKind) -> &'static [&'static str] {
     match p {
+        AiProviderKind::OpenRouter => &["GITPILOT_AI_API_KEY", "OPENROUTER_API_KEY"],
+        AiProviderKind::ClaudeCode => &[],
         AiProviderKind::Anthropic => &["GITPILOT_AI_API_KEY", "ANTHROPIC_API_KEY"],
         AiProviderKind::OpenAiCompatible => &["GITPILOT_AI_API_KEY", "OPENAI_API_KEY"],
     }
@@ -83,6 +88,11 @@ pub fn set(p: AiProviderKind, key: &str) -> AppResult<()> {
     if key.is_empty() {
         return Err(AppError::invalid("Paste an API key."));
     }
+    if p == AiProviderKind::ClaudeCode {
+        return Err(AppError::invalid(
+            "Claude Code uses your Claude account, not an API key. Sign in from Settings → Claude Code.",
+        ));
+    }
     entry(p)
         .and_then(|e| e.set_password(key))
         .map_err(keychain_err)
@@ -97,6 +107,9 @@ pub fn clear(p: AiProviderKind) -> AppResult<()> {
 
 /// Keychain first, then environment variables. `None` if neither is set.
 pub fn get(p: AiProviderKind) -> Option<String> {
+    if p == AiProviderKind::ClaudeCode {
+        return None;
+    }
     if let Ok(k) = entry(p).and_then(|e| e.get_password()) {
         if !k.trim().is_empty() {
             return Some(k);

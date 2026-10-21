@@ -12,6 +12,7 @@ const api = vi.hoisted(() => ({
   identityGet: vi.fn(),
   commit: vi.fn(),
   aiSuggestCommit: vi.fn(),
+  eolCheck: vi.fn(),
 }));
 
 vi.mock("@/lib/api", () => ({ api, onProgress: () => Promise.resolve(() => {}) }));
@@ -26,6 +27,7 @@ beforeEach(() => {
   api.repoOpen.mockResolvedValue(repo);
   api.status.mockResolvedValue(status(staged));
   api.identityGet.mockResolvedValue({ name: "Ann", email: "ann@x.dev" });
+  api.eolCheck.mockResolvedValue({ issues: [], hasTextRule: false, autocrlf: null });
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
 });
 

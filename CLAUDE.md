@@ -53,11 +53,13 @@ React UI ──invoke()──▶ Tauri commands (src-tauri/src/commands/*) ─�
   (missing/unknown fields tolerated).
 - `secrets.rs`: AI API keys in the OS keychain (Secret Service on Linux, Credential Manager
   on Windows). Never in settings.json. Env var fallback (read-only): `GITPILOT_AI_API_KEY`,
-  `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`.
+  `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` (Claude Code uses its own sign-in).
 
 ### AI (`ai.rs`)
-Provider enum: `Anthropic` (Messages API) and `OpenAiCompatible { base_url }` (covers OpenAI,
-local servers like Ollama/LM Studio that speak `/v1/chat/completions`). Only the **staged**
+Provider enum: `OpenRouter` (default; `/chat/completions`, `/models`, `/key`), `ClaudeCode`
+(runs the user's signed-in Claude Code CLI headless — see `claude_code::print`), `Anthropic`
+(Messages API) and `OpenAiCompatible` (OpenAI, local servers like Ollama/LM Studio that speak
+`/v1/chat/completions`). Only the **staged**
 diff is sent; files matching sensitive patterns (`.env*`, keys, certs) are excluded and the
 diff is size-capped. Failures return errors — never fabricated suggestions. AI is off by default.
 
@@ -172,6 +174,9 @@ Key decisions:
 - Discarding untracked files moves them to the OS trash; discarding tracked changes first
   copies the current file to `<app_data_dir>/discard-backups/<timestamp>/`.
 - Pull defaults to `--ff-only`; merge/rebase are explicit settings.
+- Accent colour: `settings.accent` (preset id or hex). `src/lib/accent.ts` writes accent tokens as inline CSS variables on `<html>`; "blue" writes none so `tokens.css` stays authoritative. Never hard-code accent hex in components.
+- Line-ending guard (`git/eol.rs`): flags staged CRLF in LF repositories before commit; fixes by rewriting the index blob (`hash-object --no-filters` + `update-index --cacheinfo`) and the backed-up working file. `.gitattributes` rules are prepended, never appended.
+- AI providers: OpenRouter (default), Claude Code (user's Claude account via `claude -p`, no tools, empty temp cwd, input on stdin), Anthropic, OpenAI-compatible. `Settings::migrate()` + `settings_version` upgrade old settings files.
 - Fetch freshness comes from `FETCH_HEAD` mtime, not stored state.
 
 ## Session continuity rules

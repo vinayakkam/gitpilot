@@ -5,7 +5,7 @@
 - **Phase:** 6 — reliability and refinement (phases 1–5 implemented for Linux; Windows not started)
 - **Overall:** core Git workflow, branches, remotes, sync, AI provider integration, Claude Code integration and settings are implemented and verified on Linux against real repositories. Linux packages (deb, AppImage) build and launch.
 - **Current working area:** cross-platform verification and remaining feature gaps
-- **Most recently completed:** visual QA pass (light + dark, 900×580), fixes for diff layout bugs found there; release build with deb + AppImage
+- **Most recently completed:** v0.3.0 — accent colours, line-ending guard, OpenRouter default provider, Claude Code account provider, rearranged settings (session 6)
 - **Blocker:** Windows cannot be built or type-checked in this environment (no Windows host; `rustup target add x86_64-pc-windows-gnu` is blocked by the network allowlist)
 - **Immediate next task:** build and run on Windows (see handoff)
 
@@ -27,11 +27,13 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 - [x] Remote management (add/edit/remove, credential redaction, `ext::` blocked)
 - [x] Fetch, pull, and push (progress, ff-only default, publish, rejection explained, guarded force-with-lease; fetch/push/clone cancellable)
 - [x] Merge, rebase, cherry-pick, revert with continue/skip/abort
-- [~] AI commit message generation (Anthropic + OpenAI-compatible; prompt/parsing unit-tested; **not exercised against a live API**)
+- [~] AI commit message generation (OpenRouter default, Claude Code account, Anthropic, OpenAI-compatible). **Claude Code provider verified live in the real app.** OpenRouter/Anthropic/OpenAI request shapes unit-tested only (openrouter.ai unreachable from the build sandbox)
+- [x] Accent colours (11 presets + custom; OKLCH-derived tokens; contrast unit-tested for every preset in both themes)
+- [x] Line-ending guard (CRLF into LF repos; detection + fix + .gitattributes; integration-tested and verified in the real app)
 - [x] Claude Code integration (detection verified with real CLI 2.1.304; terminal launch verified with xterm + stand-in executable; prompt passed as one argv entry)
 - [x] Application settings (persisted JSON, validated; keychain for keys with env fallback)
 - [x] Error handling and safety (classified errors, plain messages + technical details, confirmations + backend flags)
-- [x] Automated tests (Rust 64 unit + 9 integration on temp repos; frontend 24 vitest)
+- [x] Automated tests (Rust 84 unit + 17 integration on temp repos; frontend 42 vitest)
 - [~] UI polish and visual QA (all main screens inspected on Linux/Xvfb, light + dark, min size; no screen-reader testing)
 - [-] Windows packaging (MSI + NSIS configured; GitHub Actions workflow `.github/workflows/build-installers.yml` builds them on windows-latest; workflow not yet run)
 - [x] Linux packaging (deb 5.1 MB and AppImage 80 MB built; AppImage launched; Arch/CachyOS `gitpilot-bin` package built with makepkg from `packaging/arch/PKGBUILD` — not yet installed on a real Arch system)
@@ -39,6 +41,17 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 - [~] Documentation and release preparation (README, CLAUDE.md, this file; no signing, no CI)
 
 ## Work log
+
+### Session 6 — 2026-10-21 (v0.3.0)
+- Objective (user): keep classic blue but allow changing the app colour; stop GitHub PRs showing "context doesn't match" (user confirmed it happens on GitHub's PR page → line endings); rearrange settings; OpenRouter as default AI with the user's key; Claude Code with the user's own Claude account.
+- **Accent:** `settings.accent` (preset id or `#rrggbb`, validated in Rust). `src/lib/accent.ts` derives `--accent*`, `--on-accent`, `--focus`, `--selection` per theme in OKLCH (gamut-clamped); "blue" removes overrides so `tokens.css` stays the source of truth. Applied in the store's theme effect. Tailwind gained `--color-focus`. Toned down dark `--selection` chroma after QA (green looked loud).
+- **Line endings:** `src-tauri/src/git/eol.rs`. Staged A/M files (`--no-renames`), skip `-text`/binary/`eol=crlf` via `check-attr`, repo convention from `ls-files --eol` (excluding staged files). Flags: HEAD LF → staged CRLF (`lineEndingsOnly` if identical after normalization, else `crlfIntroduced`); new CRLF file in an LF repo. HEAD already CRLF → not flagged. Fix: normalized blob via `hash-object -w --no-filters`, `update-index --cacheinfo`, working file backed up to discard-backups then rewritten. `.gitattributes`: `* text=auto` **prepended** (later lines win; appending would override `*.png binary`). UI: `features/changes/LineEndingNotice.tsx` in the composer; setting `checkLineEndings` (Git → Committing).
+- **AI providers:** `AiProviderKind` gains `openRouter` (new default, model `openrouter/auto`) and `claudeCode`. `Settings.settings_version` + `migrate()` moves untouched old defaults (Anthropic, never enabled/acknowledged) to OpenRouter. OpenRouter: `/chat/completions` with `HTTP-Referer`/`X-Title`, `/models` (text-output models, prices per million, free flag), `/key` (usage/limit). Keychain account `ai-openrouter`, env `OPENROUTER_API_KEY`.
+- **Claude Code account:** `claude_code::print` runs `claude -p <instruction> --output-format json --tools "" --no-session-persistence --strict-mcp-config --disable-slash-commands [--model m]` in an empty temp dir, rules + diff on stdin (so no newlines in argv — matters for `.cmd` shims on Windows); retries with only essential flags on "unknown option". Login/usage-limit errors mapped to plain messages. `auth_status` parses `claude auth status --json`; `claude_login` opens `claude auth login` in a terminal; Settings re-checks on window focus.
+- **Settings:** split into `features/settings/{SettingsView,parts,AppearancePane,AiPane,ClaudeAccount}.tsx`; sections General / Appearance / Git / AI / Claude Code / Updates / About, icons, keyword search.
+- Checks: cargo fmt, clippy -D warnings, cargo test 84 unit + 17 integration, tsc, eslint, vitest 42 — all pass.
+- Verified in the real app (Xvfb, release build): migration to OpenRouter; green accent across app; CRLF warning on a CRLF-only file + new CRLF file (README untouched) → Convert to LF → only-EOL file disappeared, new file LF, backup written; Claude Code provider produced 3 suggestions ("Claude Code · haiku") with the real CLI; Claude Code pane shows signed-in status.
+- Not verified: live OpenRouter calls and model list (openrouter.ai blocked by the sandbox allowlist); "Sign in with Claude" terminal flow on a desktop; Windows behaviour of the new code; OS keychain (no Secret Service in the sandbox).
 
 ### Session 1 — 2026-10-20
 
@@ -144,7 +157,7 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 
 ## Next-session handoff
 
-**Continue with:** Windows build and verification, then live AI test.
+**Continue with:** on a real machine, check OpenRouter end to end (save key → key verified → model list → suggestion) and "Sign in with Claude" (terminal opens `claude auth login`; status flips after returning to GitPilot). Then the Windows items below.
 
 1. On a Windows machine with Rust (MSVC), Node 20+, WebView2 and Git for Windows:
    ```

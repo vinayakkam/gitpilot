@@ -4,6 +4,7 @@ import type { AppInfo } from "@/bindings/AppInfo";
 import type { RepoRecord } from "@/bindings/RepoRecord";
 import type { RepoStatus } from "@/bindings/RepoStatus";
 import type { Settings } from "@/bindings/Settings";
+import { applyAccent } from "@/lib/accent";
 import { api, onProgress } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
 
@@ -251,7 +252,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     root.dataset.density = settings.density;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const apply = () => {
-      root.dataset.theme = settings.theme === "system" ? (mq.matches ? "dark" : "light") : settings.theme;
+      const theme = settings.theme === "system" ? (mq.matches ? "dark" : "light") : settings.theme;
+      root.dataset.theme = theme;
+      applyAccent(root, settings.accent, theme);
     };
     apply();
     mq.addEventListener("change", apply);
