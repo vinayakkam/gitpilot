@@ -126,3 +126,11 @@ GitPilot finds `claude` on `PATH` or in common install locations (`~/.local/bin`
 - Credentials in remote URLs are redacted everywhere they're displayed.
 - Destructive operations require confirmation in the UI *and* an explicit flag in the backend command.
 - Tauri capabilities are limited to the folder picker, clipboard writes and opening URLs.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+[MIT](LICENSE) © 2026 Vinayak Kamath

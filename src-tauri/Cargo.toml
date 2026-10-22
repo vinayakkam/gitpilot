@@ -3,6 +3,7 @@ name = "gitpilot"
 version = "0.4.0"
 description = "GitPilot — a desktop Git manager"
 authors = ["OLIT Technologies"]
+license = "MIT"
 edition = "2021"
 rust-version = "1.80"
 

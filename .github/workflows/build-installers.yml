@@ -113,10 +113,11 @@ jobs:
           fi
       - name: Build Arch/CachyOS package
         run: |
-          mkdir -p arch && cp packaging/arch/PKGBUILD arch/
+          mkdir -p arch && cp packaging/arch/PKGBUILD packaging/arch/LICENSE arch/
           cp src-tauri/target/release/bundle/deb/*.deb arch/
           cd arch
-          sed -i "s/^sha256sums=.*/sha256sums=('SKIP')/" PKGBUILD
+          # The .deb was just built, so its pinned checksum can't match; replace the whole list.
+          perl -0pi -e "s/sha256sums=\([^)]*\)/sha256sums=('SKIP' 'SKIP')/s" PKGBUILD
           PKGEXT='.pkg.tar.zst' makepkg --nodeps --noconfirm -f
       - uses: actions/upload-artifact@v4
         with:
