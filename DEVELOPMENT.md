@@ -7,7 +7,7 @@
 - **Current working area:** cross-platform verification and remaining feature gaps
 - **Most recently completed:** v0.3.1 — readable update notes, Add to .gitignore, tracked-but-ignored files (session 7). Before that: v0.3.0 — accent colours, line-ending guard, OpenRouter default provider, Claude Code account provider, rearranged settings (session 6)
 - **Windows:** verified by the user on a real Windows machine (2026-10-21, all features working); this environment still can't build for Windows
-- **Immediate next task:** release 0.4.0; when the user says 0.4.0 is complete, start 0.4.5 (Batch D, then E)
+- **Immediate next task:** wait for the user to say 0.4.0 is complete, then start 0.4.2 (Batch D). Do not start before that.
 
 ## Feature tracker
 
@@ -48,24 +48,7 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 ## Work log
 
 ### Session 8 — 2026-10-21 (v0.4.0)
-- User asked for the whole feature list; split into batches. A–C ship as **0.4.0**; D (GitHub sign-in, clone from list, pull requests, AI explain/PR description/conflict help) and E (multiple windows, worktrees/submodules, LFS, commit signing, CI) are planned for **0.4.5**, to start when the user says 0.4.0 is complete.
-- **Batch A** (commit cb0e149): amend (pushed-commit confirmation), undo last commit (soft reset, message back in composer), auto-refresh file watcher skipping ignored paths (setting `autoRefresh`), tags (lightweight/annotated, push, delete local/remote), stash selected files, discard hunk/lines with backup.
-- **Batch B** (d1dd026): blame, commit graph (lane layout as a pure tested function; history in date order), file-by-file compare of any refs (three-dot or direct), image before/after previews, dialogs rendered at document top (nested dialogs + Escape).
-- **Batch C** (2aed89f): `git/rewrite.rs` — per-block conflict resolution and whole-file sides, interactive rebase from a step list (todo built by `build_todo`, messages via files), `reset_to` soft/mixed/hard, backups under `refs/gitpilot/backups/<ms>-<branch>` (+ `refs/gitpilot/wip/*` for uncommitted tracked changes, `refs/gitpilot/labels/*`), restore backs up current state first. UI: Keep mine/theirs/both in the diff, EditCommitsDialog, ResetDialog, Branches → Backups.
-- Verified in the real app (Xvfb) across A–C: discard hunk/lines, undo, amend, tag push, stash file, blame → History, compare, merge conflict resolved per block → commit merge, hard reset + backup, edit commits (remove/combine/reword), restore from backup.
-- The session hit its usage limit after Batch C's QA and before its commit; C was committed in the next session after re-running all checks.
-- Checks: cargo fmt, clippy -D warnings, cargo test 102 unit + 21 integration, tsc, eslint, vitest 65 — pass.
-
-### Session 7 — 2026-10-21 (v0.3.1)
-- User reports: update window showed release notes as raw Markdown; git-ignored files appeared in Changes; no way to ignore files.
-- **Update notes:** `components/ui/ReleaseNotes.tsx` renders a Markdown subset (headings, bullets, **bold**, `code`, links, tables) and the plain form ("Title" line + "•" bullets, bold lead sentence) as React elements — no HTML injection. `scripts/notes.mjs::plainNotes` converts the CHANGELOG section for `latest.json`, because the dialog that shows notes belongs to the *old* version (0.3.0 and earlier show plain text).
-- **Ignored files:** the files the user saw were tracked before the rule existed (status already respected .gitignore). `FileEntry.ignored` from `ls-files -c -i --exclude-standard`; badge + Changes notice with Stop tracking (`git rm --cached -r`, confirmed). `Repo::ignore_add` appends deduplicated, single-line patterns to the root .gitignore. `IgnoreDialog`: this file (`/path`, escaped), all `*.ext`, folder, custom; offers stop-tracking for tracked selections. Commands `gitignore_add`, `untrack_paths`.
-- Bug found in real-app QA: ignoring with nothing to untrack failed ("No files were selected") because `untrack([])` validated first → empty check moved first; regression assertion added.
-- File rows no longer set a native `title` (GTK tooltips covered the context menu); renames keep it.
-- Checks: cargo fmt, clippy, cargo test 84 + 18, tsc, eslint, vitest 52 — pass. Verified in the real app: ignored badge + notice; right-click → Add to .gitignore → *.log (file written, debug.log gone); Stop tracking → staged deletions, files still on disk. Update notes rendering checked with the app CSS (not inside a real update; a test AppImage build was stopped at the user's request).
-
-### Session 8 — 2026-10-21 (v0.4.0)
-- User asked for the whole feature list; split into batches. A–C ship as **0.4.0**; D (GitHub sign-in, clone from list, pull requests, AI explain/PR description/conflict help) and E (multiple windows, worktrees/submodules, LFS, commit signing, CI) are planned for **0.4.5**, to start when the user says 0.4.0 is complete.
+- User asked for the whole feature list; split into batches. A–C ship as **0.4.0**; D is planned for **0.4.2** and E for **0.4.5** (see Roadmap); nothing started until the user says 0.4.0 is complete.
 - **Batch A** (commit cb0e149): amend (pushed-commit confirmation), undo last commit (soft reset, message back in composer), auto-refresh file watcher skipping ignored paths (setting `autoRefresh`), tags (lightweight/annotated, push, delete local/remote), stash selected files, discard hunk/lines with backup.
 - **Batch B** (d1dd026): blame, commit graph (lane layout as a pure tested function; history in date order), file-by-file compare of any refs (three-dot or direct), image before/after previews, dialogs rendered at document top (nested dialogs + Escape).
 - **Batch C** (2aed89f): `git/rewrite.rs` — per-block conflict resolution and whole-file sides, interactive rebase from a step list (todo built by `build_todo`, messages via files), `reset_to` soft/mixed/hard, backups under `refs/gitpilot/backups/<ms>-<branch>` (+ `refs/gitpilot/wip/*` for uncommitted tracked changes, `refs/gitpilot/labels/*`), restore backs up current state first. UI: Keep mine/theirs/both in the diff, EditCommitsDialog, ResetDialog, Branches → Backups.
@@ -194,6 +177,24 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 5. **Native `title` tooltips** elsewhere (not file rows, fixed in 0.3.1) still render as GTK tooltips.
 6. **Sidebar doesn't auto-collapse** at narrow widths (user can collapse it).
 8. **No CI** configured.
+
+## Roadmap (agreed with the user, 2026-10-21)
+
+**0.4.2 — Batch D: GitHub and AI**
+1. Sign in with GitHub (OAuth device flow; needs the user's OAuth App Client ID, otherwise personal access token fallback; token in the OS keychain).
+2. Clone from your GitHub repo list (search).
+3. Pull requests: open a PR for the current branch, list open PRs with status/checks, check out a PR locally, open on GitHub.
+4. AI: explain a commit or diff.
+5. AI: write a PR description from the branch's commits.
+6. AI: conflict help (suggested resolution + explanation; user applies it).
+
+**0.4.5 — Batch E: bigger additions**
+7. Multiple windows (a repository per window).
+8. Worktrees.
+9. Submodules (list, init, update).
+10. Git LFS (tracked files, track new types, warn if LFS missing).
+11. Commit signing setup (GPG/SSH) + "Verified" mark in History.
+12. CI: run the full test suite on Windows and Linux on every push.
 
 ## Next-session handoff
 

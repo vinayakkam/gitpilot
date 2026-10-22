@@ -169,7 +169,7 @@ Contributors don't need to do any of this.
 
 ## License
 
-GitPilot doesn't have a published license file yet. Until one is added, please contact the maintainers before contributing substantial code, so it's clear how your contribution can be used.
+GitPilot is released under the [MIT License](LICENSE). By contributing, you agree that your contributions are licensed under the same terms.
 
 ---
 
