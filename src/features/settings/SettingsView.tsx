@@ -9,17 +9,16 @@ import { ErrorNotice } from "@/components/ui/Misc";
 import { Spinner } from "@/components/ui/Spinner";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
-import { useStore } from "@/store/AppStore";
+import { useStore, type SettingsTab } from "@/store/AppStore";
 import { UpdateSettings } from "@/features/updates/UpdateSettings";
 import { AiPane } from "./AiPane";
 import { AppearancePane } from "./AppearancePane";
 import { ClaudeAccount } from "./ClaudeAccount";
 import { Group, PaneHeader, TextSetting, type PaneProps } from "./parts";
 
-type Tab = "general" | "appearance" | "git" | "ai" | "claude" | "updates" | "about";
 
 /** Sections, in order, with words people might search for. */
-const TABS: { id: Tab; label: string; icon: ReactNode; keywords: string }[] = [
+const TABS: { id: SettingsTab; label: string; icon: ReactNode; keywords: string }[] = [
   { id: "general", label: "General", icon: <Settings2 size={15} />, keywords: "startup reopen last repository notifications success toast repositories auto refresh watch files changes" },
   { id: "appearance", label: "Appearance", icon: <Palette size={15} />, keywords: "theme dark light system accent colour color blue custom density compact diff layout side by side unified syntax highlighting" },
   { id: "git", label: "Git", icon: <GitBranch size={15} />, keywords: "git executable path identity name email initial branch main pull strategy fast-forward merge rebase commit message conventional line endings crlf lf gitattributes windows github pull request context" },
@@ -30,8 +29,7 @@ const TABS: { id: Tab; label: string; icon: ReactNode; keywords: string }[] = [
 ];
 
 export function SettingsView() {
-  const { settings, saveSettings } = useStore();
-  const [tab, setTab] = useState<Tab>("general");
+  const { settings, saveSettings, settingsTab: tab, setSettingsTab: setTab } = useStore();
   const [query, setQuery] = useState("");
 
   const visible = useMemo(() => {

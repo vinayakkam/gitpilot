@@ -22,7 +22,7 @@ pub(crate) const NO_EXT: [&str; 4] = [
     "-c",
     "protocol.fd.allow=never",
 ];
-const DIFF_FLAGS: [&str; 7] = [
+pub(crate) const DIFF_FLAGS: [&str; 7] = [
     "--no-color",
     "--no-ext-diff",
     "--no-textconv",

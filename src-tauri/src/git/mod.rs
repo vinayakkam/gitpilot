@@ -1,5 +1,6 @@
 //! Git integration layer. All git processes are spawned by `runner`.
 
+pub mod assist;
 pub mod diff;
 pub mod eol;
 pub mod errors;

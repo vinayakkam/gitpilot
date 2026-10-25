@@ -150,6 +150,25 @@ pub async fn conflict_resolve_block(
         .await? as u32)
 }
 
+/// Applies an AI suggestion the user accepted to one conflict block. Returns the blocks still left.
+#[tauri::command]
+pub async fn conflict_apply_text(
+    state: State<'_, AppState>,
+    id: i64,
+    path: String,
+    index: u32,
+    expected: String,
+    text: String,
+) -> AppResult<u32> {
+    let lock = state.repo_lock(id);
+    let _g = lock.lock().await;
+    repo!(state, id, git, root, r);
+    Ok(
+        r.conflict_apply_text(&path, index as usize, &expected, &text)
+            .await? as u32,
+    )
+}
+
 #[tauri::command]
 pub async fn conflict_take_side(
     state: State<'_, AppState>,

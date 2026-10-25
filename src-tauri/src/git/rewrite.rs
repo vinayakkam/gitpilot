@@ -23,9 +23,21 @@ pub enum ConflictChoice {
     Both,
 }
 
-/// Replaces conflict block `index` (0-based) in `text` with the chosen side.
-/// Returns the new text and how many conflict blocks are left, or None if there's no such block.
-pub fn resolve_block(text: &str, index: usize, choice: ConflictChoice) -> Option<(String, usize)> {
+/// One terminated conflict block found by `scan_conflicts`, as line ranges into the file.
+#[derive(Default)]
+struct Span {
+    start: usize,
+    /// Exclusive.
+    end: usize,
+    ours: String,
+    base: Option<String>,
+    theirs: String,
+    ours_label: String,
+    theirs_label: String,
+}
+
+/// Finds every conflict block. An unterminated block is not reported (and is left alone).
+fn scan_conflicts(lines: &[&str]) -> Vec<Span> {
     #[derive(PartialEq)]
     enum S {
         Out,
@@ -33,69 +45,138 @@ pub fn resolve_block(text: &str, index: usize, choice: ConflictChoice) -> Option
         Base,
         Theirs,
     }
-    let mut out = String::with_capacity(text.len());
+    let label = |c: &str, marker: &str| c[marker.len()..].trim().to_string();
+    let mut out = Vec::new();
     let mut state = S::Out;
-    let mut n = 0usize;
-    let mut found = false;
-    let (mut ours, mut theirs, mut block) = (String::new(), String::new(), String::new());
-    let mut remaining = 0usize;
-    for line in text.split_inclusive('\n') {
+    let mut cur = Span::default();
+    for (i, line) in lines.iter().enumerate() {
         let c = line.trim_end_matches('\n').trim_end_matches('\r');
         match state {
             S::Out if c.starts_with("<<<<<<<") => {
                 state = S::Ours;
-                ours.clear();
-                theirs.clear();
-                block.clear();
-                block.push_str(line);
+                cur = Span {
+                    start: i,
+                    ours_label: label(c, "<<<<<<<"),
+                    ..Span::default()
+                };
             }
-            S::Out => out.push_str(line),
-            S::Ours | S::Base if c.starts_with("=======") => {
-                state = S::Theirs;
-                block.push_str(line);
-            }
+            S::Out => {}
+            S::Ours | S::Base if c.starts_with("=======") => state = S::Theirs,
             S::Ours if c.starts_with("|||||||") => {
                 state = S::Base;
-                block.push_str(line);
+                cur.base = Some(String::new());
             }
-            S::Ours => {
-                ours.push_str(line);
-                block.push_str(line);
-            }
-            S::Base => block.push_str(line),
-            S::Theirs if c.starts_with(">>>>>>>") => {
-                block.push_str(line);
-                if n == index {
-                    found = true;
-                    match choice {
-                        ConflictChoice::Current => out.push_str(&ours),
-                        ConflictChoice::Incoming => out.push_str(&theirs),
-                        ConflictChoice::Both => {
-                            out.push_str(&ours);
-                            if !ours.is_empty() && !ours.ends_with('\n') {
-                                out.push('\n');
-                            }
-                            out.push_str(&theirs);
-                        }
-                    }
-                } else {
-                    out.push_str(&block);
-                    remaining += 1;
+            S::Ours => cur.ours.push_str(line),
+            S::Base => {
+                if let Some(b) = cur.base.as_mut() {
+                    b.push_str(line);
                 }
-                n += 1;
+            }
+            S::Theirs if c.starts_with(">>>>>>>") => {
+                cur.end = i + 1;
+                cur.theirs_label = label(c, ">>>>>>>");
+                out.push(std::mem::take(&mut cur));
                 state = S::Out;
             }
-            S::Theirs => {
-                theirs.push_str(line);
-                block.push_str(line);
-            }
+            S::Theirs => cur.theirs.push_str(line),
         }
     }
-    // An unterminated block is left exactly as it was.
-    if state != S::Out {
-        out.push_str(&block);
-    }
-    found.then_some((out, remaining))
+    out
+}
+
+/// Replaces conflict block `index` (0-based) with `replace(block)`.
+/// Returns the new text and how many conflict blocks are left, or None if there's no such block.
+fn replace_conflict(
+    text: &str,
+    index: usize,
+    replace: impl FnOnce(&Span, &str) -> Option<String>,
+) -> Option<(String, usize)> {
+    let lines: Vec<&str> = text.split_inclusive('\n').collect();
+    let spans = scan_conflicts(&lines);
+    let span = spans.get(index)?;
+    let raw: String = lines[span.start..span.end].concat();
+    let replacement = replace(span, &raw)?;
+    let mut out = String::with_capacity(text.len());
+    out.extend(lines[..span.start].iter().copied());
+    out.push_str(&replacement);
+    out.extend(lines[span.end..].iter().copied());
+    Some((out, spans.len() - 1))
+}
+
+/// Replaces conflict block `index` (0-based) in `text` with the chosen side.
+/// Returns the new text and how many conflict blocks are left, or None if there's no such block.
+pub fn resolve_block(text: &str, index: usize, choice: ConflictChoice) -> Option<(String, usize)> {
+    replace_conflict(text, index, |b, _| {
+        Some(match choice {
+            ConflictChoice::Current => b.ours.clone(),
+            ConflictChoice::Incoming => b.theirs.clone(),
+            ConflictChoice::Both => {
+                let mut s = b.ours.clone();
+                if !s.is_empty() && !s.ends_with('\n') {
+                    s.push('\n');
+                }
+                s.push_str(&b.theirs);
+                s
+            }
+        })
+    })
+}
+
+/// Replaces conflict block `index` with `replacement`, but only if the block is still exactly
+/// `expected` (markers included). Used for AI suggestions, which are made from an earlier read.
+pub fn replace_block_text(
+    text: &str,
+    index: usize,
+    expected: &str,
+    replacement: &str,
+) -> Option<(String, usize)> {
+    replace_conflict(text, index, |_, raw| {
+        (raw == expected).then(|| {
+            let mut r = replacement.to_string();
+            // Keep the line structure: the block ended with a newline, so must its replacement.
+            if !r.is_empty() && raw.ends_with('\n') && !r.ends_with('\n') {
+                r.push_str(if raw.ends_with("\r\n") { "\r\n" } else { "\n" });
+            }
+            r
+        })
+    })
+}
+
+/// A conflict in a file, with a few lines around it, for AI conflict help.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConflictBlock {
+    pub index: usize,
+    /// Exactly as in the file, markers included.
+    pub raw: String,
+    pub ours: String,
+    /// The common ancestor's version (diff3/zdiff3 conflict style only).
+    pub base: Option<String>,
+    pub theirs: String,
+    /// What follows the markers, e.g. "HEAD" and "feature".
+    pub ours_label: String,
+    pub theirs_label: String,
+    pub before: String,
+    pub after: String,
+}
+
+/// Lists the conflicts in `text` with up to `context` lines before and after each.
+pub fn conflict_blocks(text: &str, context: usize) -> Vec<ConflictBlock> {
+    let lines: Vec<&str> = text.split_inclusive('\n').collect();
+    scan_conflicts(&lines)
+        .into_iter()
+        .enumerate()
+        .map(|(index, s)| ConflictBlock {
+            index,
+            raw: lines[s.start..s.end].concat(),
+            before: lines[s.start.saturating_sub(context)..s.start].concat(),
+            after: lines[s.end..(s.end + context).min(lines.len())].concat(),
+            ours: s.ours,
+            base: s.base,
+            theirs: s.theirs,
+            ours_label: s.ours_label,
+            theirs_label: s.theirs_label,
+        })
+        .collect()
 }
 
 // ---------- interactive rebase ----------
@@ -240,15 +321,44 @@ impl Repo<'_> {
         index: usize,
         choice: ConflictChoice,
     ) -> AppResult<usize> {
+        let (file, text) = self.read_conflicted(path)?;
+        let (new, left) = resolve_block(&text, index, choice).ok_or_else(|| {
+            AppError::invalid(
+                "That conflict wasn't found. The file may have changed; refresh and try again.",
+            )
+        })?;
+        std::fs::write(&file, new)?;
+        Ok(left)
+    }
+
+    fn read_conflicted(&self, path: &str) -> AppResult<(std::path::PathBuf, String)> {
         let path = v::rel_path(path)?;
         let file = self.path.join(path);
         let bytes = std::fs::read(&file)?;
         let text = String::from_utf8(bytes).map_err(|_| {
             AppError::invalid("This file isn't plain text. Choose a whole version of it instead.")
         })?;
-        let (new, left) = resolve_block(&text, index, choice).ok_or_else(|| {
+        Ok((file, text))
+    }
+
+    /// The conflicts in a file, with a few lines of context, for AI conflict help.
+    pub async fn conflict_blocks(&self, path: &str) -> AppResult<Vec<ConflictBlock>> {
+        Ok(conflict_blocks(&self.read_conflicted(path)?.1, 8))
+    }
+
+    /// Replaces one conflict block with `text` (an AI suggestion the user accepted), but only if
+    /// the block is still exactly `expected`. Returns the blocks still left.
+    pub async fn conflict_apply_text(
+        &self,
+        path: &str,
+        index: usize,
+        expected: &str,
+        text: &str,
+    ) -> AppResult<usize> {
+        let (file, current) = self.read_conflicted(path)?;
+        let (new, left) = replace_block_text(&current, index, expected, text).ok_or_else(|| {
             AppError::invalid(
-                "That conflict wasn't found. The file may have changed; refresh and try again.",
+                "That conflict has changed since the suggestion was made. Ask for help again.",
             )
         })?;
         std::fs::write(&file, new)?;
@@ -561,6 +671,48 @@ mod tests {
         let crlf = TEXT.replace('\n', "\r\n");
         let (t, _) = resolve_block(&crlf, 0, ConflictChoice::Incoming).unwrap();
         assert!(t.starts_with("a\r\ntheirs\r\nb\r\n"));
+    }
+
+    #[test]
+    fn lists_blocks_with_context() {
+        let b = conflict_blocks(TEXT, 1);
+        assert_eq!(b.len(), 2);
+        assert_eq!(
+            b[0].raw,
+            "<<<<<<< HEAD\nmine\n=======\ntheirs\n>>>>>>> feature\n"
+        );
+        assert_eq!(
+            (b[0].ours.as_str(), b[0].theirs.as_str()),
+            ("mine\n", "theirs\n")
+        );
+        assert_eq!(
+            (b[0].ours_label.as_str(), b[0].theirs_label.as_str()),
+            ("HEAD", "feature")
+        );
+        assert_eq!((b[0].before.as_str(), b[0].after.as_str()), ("a\n", "b\n"));
+        assert_eq!(b[0].base, None);
+        assert_eq!(b[1].base.as_deref(), Some("base\n"));
+        assert_eq!(b[1].after, "c\n");
+        // An unterminated block isn't a conflict that can be resolved.
+        assert!(conflict_blocks("x\n<<<<<<< HEAD\nmine\n=======\n", 3).is_empty());
+    }
+
+    #[test]
+    fn replaces_block_only_if_unchanged() {
+        let raw = conflict_blocks(TEXT, 0)[1].raw.clone();
+        let (t, left) = replace_block_text(TEXT, 1, &raw, "merged").unwrap();
+        assert_eq!(left, 1);
+        assert!(t.ends_with("b\nmerged\nc\n"), "newline added: {t:?}");
+        // A stale suggestion (block changed or index moved) is refused.
+        assert!(replace_block_text(TEXT, 0, &raw, "merged").is_none());
+        assert!(replace_block_text(TEXT, 2, &raw, "merged").is_none());
+        // An empty resolution deletes the block.
+        let (t, _) = replace_block_text(TEXT, 1, &raw, "").unwrap();
+        assert!(t.ends_with("b\nc\n"));
+        let crlf = TEXT.replace('\n', "\r\n");
+        let raw = conflict_blocks(&crlf, 0)[0].raw.clone();
+        let (t, _) = replace_block_text(&crlf, 0, &raw, "x").unwrap();
+        assert!(t.starts_with("a\r\nx\r\nb\r\n"));
     }
 
     #[test]

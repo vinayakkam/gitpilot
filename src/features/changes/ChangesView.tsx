@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CircleCheck, EyeOff, Undo2 } from "lucide-react";
+import { CircleCheck, EyeOff, Sparkles, Undo2 } from "lucide-react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import type { AppError } from "@/bindings/AppError";
 import type { FileDiff } from "@/bindings/FileDiff";
@@ -11,6 +11,8 @@ import { EmptyState, ErrorNotice } from "@/components/ui/Misc";
 import { SearchField } from "@/components/ui/SearchField";
 import { Splitter, usePanelWidth } from "@/components/ui/Splitter";
 import { DiffViewer, stageHunkIcon, unstageHunkIcon } from "@/features/diff/DiffViewer";
+import { IconButton } from "@/components/ui/IconButton";
+import { ExplainDialog, type ExplainRequest } from "@/features/assistant/ExplainDialog";
 import { api } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
 import { plural } from "@/lib/format";
@@ -19,6 +21,7 @@ import { CommitComposer } from "./CommitComposer";
 import { FileList, keyOf, type FileListActions } from "./FileList";
 import { IgnoreDialog } from "./IgnoreDialog";
 import { BlameView } from "@/features/history/BlameView";
+import { ConflictHelpDialog } from "./ConflictHelpDialog";
 import { OperationBanner } from "./OperationBanner";
 
 export function ChangesView() {
@@ -37,6 +40,8 @@ export function ChangesView() {
   const [partial, setPartial] = useState<{ path: string; header: string; lines: number[] | null } | null>(null);
   const [stashFiles, setStashFiles] = useState<FileEntry[] | null>(null);
   const [blame, setBlame] = useState<{ path: string; rev: string | null } | null>(null);
+  const [explain, setExplain] = useState<ExplainRequest | null>(null);
+  const [conflictHelp, setConflictHelp] = useState<string | null>(null);
 
   const files = useMemo(() => status?.files ?? [], [status]);
   const shown = useMemo(() => {
@@ -214,10 +219,26 @@ export function ChangesView() {
                     resolveBlock: (index, choice) => void run("Resolve conflict", () => api.conflictResolveBlock(id, focused.path, index, choice)),
                     takeSide: (current) => void run(current ? "Use current version" : "Use incoming version", () => api.conflictTakeSide(id, focused.path, current)),
                     markResolved: () => void run("Mark resolved", () => api.stagePaths(id, [focused.path]), { success: `${focused.path} marked as resolved` }),
+                    help: diff.binary ? undefined : () => setConflictHelp(focused.path),
                   }
                 : undefined
             }
             busy={!!busy}
+            actions={
+              focused && focused.area !== "conflicted" && diff && !diff.binary && diff.hunks.length > 0 ? (
+                <IconButton
+                  size="sm"
+                  label="Explain these changes with AI"
+                  icon={<Sparkles size={13} />}
+                  onClick={() =>
+                    setExplain({
+                      title: `Changes to ${focused.path}`,
+                      load: () => api.aiExplain(id, { kind: "change", path: focused.path, area: focused.area, origPath: focused.origPath }),
+                    })
+                  }
+                />
+              ) : undefined
+            }
             emptyTitle={files.length ? "Select a file to see its changes" : "Working tree clean"}
             emptyBody={files.length ? undefined : "Edit files in your editor and they'll appear here."}
           />
@@ -227,6 +248,8 @@ export function ChangesView() {
       <IgnoreDialog files={ignoreFiles} onClose={() => setIgnoreFiles(null)} />
       <StashFilesDialog files={stashFiles} onClose={() => setStashFiles(null)} />
       <BlameView target={blame} onClose={() => setBlame(null)} />
+      <ExplainDialog request={explain} onClose={() => setExplain(null)} />
+      <ConflictHelpDialog path={conflictHelp} onClose={() => setConflictHelp(null)} />
 
       <ConfirmDialog
         open={partial !== null}

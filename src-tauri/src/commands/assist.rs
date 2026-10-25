@@ -2,16 +2,22 @@ use tauri::State;
 
 use super::changes::repo;
 use super::ctx;
-use crate::ai::{self, AiSuggestions, OpenRouterKeyInfo, OpenRouterModel};
+use serde::Deserialize;
+use ts_rs::TS;
+
+use crate::ai::{
+    self, AiSuggestions, AiText, ConflictHelp, OpenRouterKeyInfo, OpenRouterModel, PrDescription,
+};
 use crate::claude_code::{self, ClaudeAuthStatus, ClaudeCodeInfo};
 use crate::error::{AppError, AppResult, ErrorKind};
+use crate::git::status::Area;
 use crate::git::Repo;
 use crate::secrets;
-use crate::settings::AiProviderKind;
+use crate::settings::{AiProviderKind, Settings};
 use crate::state::AppState;
 
-#[tauri::command]
-pub async fn ai_suggest_commit(state: State<'_, AppState>, id: i64) -> AppResult<AiSuggestions> {
+/// Settings, API key and Claude Code path for an AI request, once the privacy notice was accepted.
+fn ai_ctx(state: &AppState) -> AppResult<(Settings, Option<String>, Option<std::path::PathBuf>)> {
     let s = state.settings();
     if !s.ai.privacy_acknowledged {
         return Err(AppError::new(
@@ -19,12 +25,95 @@ pub async fn ai_suggest_commit(state: State<'_, AppState>, id: i64) -> AppResult
             "Review the privacy notice in Settings → AI before sending code to an AI provider.",
         ));
     }
+    let key = secrets::get(s.ai.provider);
+    let claude = claude_code::locate(&s.claude_code.path).map(|(p, _)| p);
+    Ok((s, key, claude))
+}
+
+#[tauri::command]
+pub async fn ai_suggest_commit(state: State<'_, AppState>, id: i64) -> AppResult<AiSuggestions> {
+    let (s, key, claude) = ai_ctx(&state)?;
     repo!(state, id, git, root, r);
     let raw = r.staged_diff_raw().await?;
     let raw = String::from_utf8_lossy(&raw).into_owned();
-    let key = secrets::get(s.ai.provider);
-    let claude = claude_code::locate(&s.claude_code.path).map(|(p, _)| p);
     ai::suggest(&s.ai, s.commit_convention, key, claude, &raw).await
+}
+
+/// What to explain: a commit, or one file's uncommitted changes.
+#[derive(Debug, Clone, Deserialize, TS)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+#[ts(export)]
+pub enum ExplainTarget {
+    Commit {
+        hash: String,
+    },
+    #[serde(rename_all = "camelCase")]
+    Change {
+        path: String,
+        area: Area,
+        orig_path: Option<String>,
+    },
+}
+
+#[tauri::command]
+pub async fn ai_explain(
+    state: State<'_, AppState>,
+    id: i64,
+    target: ExplainTarget,
+) -> AppResult<AiText> {
+    let (s, key, claude) = ai_ctx(&state)?;
+    repo!(state, id, git, root, r);
+    let (what, raw) = match &target {
+        ExplainTarget::Commit { hash } => {
+            let d = r.commit_detail(hash).await?;
+            (
+                format!("Commit {}: {}", d.summary.short_hash, d.message),
+                r.commit_diff_raw(hash).await?,
+            )
+        }
+        ExplainTarget::Change {
+            path,
+            area,
+            orig_path,
+        } => (
+            format!(
+                "{} changes to {path}",
+                if *area == Area::Staged {
+                    "Staged"
+                } else {
+                    "Uncommitted"
+                }
+            ),
+            r.change_diff_raw(path, *area, orig_path.as_deref()).await?,
+        ),
+    };
+    ai::explain(&s.ai, key, claude, &what, &String::from_utf8_lossy(&raw)).await
+}
+
+/// Title and description for a pull request of HEAD into `base` (e.g. "origin/main").
+#[tauri::command]
+pub async fn ai_pr_description(
+    state: State<'_, AppState>,
+    id: i64,
+    base: String,
+) -> AppResult<PrDescription> {
+    let (s, key, claude) = ai_ctx(&state)?;
+    repo!(state, id, git, root, r);
+    let (commits, raw) = r.branch_changes_since(&base).await?;
+    ai::pr_description(&s.ai, key, claude, &commits, &String::from_utf8_lossy(&raw)).await
+}
+
+/// Suggested resolutions for the conflicts in one file. Changes nothing.
+#[tauri::command]
+pub async fn ai_conflict_help(
+    state: State<'_, AppState>,
+    id: i64,
+    path: String,
+) -> AppResult<ConflictHelp> {
+    let (s, key, claude) = ai_ctx(&state)?;
+    repo!(state, id, git, root, r);
+    let blocks = r.conflict_blocks(&path).await?;
+    ai::conflict_help(&s.ai, key, claude, &path, &blocks).await
 }
 
 /// Whether Claude Code is signed in to a Claude account.
