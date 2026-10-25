@@ -2,7 +2,7 @@
 
 GitPilot needs **Git** installed on your computer. Everything else it needs comes with the installer (Windows) or from your package manager (Linux).
 
-Downloads are on the [Releases page](https://github.com/vinayakkam/gitpilot/releases). In the file names below, replace `<version>` with the version you downloaded (for example `0.4.2`).
+Downloads are on the [Releases page](https://github.com/vinayakkam/gitpilot/releases). In the file names below, replace `<version>` with the version you downloaded (for example `0.4.5`).
 
 ---
 

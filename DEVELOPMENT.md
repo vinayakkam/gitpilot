@@ -4,10 +4,10 @@
 
 - **Phase:** 6 — reliability and refinement (implemented on Linux and Windows; Windows verified by the user)
 - **Overall:** core Git workflow, branches, remotes, sync, AI provider integration, Claude Code integration and settings are implemented and verified on Linux against real repositories. Linux packages (deb, AppImage) build and launch.
-- **Current working area:** 0.4.2 (Batch D: GitHub and AI) — implemented on branch `release/0.4.2`, not pushed or released yet
-- **Most recently completed:** v0.4.2 (session 9, not released) — GitHub sign-in, clone from your repository list, pull requests (list with checks, create, check out), AI explain, AI pull request descriptions, AI conflict help. Before that: v0.4.0 — Batches A–C: everyday Git (amend, undo, tags, stash selected files, discard hunks/lines, auto-refresh), understanding code (blame, commit graph, compare any refs, image previews), conflicts and history (conflict resolver, edit commits, reset with backups) (session 8). Before that: v0.3.1 — readable update notes, Add to .gitignore (session 7)
+- **Current working area:** 0.4.5 (Batch E) — implemented on branch `release/0.4.5` (session 10), not pushed or released yet
+- **Most recently completed:** v0.4.5 (session 10, not released) — multiple windows, worktrees, submodules, Git LFS, commit signing + Verified, OpenCode in the Assistant, CI on every push. Before that: v0.4.2 (session 9, released as `v0.4.2`) — GitHub sign-in, clone from your repository list, pull requests (list with checks, create, check out), AI explain, AI pull request descriptions, AI conflict help. Before that: v0.4.0 — Batches A–C: everyday Git (amend, undo, tags, stash selected files, discard hunks/lines, auto-refresh), understanding code (blame, commit graph, compare any refs, image previews), conflicts and history (conflict resolver, edit commits, reset with backups) (session 8). Before that: v0.3.1 — readable update notes, Add to .gitignore (session 7)
 - **Windows:** verified by the user on a real Windows machine (2026-10-21, all features working); this environment still can't build for Windows
-- **Immediate next task:** the user reviews branch `release/0.4.2`, tries GitHub sign-in and pull requests with a real account, and decides whether to merge, tag and release it. Then 0.4.5 (Batch E) — only when the user asks.
+- **Immediate next task:** the user reviews branch `release/0.4.5`, pushes it so the new CI runs on Windows, checks multiple windows in the real app, and decides whether to merge, tag and release. No further batch is planned yet.
 
 ## Feature tracker
 
@@ -39,16 +39,31 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 - [x] Claude Code integration (detection verified with real CLI 2.1.304; terminal launch verified with xterm + stand-in executable; prompt passed as one argv entry)
 - [x] Application settings (persisted JSON, validated; keychain for keys with env fallback)
 - [x] Error handling and safety (classified errors, plain messages + technical details, confirmations + backend flags)
-- [x] Automated tests (Rust 132 unit + 23 integration on temp repos, plus 1 opt-in live GitHub test; frontend 82 vitest — end of session 9)
+- [x] Automated tests (Rust 163 unit + 27 integration on temp repos, plus 1 opt-in live GitHub test; frontend 101 vitest — end of session 10). CI runs them on Linux and Windows for every push (`ci.yml`, not yet run)
 - [~] UI polish and visual QA (all main screens inspected on Linux/Xvfb, light + dark, min size; no screen-reader testing)
 - [x] Windows packaging (MSI + NSIS built by `.github/workflows/build-installers.yml` on windows-latest; installed and used by the user)
 - [x] Linux packaging (deb 5.1 MB and AppImage 80 MB built; AppImage launched; Arch/CachyOS `gitpilot-bin` package built with makepkg from `packaging/arch/PKGBUILD` — not yet installed on a real Arch system)
 - [x] In-app updates (verified end to end for AppImage; Windows/.deb unverified)
+- [~] Multiple windows (0.4.5): implemented, store/label logic unit-tested, **not yet run in the real app** (needs a desktop session)
+- [x] Worktrees (0.4.5): add/list/remove/prune integration-tested, UI checked with a mocked backend
+- [x] Submodules (0.4.5): list/update integration-tested with a real local submodule, UI checked with a mocked backend
+- [~] Git LFS (0.4.5): detection integration-tested without git-lfs; track/untrack runs only where git-lfs is installed (CI runners), not on this machine
+- [x] Commit signing (0.4.5): SSH signing + Verified integration-tested with a throwaway key; GPG key listing unit-tested, GPG signing not exercised
+- [x] OpenCode in the Assistant (0.4.5): detection and `--prompt` checked against the installed OpenCode 1.18.31; terminal launch not run on the desktop
 - [~] Documentation and release preparation (README, CLAUDE.md, INSTALL.md, CHANGELOG, this file; CI builds installers and releases on tags; update packages are signed, installers are not — no code-signing certificate)
 
 ## Work log
 
-### Session 9 — 2026-10-25 (v0.4.2, branch `release/0.4.2`, not pushed)
+### Session 10 — 2026-10-25 (v0.4.5, branch `release/0.4.5`, not pushed)
+- User asked for release notes for 0.4.2 (given in chat), added "OpenCode for the Assistant" to the 0.4.5 roadmap (user committed it, 18505df), then asked for a 0.4.5 plan; plan approved with: windows opt-in ("Open in new window", focus if open), OpenCode in a renamed Settings → Coding assistant tab, signing for SSH + GPG with global or repository scope.
+- Commits: CI (e40462c), OpenCode (f2694b7), signing (0fbd934), flaky picker test fix (a77efed), LFS (1bb3e04), submodules (ee2ecb3), worktrees (ba3b877), windows (8ac6229), release (this commit).
+- Found and fixed along the way: the Assistant probed Claude Code before settings loaded; `rel_paths` rejects an empty list (submodule "update all"); local-path submodules fail with "transport 'file' not allowed" → plain message; git lists worktrees by path, not creation order (test fix); a component used `status` without taking it from the store, which silently read `window.status` → new `no-restricted-globals` lint rule; a frontend test raced the mocked repository list.
+- One commit (0fbd934) went in while a flaky frontend test had failed in that run (the check command didn't stop on it); fixed in a77efed and a strict check script was used for every later commit.
+- Visual QA (mocked backend + headless Chromium, as in session 9): Coding assistant settings, Assistant with OpenCode (dark), Commit signing settings, Verified badge, Overview LFS row, LFS-missing banner, Submodules, Worktrees list and dialog.
+- Deviation from the plan: no "Open in new window" in the sidebar's repository switcher (one menu item can't have two actions); it's in Repositories, the palette, worktrees and submodules.
+- Checks at the end: strict check script (tsc, eslint, vitest 101, cargo fmt, clippy -D warnings, cargo test 163 + 27 + 1 ignored), release `.deb` build, `makepkg`.
+
+### Session 9 — 2026-10-25 (v0.4.2, released as `v0.4.2`)
 - User confirmed 0.4.0 is complete and asked to start 0.4.2, fix the documentation mismatches, work on a new branch, commit as much as possible and not push. First session on the user's own CachyOS machine (Node 26.11, Rust/cargo 1.98, git 2.56); `npm ci` was needed (fresh checkout). Baseline before changes: Rust 102 + 21, vitest 65, all checks pass.
 - **Docs** (c7e563e): DEVELOPMENT/CLAUDE/README/INSTALL brought in line with 0.4.0 (stale "most recent", duplicated tracker and README lines, "no file watcher", "no CI", non-existent `ops.rs`/`branches.rs`/`remotes.rs`, Windows "not yet built", version-specific file names).
 - **AI** (e8ad89e): `ai::complete` shared by every feature; `explain`, `pr_description`, `conflict_help` with strict JSON parsing; `rewrite.rs` now has one conflict scanner (`scan_conflicts`) behind `resolve_block`, `conflict_blocks` and `replace_block_text`; `git/assist.rs` builds the inputs. Commands `ai_explain` (tagged `ExplainTarget`), `ai_pr_description`, `ai_conflict_help`, `conflict_apply_text`. UI: `ExplainDialog`, `AiNote`/`AiError`, `ConflictHelpDialog` (editable suggestions, applied one at a time, later conflicts renumbered). Store gained `settingsTab`/`openSettings`.
@@ -190,9 +205,11 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 4. **Detection of a hanging `claude --version`** waits up to 10 s before the Assistant enables its launch button.
 5. **Native `title` tooltips** elsewhere (not file rows, fixed in 0.3.1) still render as GTK tooltips.
 6. **Sidebar doesn't auto-collapse** at narrow widths (user can collapse it).
-7. **CI doesn't gate on tests:** `.github/workflows/build-installers.yml` runs only on `v*` tags and manual dispatch; Windows `cargo test` failures don't block the installer. A test workflow on every push is planned for 0.4.5 (roadmap item 12).
+7. **CI on every push is new and hasn't run yet:** `.github/workflows/ci.yml` (0.4.5) runs all checks on Linux and Windows; the Rust tests have never been run on Windows in this project before, so the first run may need fixes. `build-installers.yml` still lets Windows `cargo test` failures through when building installers.
 8. **GitHub features not used with a real account yet** (session 9): no OAuth app client ID exists for GitPilot, so "In the browser" sign-in is hidden unless one is entered in Settings → GitHub or built in (`GITPILOT_GITHUB_CLIENT_ID`, CI repository variable). The token sign-in, repository list, pull request list/create and the AI features were not exercised against the real services from this environment (no token or AI key used). Verified live: public API response shapes, the device-code error for an unknown client ID, and checking out a fork pull request over HTTPS.
 9. **Git over HTTPS doesn't use the GitHub sign-in:** cloning a private repository over HTTPS still needs a credential helper (or SSH). Deliberate for now; a possible follow-up is passing the token to git via `GIT_CONFIG_*` environment variables for github.com only.
+10. **Multiple windows not run in the real app yet** (session 10): no desktop session was used; window creation, the `repo-*` capability and watch release on close are unverified by hand.
+11. **GPG signing not exercised:** key listing is unit-tested from `--with-colons` output; signing a commit with GPG and its Verified status were not run.
 
 ## Roadmap (agreed with the user, 2026-10-21)
 
@@ -204,7 +221,7 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 5. AI: write a PR description from the branch's commits.
 6. AI: conflict help (suggested resolution + explanation; user applies it).
 
-**0.4.5 — Batch E: bigger additions**
+**0.4.5 — Batch E: bigger additions** (implemented in session 10; item 7 still needs a real-app check)
 7. Multiple windows (a repository per window).
 8. Worktrees.
 9. Submodules (list, init, update).
@@ -215,12 +232,15 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 
 ## Next-session handoff
 
-**Continue with:** branch `release/0.4.2` is complete and committed but not pushed. Before releasing:
-1. With a real GitHub account: Settings → GitHub → sign in with a token; clone from the list; in a repository with a GitHub remote open Pull requests (checks/review shown), create a draft pull request, check out a pull request from a fork and one from the same repository.
-2. To offer "In the browser" sign-in: create a GitHub OAuth app (Developer settings → OAuth Apps, enable device flow; callback URL can be the repository URL), then either enter its client ID in Settings → GitHub or set the `GITPILOT_GITHUB_CLIENT_ID` repository variable so CI builds it in.
-3. With AI enabled: Explain in History and Changes, Write with AI in the pull request window, Ask AI on a real merge conflict.
-4. Then merge to main, tag `v0.4.2` (CI checks the tag matches the version) and push the tag.
-5. `packaging/arch/PKGBUILD` has the checksum of the locally built 0.4.2 .deb; if the released .deb is the CI build, update `sha256sums` from the release asset (as for earlier releases).
+**Continue with:** branch `release/0.4.5` is complete and committed but not pushed. Before releasing:
+1. Push the branch: `ci.yml` runs every check on Linux and, for the first time as a gate, on Windows. Fix whatever Windows reports (likely candidates: path separators in tests, `ssh-keygen`/signing availability on the runner).
+2. Real app (`npm run tauri dev`): Repositories → Open in new window; check the window opens on the right repository, settings changes apply to both windows, closing it stops its file watching, and clone/cancel works in each window.
+3. OpenCode: Settings → Coding assistant → OpenCode, then Assistant → Open in OpenCode (a terminal opens in the repository with the prompt).
+4. Signing with your own key: Settings → Git → Commit signing → choose your SSH key → commit → History shows Verified. GPG if you use it.
+5. Install git-lfs and check Overview → Large files (track a type, set up LFS for the repository).
+6. Merge to main, tag `v0.4.5`, push the tag. `packaging/arch/PKGBUILD` has the checksum of the local .deb; update it from the release asset if the CI build is released.
+
+0.4.2 items still to try with a real account: GitHub sign-in, repository list, pull requests (list/create/check out), AI explain / PR description / conflict help with a live provider; "In the browser" sign-in needs an OAuth app client ID (Settings → GitHub or the `GITPILOT_GITHUB_CLIENT_ID` repository variable).
 
 Still unverified from earlier releases (each needs a hands-on check by the user or on a machine with network access and a desktop session):
 1. OpenRouter end to end: save key → key verified → model list → suggestion. Then Anthropic and an OpenAI-compatible endpoint (e.g. Ollama `http://localhost:11434/v1`).
@@ -228,4 +248,4 @@ Still unverified from earlier releases (each needs a hands-on check by the user 
 3. In-app updates for the Windows installers and the .deb package (AppImage is verified).
 4. Arch package installed with `pacman -U` on a real Arch/CachyOS system.
 
-**QA harness (Linux):** Xvfb `:99` at 1440×900, `xdotool` for input, `import` for screenshots, env `WEBKIT_DISABLE_DMABUF_RENDERER=1 WEBKIT_DISABLE_COMPOSITING_MODE=1`. Note: `cargo test`/`cargo clippy` rebuild `target/debug/gitpilot` in dev-server mode — use `target/release/gitpilot` or `npm run tauri dev` for manual runs.
+**QA harness (Linux):** with Xvfb/xdotool (Ubuntu sandbox, sessions 1–8): Xvfb `:99` at 1440×900, `xdotool` for input, `import` for screenshots, env `WEBKIT_DISABLE_DMABUF_RENDERER=1 WEBKIT_DISABLE_COMPOSITING_MODE=1`. Without them (the user's CachyOS machine, sessions 9–10): Vite started through its JS API with a script injected that mocks `window.__TAURI_INTERNALS__.invoke`, screenshotted with Playwright's cached headless Chromium over the DevTools protocol (scripts lived in the session scratchpad). Note: `cargo test`/`cargo clippy` rebuild `target/debug/gitpilot` in dev-server mode — use `target/release/gitpilot` or `npm run tauri dev` for manual runs.

@@ -30,7 +30,9 @@ React UI ──invoke()──▶ Tauri commands (src-tauri/src/commands/*) ─�
                                                                       ├─ secrets.rs  (OS keychain)
                                                                       ├─ ai.rs       (AI providers + prompts)
                                                                       ├─ github.rs   (GitHub API, device-flow sign-in)
-                                                                      ├─ claude_code.rs (detect/launch CLI)
+                                                                      ├─ cli.rs      (terminal launch, version probe for CLIs)
+                                                                      ├─ claude_code.rs / opencode.rs (coding assistants)
+                                                                      ├─ signing_keys.rs (SSH/GPG keys that can sign)
                                                                       ├─ watch.rs    (auto-refresh file watcher)
                                                                       └─ updates.rs  (install kind for the updater)
 ```
@@ -48,6 +50,8 @@ React UI ──invoke()──▶ Tauri commands (src-tauri/src/commands/*) ─�
   tags, partial discard), `explore.rs` (blame, compare, image previews), `rewrite.rs`
   (conflict blocks, interactive rebase, reset, backups), `eol.rs` (line-ending guard),
   `pulls.rs` (checking out GitHub pull requests), `assist.rs` (diffs and commit lists sent to AI),
+  `signing.rs` (signing config, allowed signers, signature status), `lfs.rs` (Git LFS),
+  `submodules.rs`, `worktrees.rs`,
   `validate.rs` (input validation), `errors.rs` (stderr → `ErrorKind` classification),
   `redact.rs` (strips credentials from URLs/output before anything reaches the UI).
 - Commands take a `repo_id`, never a path. The backend resolves the path from the
@@ -86,11 +90,13 @@ clone/fetch/push keep using the user's credential helper or SSH. Pull request ch
 PRs become their tracking branch; fork PRs are fetched from `refs/pull/<n>/head` into `pr-<n>`;
 existing branches are only fast-forwarded (`update-ref` with the old value).
 
-### Claude Code (`claude_code.rs`)
-Detects `claude` on PATH plus known per-OS install locations; user can override the path.
-Launch = open a terminal in the repo directory running `claude` (optionally with an initial
-prompt as a positional argument). Linux tries `$TERMINAL`, `x-terminal-emulator`, common
-emulators; Windows uses `wt.exe` if present, else a new `cmd` console.
+### Coding assistants (`cli.rs`, `claude_code.rs`, `opencode.rs`)
+`settings.assistantTool` picks Claude Code or OpenCode for the Assistant (`assistant_launch`).
+Each tool is found from its settings path, then PATH, then known per-OS install locations
+(`cli::locate`). Launch = a terminal in the repo directory running the tool (`claude [prompt]`,
+`opencode --prompt <prompt>`; the prompt is one argv entry, never a shell). Linux tries the
+configured terminal, `$TERMINAL`, then common emulators; Windows opens a new console.
+Claude Code is also an AI provider (`claude_code::print`); OpenCode isn't.
 
 ### Type-safe IPC
 Rust structs derive `ts_rs::TS`; `cargo test` exports TypeScript definitions to
@@ -175,10 +181,11 @@ libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev build-essential file`.
 ## Current implementation state
 
 See `DEVELOPMENT.md` → "Feature tracker", "Current implementation details" and "Known issues" for
-the authoritative status. In short (0.4.2): all core features are implemented and verified on Linux,
-and on Windows by the user (up to 0.4.0); AI: Claude Code provider verified live, the others not;
-0.4.2's GitHub and AI features are unit/integration-tested and visually checked with a mocked
-backend, but not yet exercised with a real GitHub sign-in or a live AI provider (see DEVELOPMENT.md).
+the authoritative status. In short (0.4.5): all core features are implemented and verified on Linux,
+and on Windows by the user (up to 0.4.0); AI: Claude Code provider verified live, the others not.
+0.4.2 (GitHub, AI help) and 0.4.5 (windows, worktrees, submodules, LFS, signing, OpenCode) are
+unit/integration-tested and visually checked with a mocked backend; see DEVELOPMENT.md for what
+still needs a real run.
 
 Environment notes: `cargo test`/`cargo clippy` rebuild `target/debug/gitpilot` in dev-server mode (it
 loads http://localhost:1420), so for manual runs use `npm run tauri dev` or a `tauri build` output.
@@ -208,6 +215,20 @@ Key decisions:
 - AI conflict suggestions are applied with `conflict_apply_text`, which replaces a block only if
   it still matches the text the AI saw (`rewrite::replace_block_text`).
 - Settings sections can be opened directly: `openSettings("ai" | "github" | …)` in the store.
+- Multiple windows: the main window is `main`; a repository window is `repo-<id>` and reads its
+  repository from the label (`lib/windows.ts`), not the URL. Only the main window remembers the
+  last repository and checks for updates at startup. `settings_save` emits `settings-changed` to
+  all windows. Watches are recorded per window (`AppState::note_watch`) and released when a
+  window is destroyed. Clone cancellation keys are `clone:<label>`.
+- Commit signing writes `commit.gpgsign`, `tag.gpgsign`, `gpg.format`, `user.signingkey` in the
+  chosen scope; SSH keys are added to `<app_data_dir>/allowed_signers`, set as
+  `gpg.ssh.allowedSignersFile` only when the user has none. Signature status is computed per
+  commit in the details pane, not for the log.
+- LFS detection reads `.gitattributes` itself, so it works without git-lfs installed.
+- CI: `.github/workflows/ci.yml` runs every check on Linux and Windows for each push/PR;
+  `build-installers.yml` builds installers on tags or manual runs.
+- Lint: `no-restricted-globals` forbids `status`/`name`/`event` (browser globals that look like
+  variables).
 - Update notes: `latest.json` gets plain text (`scripts/notes.mjs`) because older versions display it raw; `ReleaseNotes` renders both plain and Markdown.
 
 ## Session continuity rules
