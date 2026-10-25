@@ -6,7 +6,7 @@ const KINDS = new Set<string>([
   "emptyMessage", "hookFailed", "signingFailed", "conflict", "locked", "authFailed", "networkFailed",
   "pushRejected", "noUpstream", "diverged", "unrelatedHistories", "localChangesWouldBeOverwritten", "branchNotMerged", "alreadyExists",
   "permissionDenied", "timeout", "cancelled", "database", "settings", "aiNotConfigured", "aiFailed",
-  "claudeCodeNotFound", "launchFailed", "keychain", "git", "internal",
+  "claudeCodeNotFound", "githubNotSignedIn", "githubFailed", "launchFailed", "keychain", "git", "internal",
 ]);
 
 export function isAppError(e: unknown): e is AppError {

@@ -8,6 +8,7 @@ pub mod everyday;
 pub mod explore;
 pub mod locate;
 pub mod log;
+pub mod pulls;
 pub mod redact;
 pub mod refs;
 pub mod repo;

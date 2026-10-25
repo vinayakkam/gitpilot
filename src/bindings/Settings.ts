@@ -4,6 +4,7 @@ import type { ClaudeCodeSettings } from "./ClaudeCodeSettings";
 import type { CommitConvention } from "./CommitConvention";
 import type { Density } from "./Density";
 import type { DiffMode } from "./DiffMode";
+import type { GitHubSettings } from "./GitHubSettings";
 import type { PullStrategy } from "./PullStrategy";
 import type { Theme } from "./Theme";
 
@@ -27,7 +28,7 @@ defaultBranch: string, pullStrategy: PullStrategy, commitConvention: CommitConve
 /**
  * Warn before committing files with Windows (CRLF) line endings into an LF repository.
  */
-checkLineEndings: boolean, ai: AiSettings, claudeCode: ClaudeCodeSettings, 
+checkLineEndings: boolean, ai: AiSettings, claudeCode: ClaudeCodeSettings, github: GitHubSettings, 
 /**
  * Reopen the last repository on startup.
  */

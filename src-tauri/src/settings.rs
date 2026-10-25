@@ -127,6 +127,15 @@ impl Default for ClaudeCodeSettings {
     }
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export)]
+pub struct GitHubSettings {
+    /// Client ID of a GitHub OAuth app with device flow enabled, used for "Sign in with GitHub".
+    /// Empty = the ID built into this version of GitPilot, if any.
+    pub client_id: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 #[ts(export)]
@@ -149,6 +158,7 @@ pub struct Settings {
     pub check_line_endings: bool,
     pub ai: AiSettings,
     pub claude_code: ClaudeCodeSettings,
+    pub github: GitHubSettings,
     /// Reopen the last repository on startup.
     pub reopen_last_repo: bool,
     /// Refresh the file list as soon as files change on disk.
@@ -178,6 +188,7 @@ impl Default for Settings {
             check_line_endings: true,
             ai: AiSettings::default(),
             claude_code: ClaudeCodeSettings::default(),
+            github: GitHubSettings::default(),
             reopen_last_repo: true,
             auto_refresh: true,
             success_notifications: true,
@@ -230,6 +241,12 @@ impl Settings {
             if !(u.starts_with("https://") || u.starts_with("http://")) {
                 return Err(AppError::invalid("Enter the provider's base URL, starting with https:// (or http:// for a local server)."));
             }
+        }
+        let id = self.github.client_id.trim();
+        if !id.is_empty() && !crate::github::is_valid_client_id(id) {
+            return Err(AppError::invalid(
+                "That doesn't look like a GitHub client ID. Copy it from your OAuth app's settings page.",
+            ));
         }
         if self.ai.model.trim().is_empty()
             && self.ai.enabled

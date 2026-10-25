@@ -6,6 +6,7 @@ mod commands;
 pub mod db;
 pub mod error;
 pub mod git;
+pub mod github;
 pub mod secrets;
 pub mod settings;
 pub mod state;
@@ -118,6 +119,16 @@ pub fn run() {
             commands::remotes::sync_pull,
             commands::remotes::sync_push,
             commands::remotes::op_cancel,
+            commands::github::github_account,
+            commands::github::github_device_start,
+            commands::github::github_device_wait,
+            commands::github::github_token_set,
+            commands::github::github_sign_out,
+            commands::github::github_repos,
+            commands::github::github_link,
+            commands::github::github_pulls,
+            commands::github::github_pull_create,
+            commands::github::github_pull_checkout,
             commands::assist::ai_suggest_commit,
             commands::assist::ai_explain,
             commands::assist::ai_pr_description,

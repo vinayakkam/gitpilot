@@ -38,6 +38,9 @@ pub enum ErrorKind {
     AiNotConfigured,
     AiFailed,
     ClaudeCodeNotFound,
+    /// No GitHub sign-in, or GitHub rejected it.
+    GithubNotSignedIn,
+    GithubFailed,
     LaunchFailed,
     Keychain,
     Git,
