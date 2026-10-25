@@ -55,11 +55,12 @@ describe("CommitComposer", () => {
   it("requires a summary, then commits summary + description with Ctrl+Enter", async () => {
     api.commit.mockResolvedValue("1234567890abcdef");
     setup(1);
-    const btn = await screen.findByRole("button", { name: /Commit 1 file to main/ });
-    expect(btn).toBeDisabled();
+    expect(await screen.findByRole("button", { name: /Commit 1 file to main/ })).toBeDisabled();
+    // Type only once the repository is open, so opening it can't reset the draft afterwards.
+    await waitFor(() => expect(api.identityGet).toHaveBeenCalledWith(1));
     fireEvent.change(screen.getByLabelText("Commit summary"), { target: { value: "Fix login redirect" } });
     fireEvent.change(screen.getByLabelText("Commit description (optional)"), { target: { value: "Keeps the return URL." } });
-    await waitFor(() => expect(btn).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: /Commit 1 file to main/ })).toBeEnabled());
     fireEvent.keyDown(screen.getByLabelText("Commit summary"), { key: "Enter", ctrlKey: true });
     await waitFor(() => expect(api.commit).toHaveBeenCalledWith(1, "Fix login redirect\n\nKeeps the return URL."));
     await waitFor(() => expect(screen.getByLabelText("Commit summary")).toHaveValue(""));
