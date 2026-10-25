@@ -21,6 +21,7 @@ import { TagDialog } from "@/features/branches/TagDialog";
 import { CompareFilesDialog, type CompareTarget } from "@/features/compare/CompareFilesDialog";
 import { ExplainDialog, type ExplainRequest } from "@/features/assistant/ExplainDialog";
 import { BlameView } from "./BlameView";
+import { SignatureBadge } from "./SignatureBadge";
 import { EditCommitsDialog } from "./EditCommitsDialog";
 import { ResetDialog } from "./ResetDialog";
 import { undoLastCommit } from "@/features/changes/CommitComposer";
@@ -363,6 +364,7 @@ export function HistoryView() {
               <div className="flex items-start gap-3">
                 <h2 className="selectable min-w-0 flex-1 whitespace-pre-wrap break-words text-md font-semibold">{detail.message.split("\n")[0]}</h2>
                 <div className="flex shrink-0 gap-1">
+                  {id != null && <SignatureBadge repoId={id} hash={detail.summary.hash} />}
                   <Button size="sm" icon={<Copy size={12} />} onClick={() => copy(detail.summary.hash, "Hash")}>
                     <span className="font-mono">{detail.summary.shortHash}</span>
                   </Button>

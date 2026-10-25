@@ -1843,3 +1843,78 @@ async fn live_github_fork_pull_request_checkout() {
     assert_eq!(st.branch.head.as_deref(), Some("pr-1"));
     assert_eq!(st.branch.upstream, None);
 }
+
+#[tokio::test]
+async fn ssh_commit_signing_is_set_up_and_verified() {
+    use gitpilot_lib::git::signing::{self, SignatureStatus, SigningFormat, SigningScope};
+    let Ok(keygen) = which::which("ssh-keygen") else {
+        eprintln!("ssh-keygen not installed; skipping");
+        return;
+    };
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    let keys = tempfile::tempdir().unwrap();
+    let key = keys.path().join("id_ed25519");
+    let ok = std::process::Command::new(keygen)
+        .args(["-q", "-t", "ed25519", "-N", "", "-C", "test", "-f"])
+        .arg(&key)
+        .status()
+        .unwrap()
+        .success();
+    assert!(ok);
+    let allowed = keys.path().join("data").join("allowed_signers");
+
+    // Only this repository, so the shared test configuration isn't touched.
+    signing::enable(
+        &g,
+        Some(&root),
+        SigningScope::Repository,
+        SigningFormat::Ssh,
+        key.to_str().unwrap(),
+        &allowed,
+    )
+    .await
+    .unwrap();
+    let cfg = r.signing_config().await.unwrap();
+    assert!(cfg.enabled);
+    assert_eq!(cfg.scope, Some(SigningScope::Repository));
+    assert_eq!(cfg.format, SigningFormat::Ssh);
+    assert_eq!(cfg.key.as_deref(), key.to_str());
+    assert_eq!(cfg.allowed_signers.as_deref(), allowed.to_str());
+    assert!(std::fs::read_to_string(&allowed)
+        .unwrap()
+        .starts_with("test@example.com ssh-ed25519 "));
+
+    write(&root, "a.txt", "signed\n");
+    r.stage_all().await.unwrap();
+    let signed = r.commit("Signed commit").await.unwrap();
+    let s = r.signature(&signed).await.unwrap();
+    assert_eq!(s.status, SignatureStatus::Verified, "{s:?}");
+    assert_eq!(s.signer.as_deref(), Some("test@example.com"));
+
+    signing::disable(&g, Some(&root), SigningScope::Repository)
+        .await
+        .unwrap();
+    assert!(!r.signing_config().await.unwrap().enabled);
+    write(&root, "a.txt", "plain\n");
+    r.stage_all().await.unwrap();
+    let plain = r.commit("Plain commit").await.unwrap();
+    assert_eq!(
+        r.signature(&plain).await.unwrap().status,
+        SignatureStatus::NotSigned
+    );
+    assert!(signing::enable(
+        &g,
+        Some(&root),
+        SigningScope::Repository,
+        SigningFormat::Ssh,
+        "/missing/key",
+        &allowed
+    )
+    .await
+    .is_err());
+}

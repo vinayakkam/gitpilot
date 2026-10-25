@@ -47,6 +47,11 @@ import type { Remote } from "@/bindings/Remote";
 import type { RepoRecord } from "@/bindings/RepoRecord";
 import type { RepoStatus } from "@/bindings/RepoStatus";
 import type { Settings } from "@/bindings/Settings";
+import type { Signature } from "@/bindings/Signature";
+import type { SigningConfig } from "@/bindings/SigningConfig";
+import type { SigningFormat } from "@/bindings/SigningFormat";
+import type { SigningKey } from "@/bindings/SigningKey";
+import type { SigningScope } from "@/bindings/SigningScope";
 import type { SequenceAction } from "@/bindings/SequenceAction";
 import type { Stash } from "@/bindings/Stash";
 import type { UpdateSupport } from "@/bindings/UpdateSupport";
@@ -181,6 +186,14 @@ export const api = {
       forceWithLease: opts.forceWithLease ?? false,
       confirmedForce: opts.forceWithLease ?? false,
     }),
+
+  // commit signing (`id` null = global configuration)
+  signingGet: (id: number | null) => invoke<SigningConfig>("signing_get", { id }),
+  signingKeys: () => invoke<SigningKey[]>("signing_keys"),
+  signingEnable: (id: number | null, scope: SigningScope, format: SigningFormat, key: string) =>
+    invoke<SigningConfig>("signing_enable", { id, scope, format, key }),
+  signingDisable: (id: number | null, scope: SigningScope) => invoke<SigningConfig>("signing_disable", { id, scope }),
+  commitSignature: (id: number, hash: string) => invoke<Signature>("commit_signature", { id, hash }),
 
   // GitHub
   githubAccount: () => invoke<GitHubAccount>("github_account"),

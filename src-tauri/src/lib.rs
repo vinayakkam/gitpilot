@@ -11,6 +11,7 @@ pub mod github;
 pub mod opencode;
 pub mod secrets;
 pub mod settings;
+pub mod signing_keys;
 pub mod state;
 pub mod updates;
 pub mod watch;
@@ -137,6 +138,11 @@ pub fn run() {
             commands::assist::ai_conflict_help,
             commands::assist::claude_detect,
             commands::assist::opencode_detect,
+            commands::signing::signing_get,
+            commands::signing::signing_keys,
+            commands::signing::signing_enable,
+            commands::signing::signing_disable,
+            commands::signing::commit_signature,
             commands::assist::assistant_launch,
             commands::assist::staged_diff_text,
             commands::assist::claude_auth_status,

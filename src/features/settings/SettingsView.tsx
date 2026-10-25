@@ -15,6 +15,7 @@ import { UpdateSettings } from "@/features/updates/UpdateSettings";
 import { AiPane } from "./AiPane";
 import { AppearancePane } from "./AppearancePane";
 import { ClaudeAccount } from "./ClaudeAccount";
+import { SigningSettings } from "./SigningSettings";
 import { GitHubAccountCard } from "@/features/github/GitHubAccountCard";
 import { githubAccountChanged } from "@/features/github/useGitHubAccount";
 import { Group, PaneHeader, TextSetting, type PaneProps } from "./parts";
@@ -24,7 +25,7 @@ import { Group, PaneHeader, TextSetting, type PaneProps } from "./parts";
 const TABS: { id: SettingsTab; label: string; icon: ReactNode; keywords: string }[] = [
   { id: "general", label: "General", icon: <Settings2 size={15} />, keywords: "startup reopen last repository notifications success toast repositories auto refresh watch files changes" },
   { id: "appearance", label: "Appearance", icon: <Palette size={15} />, keywords: "theme dark light system accent colour color blue custom density compact diff layout side by side unified syntax highlighting" },
-  { id: "git", label: "Git", icon: <GitBranch size={15} />, keywords: "git executable path identity name email initial branch main pull strategy fast-forward merge rebase commit message conventional line endings crlf lf gitattributes windows github pull request context" },
+  { id: "git", label: "Git", icon: <GitBranch size={15} />, keywords: "git executable path identity name email initial branch main pull strategy fast-forward merge rebase commit message conventional line endings crlf lf gitattributes windows github pull request context signing sign gpg ssh key verified signature" },
   { id: "github", label: "GitHub", icon: <GitPullRequest size={15} />, keywords: "github account sign in login token personal access oauth device pull requests clone repositories client id" },
   { id: "ai", label: "AI", icon: <Sparkles size={15} />, keywords: "ai commit message suggestions openrouter model key api anthropic claude openai ollama lm studio privacy provider free" },
   { id: "claude", label: "Coding assistant", icon: <Terminal size={15} />, keywords: "assistant claude code opencode open code account sign in login subscription terminal executable path launch prompt" },
@@ -160,6 +161,9 @@ function GitPane({ settings, set }: PaneProps) {
           checked={settings.checkLineEndings}
           onChange={(checkLineEndings) => void set({ checkLineEndings })}
         />
+      </Group>
+      <Group title="Commit signing" description="Sign your commits with an SSH or GPG key so others can check they really came from you. Signed commits show Verified in History.">
+        <SigningSettings />
       </Group>
       <Group title="Pull" description="What Pull does when your branch and the remote both have new commits.">
         <Field label="Strategy">

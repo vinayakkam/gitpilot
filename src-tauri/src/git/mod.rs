@@ -14,6 +14,7 @@ pub mod refs;
 pub mod repo;
 pub mod rewrite;
 pub mod runner;
+pub mod signing;
 pub mod status;
 pub mod validate;
 
