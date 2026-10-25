@@ -56,11 +56,12 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 
 ### Session 10 — 2026-10-25 (v0.4.5, branch `release/0.4.5`, not pushed)
 - User asked for release notes for 0.4.2 (given in chat), added "OpenCode for the Assistant" to the 0.4.5 roadmap (user committed it, 18505df), then asked for a 0.4.5 plan; plan approved with: windows opt-in ("Open in new window", focus if open), OpenCode in a renamed Settings → Coding assistant tab, signing for SSH + GPG with global or repository scope.
-- Commits: CI (e40462c), OpenCode (f2694b7), signing (0fbd934), flaky picker test fix (a77efed), LFS (1bb3e04), submodules (ee2ecb3), worktrees (ba3b877), windows (8ac6229), release (this commit).
+- Commits: CI (e40462c), OpenCode (f2694b7), signing (0fbd934), flaky picker test fix (a77efed), LFS (1bb3e04), submodules (ee2ecb3), worktrees (ba3b877), windows (8ac6229), test timeouts for slow machines (29bdc91), release (210572f).
 - Found and fixed along the way: the Assistant probed Claude Code before settings loaded; `rel_paths` rejects an empty list (submodule "update all"); local-path submodules fail with "transport 'file' not allowed" → plain message; git lists worktrees by path, not creation order (test fix); a component used `status` without taking it from the store, which silently read `window.status` → new `no-restricted-globals` lint rule; a frontend test raced the mocked repository list.
 - One commit (0fbd934) went in while a flaky frontend test had failed in that run (the check command didn't stop on it); fixed in a77efed and a strict check script was used for every later commit.
 - Visual QA (mocked backend + headless Chromium, as in session 9): Coding assistant settings, Assistant with OpenCode (dark), Commit signing settings, Verified badge, Overview LFS row, LFS-missing banner, Submodules, Worktrees list and dialog.
 - Deviation from the plan: no "Open in new window" in the sidebar's repository switcher (one menu item can't have two actions); it's in Repositories, the palette, worktrees and submodules.
+- Running three vitest suites at once made several tests (old and new) time out at Testing Library's 1 s wait; waits are now 4 s and tests 20 s, and all pass in three parallel runs (29bdc91).
 - Checks at the end: strict check script (tsc, eslint, vitest 101, cargo fmt, clippy -D warnings, cargo test 163 + 27 + 1 ignored), release `.deb` build, `makepkg`.
 
 ### Session 9 — 2026-10-25 (v0.4.2, released as `v0.4.2`)
