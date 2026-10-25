@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Download, GitBranch, GitPullRequest, Info, Palette, Search, Settings2, Sparkles, Terminal } from "lucide-react";
 import { openLink } from "@/lib/links";
+import type { CliToolInfo } from "@/bindings/CliToolInfo";
 import type { Settings } from "@/bindings/Settings";
 import { Button } from "@/components/ui/Button";
 import { cx } from "@/components/ui/cx";
@@ -26,7 +27,7 @@ const TABS: { id: SettingsTab; label: string; icon: ReactNode; keywords: string 
   { id: "git", label: "Git", icon: <GitBranch size={15} />, keywords: "git executable path identity name email initial branch main pull strategy fast-forward merge rebase commit message conventional line endings crlf lf gitattributes windows github pull request context" },
   { id: "github", label: "GitHub", icon: <GitPullRequest size={15} />, keywords: "github account sign in login token personal access oauth device pull requests clone repositories client id" },
   { id: "ai", label: "AI", icon: <Sparkles size={15} />, keywords: "ai commit message suggestions openrouter model key api anthropic claude openai ollama lm studio privacy provider free" },
-  { id: "claude", label: "Claude Code", icon: <Terminal size={15} />, keywords: "claude code account sign in login subscription terminal executable path launch prompt" },
+  { id: "claude", label: "Coding assistant", icon: <Terminal size={15} />, keywords: "assistant claude code opencode open code account sign in login subscription terminal executable path launch prompt" },
   { id: "updates", label: "Updates", icon: <Download size={15} />, keywords: "update version check automatic install restart release" },
   { id: "about", label: "About", icon: <Info size={15} />, keywords: "about version platform data folder backups website github" },
 ];
@@ -76,7 +77,7 @@ export function SettingsView() {
           {active === "git" && <GitPane {...props} />}
           {active === "github" && <GitHubPane {...props} />}
           {active === "ai" && <AiPane settings={settings} save={saveSettings} />}
-          {active === "claude" && <ClaudeCodePane {...props} />}
+          {active === "claude" && <AssistantPane {...props} />}
           {active === "updates" && <UpdatesPane />}
           {active === "about" && <AboutPane />}
         </div>
@@ -204,39 +205,80 @@ function GitHubPane({ settings, save }: PaneProps) {
   );
 }
 
-function ClaudeCodePane({ settings, save }: PaneProps) {
+function AssistantPane({ settings, save }: PaneProps) {
   const { info } = useStore();
   const cc = settings.claudeCode;
   const det = useAsync(() => api.claudeDetect(), [cc.path, cc.terminal]);
+  const oc = useAsync(() => api.openCodeDetect(), [settings.opencode.path, cc.terminal]);
   const setCc = (p: Partial<Settings["claudeCode"]>) => save((s) => ({ ...s, claudeCode: { ...s.claudeCode, ...p } }));
+  const terminal = det.data?.terminal ?? oc.data?.terminal;
   return (
     <>
-      <PaneHeader title="Claude Code" description="Open Claude Code in a repository from the Assistant, and use your Claude account for AI commit messages." />
-      <Group title="Account">
-        <ClaudeAccount />
+      <PaneHeader title="Coding assistant" description="The Assistant opens Claude Code or OpenCode in a terminal in your repository, with a prompt built from its current state." />
+      <Group title="Assistant">
+        <Field label="Open the Assistant's prompts in">
+          {(p) => (
+            <Select {...p} value={settings.assistantTool} onChange={(e) => void save((s) => ({ ...s, assistantTool: e.target.value as Settings["assistantTool"] }))}>
+              <option value="claudeCode">Claude Code</option>
+              <option value="openCode">OpenCode</option>
+            </Select>
+          )}
+        </Field>
       </Group>
-      <Group title="Installation">
-        {det.loading && !det.data ? (
-          <Spinner />
-        ) : det.data?.found ? (
-          <p className="text-base">
-            Found {det.data.version ? `Claude Code ${det.data.version}` : "Claude Code"} at <span className="selectable font-mono text-sm">{det.data.path}</span> <span className="text-muted">(from {det.data.source})</span>
-          </p>
-        ) : (
-          <p className="text-base text-muted">Not found on PATH or in the usual install locations. Install Claude Code, or enter its path below.</p>
-        )}
+      <Group title="Claude Code" description="Also used for AI commit messages when you pick “Claude Code” as the AI provider.">
+        <ClaudeAccount />
+        <ToolStatus name="Claude Code" loading={det.loading && !det.data} info={det.data} />
         <TextSetting label="Claude Code executable" hint="Leave empty to detect automatically." value={cc.path} mono browse="file" placeholder={info?.os === "windows" ? "%USERPROFILE%\\.local\\bin\\claude.exe" : "~/.local/bin/claude"} onSave={(path) => setCc({ path })} />
       </Group>
+      <Group title="OpenCode">
+        <ToolStatus name="OpenCode" loading={oc.loading && !oc.data} info={oc.data} installUrl="https://opencode.ai/docs" />
+        <TextSetting
+          label="OpenCode executable"
+          hint="Leave empty to detect automatically. OpenCode uses the AI providers you set up in OpenCode itself."
+          value={settings.opencode.path}
+          mono
+          browse="file"
+          placeholder={info?.os === "windows" ? "%USERPROFILE%\\.opencode\\bin\\opencode.exe" : "~/.opencode/bin/opencode"}
+          onSave={(path) => save((s) => ({ ...s, opencode: { ...s.opencode, path } }))}
+        />
+      </Group>
       {info?.os !== "windows" && (
-        <Group title="Terminal" description="Claude Code is a terminal app, so GitPilot opens it (and its sign-in) in a terminal window.">
-          <p className="text-base text-muted">{det.data?.terminal ? <>Using <span className="font-mono text-sm">{det.data.terminal}</span>.</> : "No terminal emulator found."}</p>
+        <Group title="Terminal" description="Coding assistants are terminal apps, so GitPilot opens them (and Claude's sign-in) in a terminal window.">
+          <p className="text-base text-muted">{terminal ? <>Using <span className="font-mono text-sm">{terminal}</span>.</> : "No terminal emulator found."}</p>
           <TextSetting label="Terminal emulator" hint="Leave empty to use $TERMINAL or the first known terminal found (GNOME Terminal, Konsole, kitty, Alacritty, xterm…)." value={cc.terminal} mono placeholder="gnome-terminal" onSave={(terminal) => setCc({ terminal })} />
         </Group>
       )}
       <Group title="Launching">
-        <Switch label="Send the selected prompt when opening" description="Starts Claude Code with the Assistant's prompt as its first message." checked={cc.sendPromptOnLaunch} onChange={(sendPromptOnLaunch) => void setCc({ sendPromptOnLaunch })} />
+        <Switch label="Send the selected prompt when opening" description="Starts the assistant with the Assistant's prompt as its first message." checked={cc.sendPromptOnLaunch} onChange={(sendPromptOnLaunch) => void setCc({ sendPromptOnLaunch })} />
       </Group>
     </>
+  );
+}
+
+/** Where a command-line tool was found, or that it wasn't. */
+function ToolStatus({ name, loading, info, installUrl }: { name: string; loading: boolean; info: CliToolInfo | null; installUrl?: string }) {
+  if (loading) return <Spinner />;
+  if (info?.found)
+    return (
+      <p className="text-base">
+        Found {info.version ? `${name} ${info.version}` : name} at <span className="selectable font-mono text-sm">{info.path}</span> <span className="text-muted">(from {info.source})</span>
+      </p>
+    );
+  return (
+    <p className="text-base text-muted">
+      Not found on PATH or in the usual install locations. Install {name}
+      {installUrl && (
+        <>
+          {" "}
+          (
+          <button type="button" className="text-accent-text hover:underline" onClick={() => void openLink(installUrl)}>
+            how to install
+          </button>
+          )
+        </>
+      )}
+      , or enter its path below.
+    </p>
   );
 }
 

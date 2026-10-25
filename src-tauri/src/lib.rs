@@ -2,11 +2,13 @@
 
 pub mod ai;
 pub mod claude_code;
+pub mod cli;
 mod commands;
 pub mod db;
 pub mod error;
 pub mod git;
 pub mod github;
+pub mod opencode;
 pub mod secrets;
 pub mod settings;
 pub mod state;
@@ -134,7 +136,8 @@ pub fn run() {
             commands::assist::ai_pr_description,
             commands::assist::ai_conflict_help,
             commands::assist::claude_detect,
-            commands::assist::claude_launch,
+            commands::assist::opencode_detect,
+            commands::assist::assistant_launch,
             commands::assist::staged_diff_text,
             commands::assist::claude_auth_status,
             commands::assist::claude_login,

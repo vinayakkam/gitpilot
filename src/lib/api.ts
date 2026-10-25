@@ -9,7 +9,7 @@ import type { Area } from "@/bindings/Area";
 import type { Branch } from "@/bindings/Branch";
 import type { BranchComparison } from "@/bindings/BranchComparison";
 import type { ClaudeAuthStatus } from "@/bindings/ClaudeAuthStatus";
-import type { ClaudeCodeInfo } from "@/bindings/ClaudeCodeInfo";
+import type { CliToolInfo } from "@/bindings/CliToolInfo";
 import type { CommitDetail } from "@/bindings/CommitDetail";
 import type { CreatedPull } from "@/bindings/CreatedPull";
 import type { DeviceCode } from "@/bindings/DeviceCode";
@@ -206,8 +206,10 @@ export const api = {
   /** `base` is the branch the pull request goes into, as a local ref (e.g. "origin/main"). */
   aiPrDescription: (id: number, base: string) => invoke<PrDescription>("ai_pr_description", { id, base }),
   aiConflictHelp: (id: number, path: string) => invoke<ConflictHelp>("ai_conflict_help", { id, path }),
-  claudeDetect: () => invoke<ClaudeCodeInfo>("claude_detect"),
-  claudeLaunch: (id: number, prompt: string | null) => invoke<void>("claude_launch", { id, prompt }),
+  claudeDetect: () => invoke<CliToolInfo>("claude_detect"),
+  openCodeDetect: () => invoke<CliToolInfo>("opencode_detect"),
+  /** Opens the coding assistant chosen in Settings in a terminal in the repository. */
+  assistantLaunch: (id: number, prompt: string | null) => invoke<void>("assistant_launch", { id, prompt }),
   claudeAuthStatus: () => invoke<ClaudeAuthStatus>("claude_auth_status"),
   claudeLogin: () => invoke<void>("claude_login"),
   openRouterModels: () => invoke<OpenRouterModel[]>("openrouter_models"),

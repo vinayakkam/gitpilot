@@ -25,6 +25,7 @@ import { NewBranchDialog } from "@/features/branches/NewBranchDialog";
 import { useBranchSwitch } from "@/features/branches/useBranchSwitch";
 import { usePull } from "@/features/sync/usePull";
 import { useRepoActions } from "@/features/onboarding/RepoActions";
+import { ASSISTANT_TOOLS } from "@/features/assistant/tools";
 import { api } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
 import { modKey } from "@/lib/platform";
@@ -42,6 +43,7 @@ interface Item {
 
 export function CommandPalette() {
   const store = useStore();
+  const toolId = store.settings?.assistantTool ?? "claudeCode";
   const { paletteOpen, setPaletteOpen, activeRepo, status, repos, run } = store;
   const { addExisting, startClone, createNew } = useRepoActions();
   const { request: switchTo, dialog: switchDialog } = useBranchSwitch();
@@ -73,10 +75,10 @@ export function CommandPalette() {
         api.branches(id).then(setBranches, () => setBranches([]));
         api.remotes(id).then(setRemotes, () => setRemotes([]));
       }
-      api.claudeDetect().then((c) => setClaudeFound(c.found), () => setClaudeFound(false));
+      ASSISTANT_TOOLS[toolId].detect().then((c) => setClaudeFound(c.found), () => setClaudeFound(false));
     }
     if (!paletteOpen && d.open) d.close();
-  }, [paletteOpen, id]);
+  }, [paletteOpen, id, toolId]);
 
   // Debounced file and commit search.
   useEffect(() => {
@@ -119,7 +121,10 @@ export function CommandPalette() {
       if (b && !b.unborn && !b.detached && (b.upstream || remotes.length))
         out.push({ id: "push", group: "Actions", label: b.upstream ? `Push to ${b.upstream}` : "Publish branch", icon: <ArrowUpFromLine size={15} />, run: () => void run("Push", () => api.push(id, { setUpstream: !b.upstream }), { success: "Pushed" }) });
       if (b && !b.unborn) out.push({ id: "new-branch", group: "Actions", label: "Create branch…", icon: <GitBranchPlus size={15} />, run: () => setNewBranch(true) });
-      if (claudeFound) out.push({ id: "claude", group: "Actions", label: "Open Claude Code in this repository", icon: <SquareTerminal size={15} />, run: () => void api.claudeLaunch(id, null).catch((e) => store.notify({ tone: "error", title: "Couldn't open Claude Code", error: toAppError(e) })) });
+      if (claudeFound) {
+        const tool = ASSISTANT_TOOLS[toolId].name;
+        out.push({ id: "claude", group: "Actions", label: `Open ${tool} in this repository`, icon: <SquareTerminal size={15} />, run: () => void api.assistantLaunch(id, null).catch((e) => store.notify({ tone: "error", title: `Couldn't open ${tool}`, error: toAppError(e) })) });
+      }
       for (const br of branches.filter((x) => !x.isRemote && !x.isCurrent).slice(0, f ? 50 : 5))
         out.push({ id: `br-${br.name}`, group: "Switch branch", label: br.name, icon: <GitBranch size={15} />, run: () => switchTo({ kind: "local", name: br.name }) });
     }
@@ -138,7 +143,7 @@ export function CommandPalette() {
       filtered.push({ id: `c-${c.hash}`, group: "Commits", label: c.subject, hint: c.shortHash, icon: <GitCommitHorizontal size={15} />, run: () => { store.setHistoryPath(null); store.setHistoryJump(c.hash); store.setSection("history"); } });
     return filtered;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, activeRepo, id, b, remotes, branches, claudeFound, repos, files, commits, status?.remoteTwin]);
+  }, [q, activeRepo, id, b, remotes, branches, claudeFound, repos, files, commits, status?.remoteTwin, toolId]);
 
   useEffect(() => setActive(0), [q]);
 

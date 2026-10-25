@@ -15,6 +15,8 @@ export const settings: Settings = {
   checkLineEndings: true,
   ai: { enabled: false, provider: "openRouter", model: "openrouter/auto", baseUrl: "", includeBody: true, privacyAcknowledged: false },
   claudeCode: { path: "", terminal: "", sendPromptOnLaunch: true },
+  assistantTool: "claudeCode",
+  opencode: { path: "" },
   github: { clientId: "" },
   reopenLastRepo: true,
   autoRefresh: true,

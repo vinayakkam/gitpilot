@@ -8,12 +8,14 @@ use ts_rs::TS;
 use crate::ai::{
     self, AiSuggestions, AiText, ConflictHelp, OpenRouterKeyInfo, OpenRouterModel, PrDescription,
 };
-use crate::claude_code::{self, ClaudeAuthStatus, ClaudeCodeInfo};
+use crate::claude_code::{self, ClaudeAuthStatus};
+use crate::cli::CliToolInfo;
 use crate::error::{AppError, AppResult, ErrorKind};
 use crate::git::status::Area;
 use crate::git::Repo;
+use crate::opencode;
 use crate::secrets;
-use crate::settings::{AiProviderKind, Settings};
+use crate::settings::{AiProviderKind, AssistantTool, Settings};
 use crate::state::AppState;
 
 /// Settings, API key and Claude Code path for an AI request, once the privacy notice was accepted.
@@ -154,21 +156,38 @@ pub async fn openrouter_key_info(state: State<'_, AppState>) -> AppResult<OpenRo
 }
 
 #[tauri::command]
-pub async fn claude_detect(state: State<'_, AppState>) -> AppResult<ClaudeCodeInfo> {
+pub async fn claude_detect(state: State<'_, AppState>) -> AppResult<CliToolInfo> {
     let s = state.settings();
     Ok(claude_code::detect(&s.claude_code.path, &s.claude_code.terminal).await)
 }
 
 #[tauri::command]
-pub async fn claude_launch(
+pub async fn opencode_detect(state: State<'_, AppState>) -> AppResult<CliToolInfo> {
+    let s = state.settings();
+    Ok(opencode::detect(&s.opencode.path, &s.claude_code.terminal).await)
+}
+
+/// Opens the coding assistant chosen in Settings (Claude Code or OpenCode) in a terminal in the
+/// repository, optionally with a first prompt.
+#[tauri::command]
+pub async fn assistant_launch(
     state: State<'_, AppState>,
     id: i64,
     prompt: Option<String>,
 ) -> AppResult<()> {
     let s = state.settings();
-    let (path, _) = claude_code::locate(&s.claude_code.path).ok_or_else(not_found)?;
     let root = state.repo_path(id)?;
-    claude_code::launch(&path, &root, prompt.as_deref(), &s.claude_code.terminal)
+    let terminal = &s.claude_code.terminal;
+    match s.assistant_tool {
+        AssistantTool::ClaudeCode => {
+            let (path, _) = claude_code::locate(&s.claude_code.path).ok_or_else(not_found)?;
+            claude_code::launch(&path, &root, prompt.as_deref(), terminal)
+        }
+        AssistantTool::OpenCode => {
+            let (path, _) = opencode::locate(&s.opencode.path).ok_or_else(opencode::not_found)?;
+            opencode::launch(&path, &root, prompt.as_deref(), terminal)
+        }
+    }
 }
 
 /// Staged diff stats for prompt templates (counts only, no content).
