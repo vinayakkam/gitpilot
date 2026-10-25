@@ -324,3 +324,43 @@ pub async fn stash_paths(
     r.stash_push_paths(&message, include_untracked, &paths)
         .await
 }
+
+#[tauri::command]
+pub async fn lfs_status(
+    state: State<'_, AppState>,
+    id: i64,
+    with_files: bool,
+) -> AppResult<crate::git::lfs::LfsStatus> {
+    repo!(state, id, git, root, r);
+    r.lfs_status(with_files).await
+}
+
+#[tauri::command]
+pub async fn lfs_track(state: State<'_, AppState>, id: i64, pattern: String) -> AppResult<()> {
+    let lock = state.repo_lock(id);
+    let _g = lock.lock().await;
+    repo!(state, id, git, root, r);
+    r.lfs_track(&pattern).await
+}
+
+#[tauri::command]
+pub async fn lfs_untrack(
+    state: State<'_, AppState>,
+    id: i64,
+    pattern: String,
+    confirmed: bool,
+) -> AppResult<()> {
+    require_confirmation(confirmed)?;
+    let lock = state.repo_lock(id);
+    let _g = lock.lock().await;
+    repo!(state, id, git, root, r);
+    r.lfs_untrack(&pattern).await
+}
+
+#[tauri::command]
+pub async fn lfs_install_hooks(state: State<'_, AppState>, id: i64) -> AppResult<()> {
+    let lock = state.repo_lock(id);
+    let _g = lock.lock().await;
+    repo!(state, id, git, root, r);
+    r.lfs_install_hooks().await
+}

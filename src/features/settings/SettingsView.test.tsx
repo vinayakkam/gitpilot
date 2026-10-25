@@ -14,6 +14,7 @@ const api = vi.hoisted(() => ({
   openRouterKeyInfo: vi.fn(),
   openRouterModels: vi.fn(),
   claudeDetect: vi.fn(),
+  openCodeDetect: vi.fn(),
   claudeAuthStatus: vi.fn(),
   claudeLogin: vi.fn(),
   updateSupport: vi.fn(),
@@ -39,6 +40,7 @@ beforeEach(() => {
     { id: "acme/small:free", name: "Acme Small (free)", contextLength: 8192, promptPerMillion: 0, completionPerMillion: 0, free: true },
   ]);
   api.claudeDetect.mockResolvedValue({ found: true, path: "/usr/bin/claude", version: "2.1.0", source: "path", terminal: "/usr/bin/xterm" });
+  api.openCodeDetect.mockResolvedValue({ found: true, path: "/home/me/.opencode/bin/opencode", version: "1.2.3", source: "known location", terminal: "/usr/bin/xterm" });
   api.claudeAuthStatus.mockResolvedValue({ checked: true, loggedIn: false, method: null, detail: null });
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
 });
@@ -94,5 +96,13 @@ describe("SettingsView", () => {
     expect(await screen.findByText("Not signed in")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Sign in with Claude" }));
     await waitFor(() => expect(api.claudeLogin).toHaveBeenCalled());
+  });
+
+  it("chooses OpenCode as the coding assistant", async () => {
+    setup();
+    fireEvent.click(await screen.findByRole("button", { name: "Coding assistant" }));
+    expect(await screen.findByText(/Found OpenCode 1\.2\.3/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Open the Assistant's prompts in"), { target: { value: "openCode" } });
+    await waitFor(() => expect(lastSaved().assistantTool).toBe("openCode"));
   });
 });

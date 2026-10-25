@@ -1,6 +1,7 @@
 // Typed wrappers around every Tauri command. Components never call invoke() directly.
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { isMainWindow } from "./windows";
 import type { AiProviderKind } from "@/bindings/AiProviderKind";
 import type { AiSuggestions } from "@/bindings/AiSuggestions";
 import type { AiText } from "@/bindings/AiText";
@@ -9,7 +10,7 @@ import type { Area } from "@/bindings/Area";
 import type { Branch } from "@/bindings/Branch";
 import type { BranchComparison } from "@/bindings/BranchComparison";
 import type { ClaudeAuthStatus } from "@/bindings/ClaudeAuthStatus";
-import type { ClaudeCodeInfo } from "@/bindings/ClaudeCodeInfo";
+import type { CliToolInfo } from "@/bindings/CliToolInfo";
 import type { CommitDetail } from "@/bindings/CommitDetail";
 import type { CreatedPull } from "@/bindings/CreatedPull";
 import type { DeviceCode } from "@/bindings/DeviceCode";
@@ -21,6 +22,7 @@ import type { DiscardResult } from "@/bindings/DiscardResult";
 import type { EolReport } from "@/bindings/EolReport";
 import type { ExplainTarget } from "@/bindings/ExplainTarget";
 import type { LastCommit } from "@/bindings/LastCommit";
+import type { LfsStatus } from "@/bindings/LfsStatus";
 import type { Backup } from "@/bindings/Backup";
 import type { ConflictChoice } from "@/bindings/ConflictChoice";
 import type { ConflictHelp } from "@/bindings/ConflictHelp";
@@ -47,9 +49,16 @@ import type { Remote } from "@/bindings/Remote";
 import type { RepoRecord } from "@/bindings/RepoRecord";
 import type { RepoStatus } from "@/bindings/RepoStatus";
 import type { Settings } from "@/bindings/Settings";
+import type { Signature } from "@/bindings/Signature";
+import type { SigningConfig } from "@/bindings/SigningConfig";
+import type { SigningFormat } from "@/bindings/SigningFormat";
+import type { SigningKey } from "@/bindings/SigningKey";
+import type { SigningScope } from "@/bindings/SigningScope";
 import type { SequenceAction } from "@/bindings/SequenceAction";
 import type { Stash } from "@/bindings/Stash";
+import type { Submodule } from "@/bindings/Submodule";
 import type { UpdateSupport } from "@/bindings/UpdateSupport";
+import type { Worktree } from "@/bindings/Worktree";
 
 export const api = {
   // app
@@ -70,7 +79,12 @@ export const api = {
   repoRemove: (id: number) => invoke<void>("repo_remove", { id }),
   repoRelocate: (id: number, path: string) => invoke<RepoRecord>("repo_relocate", { id, path }),
   repoRename: (id: number, name: string) => invoke<RepoRecord>("repo_rename", { id, name }),
-  repoOpen: (id: number) => invoke<RepoRecord>("repo_open", { id }),
+  /** Only the main window's choice is reopened at the next start. */
+  repoOpen: (id: number) => invoke<RepoRecord>("repo_open", { id, remember: isMainWindow() }),
+  /** Opens a repository in its own window, or focuses that window. */
+  windowOpenRepo: (id: number) => invoke<void>("window_open_repo", { id }),
+  /** Settings saved in any window. */
+  onSettingsChanged: (cb: (s: Settings) => void): Promise<UnlistenFn> => listen<Settings>("settings-changed", (ev) => cb(ev.payload)),
 
   // working tree
   status: (id: number) => invoke<RepoStatus>("status_get", { id }),
@@ -114,6 +128,11 @@ export const api = {
   gitignoreAdd: (id: number, patterns: string[], untrack: string[]) =>
     invoke<string[]>("gitignore_add", { id, patterns, untrack, confirmed: untrack.length > 0 }),
   untrackPaths: (id: number, paths: string[]) => invoke<void>("untrack_paths", { id, paths, confirmed: true }),
+  /** `withFiles` also lists LFS files and checks hooks (slower). */
+  lfsStatus: (id: number, withFiles: boolean) => invoke<LfsStatus>("lfs_status", { id, withFiles }),
+  lfsTrack: (id: number, pattern: string) => invoke<void>("lfs_track", { id, pattern }),
+  lfsUntrack: (id: number, pattern: string) => invoke<void>("lfs_untrack", { id, pattern, confirmed: true }),
+  lfsInstallHooks: (id: number) => invoke<void>("lfs_install_hooks", { id }),
   eolCheck: (id: number) => invoke<EolReport>("eol_check", { id }),
   eolFix: (id: number, paths: string[]) => invoke<number>("eol_fix", { id, paths }),
   eolAddGitattributes: (id: number) => invoke<boolean>("eol_add_gitattributes", { id }),
@@ -160,6 +179,12 @@ export const api = {
     invoke<BranchComparison>("branch_compare", { id, base, head }),
   branchSetUpstream: (id: number, branch: string, upstream: string | null) =>
     invoke<void>("branch_set_upstream", { id, branch, upstream }),
+  worktreeList: (id: number) => invoke<Worktree[]>("worktree_list", { id }),
+  /** Returns the new worktree's folder. */
+  worktreeAdd: (id: number, path: string, branch: string, newBranch: boolean, start: string | null) =>
+    invoke<string>("worktree_add", { id, path, branch, newBranch, start }),
+  worktreeRemove: (id: number, path: string) => invoke<void>("worktree_remove", { id, path, confirmed: true }),
+  worktreePrune: (id: number) => invoke<void>("worktree_prune", { id }),
   stashList: (id: number) => invoke<Stash[]>("stash_list", { id }),
   stashPush: (id: number, message: string, includeUntracked: boolean) =>
     invoke<void>("stash_push", { id, message, includeUntracked }),
@@ -182,6 +207,14 @@ export const api = {
       confirmedForce: opts.forceWithLease ?? false,
     }),
 
+  // commit signing (`id` null = global configuration)
+  signingGet: (id: number | null) => invoke<SigningConfig>("signing_get", { id }),
+  signingKeys: () => invoke<SigningKey[]>("signing_keys"),
+  signingEnable: (id: number | null, scope: SigningScope, format: SigningFormat, key: string) =>
+    invoke<SigningConfig>("signing_enable", { id, scope, format, key }),
+  signingDisable: (id: number | null, scope: SigningScope) => invoke<SigningConfig>("signing_disable", { id, scope }),
+  commitSignature: (id: number, hash: string) => invoke<Signature>("commit_signature", { id, hash }),
+
   // GitHub
   githubAccount: () => invoke<GitHubAccount>("github_account"),
   githubDeviceStart: () => invoke<DeviceCode>("github_device_start"),
@@ -197,7 +230,11 @@ export const api = {
   githubPullCheckout: (id: number, owner: string, name: string, number: number) =>
     invoke<PrCheckout>("github_pull_checkout", { id, owner, name, number }),
 
-  /** Cancels a running clone ("clone"), a fetch/push in a repository ("repo:<id>") or a GitHub sign-in ("github-login"). */
+  submoduleList: (id: number) => invoke<Submodule[]>("submodule_list", { id }),
+  /** Downloads and checks out submodules (`paths` empty = all). Cancellable with opCancel("repo:<id>"). */
+  submoduleUpdate: (id: number, paths: string[]) => invoke<void>("submodule_update", { id, paths }),
+
+  /** Cancels a running clone ("clone:<window label>"), a fetch/push in a repository ("repo:<id>") or a GitHub sign-in ("github-login"). */
   opCancel: (key: string) => invoke<boolean>("op_cancel", { key }),
 
   // assistance
@@ -206,8 +243,10 @@ export const api = {
   /** `base` is the branch the pull request goes into, as a local ref (e.g. "origin/main"). */
   aiPrDescription: (id: number, base: string) => invoke<PrDescription>("ai_pr_description", { id, base }),
   aiConflictHelp: (id: number, path: string) => invoke<ConflictHelp>("ai_conflict_help", { id, path }),
-  claudeDetect: () => invoke<ClaudeCodeInfo>("claude_detect"),
-  claudeLaunch: (id: number, prompt: string | null) => invoke<void>("claude_launch", { id, prompt }),
+  claudeDetect: () => invoke<CliToolInfo>("claude_detect"),
+  openCodeDetect: () => invoke<CliToolInfo>("opencode_detect"),
+  /** Opens the coding assistant chosen in Settings in a terminal in the repository. */
+  assistantLaunch: (id: number, prompt: string | null) => invoke<void>("assistant_launch", { id, prompt }),
   claudeAuthStatus: () => invoke<ClaudeAuthStatus>("claude_auth_status"),
   claudeLogin: () => invoke<void>("claude_login"),
   openRouterModels: () => invoke<OpenRouterModel[]>("openrouter_models"),

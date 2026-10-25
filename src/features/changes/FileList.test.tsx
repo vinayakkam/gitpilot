@@ -11,7 +11,7 @@ const files: FileEntry[] = [
 ];
 
 function actions(): FileListActions {
-  return { stage: vi.fn(), unstage: vi.fn(), discard: vi.fn(), stageAll: vi.fn(), unstageAll: vi.fn(), copyPath: vi.fn(), showHistory: vi.fn(), ignore: vi.fn(), stash: vi.fn(), blame: vi.fn() };
+  return { stage: vi.fn(), unstage: vi.fn(), discard: vi.fn(), stageAll: vi.fn(), unstageAll: vi.fn(), copyPath: vi.fn(), showHistory: vi.fn(), ignore: vi.fn(), stash: vi.fn(), blame: vi.fn(), updateSubmodules: vi.fn() };
 }
 
 describe("FileList", () => {
@@ -62,5 +62,14 @@ describe("FileList", () => {
     render(<FileList files={files} selected={new Set([keyOf(files[0]!)])} focusKey={keyOf(files[0]!)} onSelect={() => {}} actions={a} />);
     fireEvent.keyDown(screen.getByRole("listbox"), { key: "Delete" });
     expect(a.discard).not.toHaveBeenCalled();
+  });
+
+  it("offers to update a changed submodule from its menu", () => {
+    const a = actions();
+    const sub: FileEntry = { path: "deps/lib", origPath: null, area: "unstaged", change: "modified", conflict: null, submodule: true, ignored: false };
+    render(<FileList files={[sub]} selected={new Set([keyOf(sub)])} focusKey={keyOf(sub)} onSelect={() => {}} actions={a} />);
+    fireEvent.contextMenu(screen.getByText("lib"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Update submodule" }));
+    expect(a.updateSubmodules).toHaveBeenCalledWith(["deps/lib"]);
   });
 });

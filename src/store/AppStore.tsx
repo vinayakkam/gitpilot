@@ -9,6 +9,7 @@ import { applyAccent } from "@/lib/accent";
 import { LINK_FAILED_EVENT } from "@/lib/links";
 import { api, onProgress } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
+import { windowRepoId } from "@/lib/windows";
 
 export type Section = "overview" | "changes" | "history" | "branches" | "remotes" | "assistant" | "pulls";
 export type Page = "repo" | "repositories" | "settings";
@@ -240,7 +241,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         setSettings(s);
         setRepos(list);
         api.appInfo().then(setInfo, () => undefined);
-        const last = s.reopenLastRepo ? list.find((r) => r.id === s.lastRepoId && r.available) : undefined;
+        // A repository window shows its own repository; the main window reopens the last one.
+        const own = windowRepoId();
+        const last = own != null ? list.find((r) => r.id === own) : s.reopenLastRepo ? list.find((r) => r.id === s.lastRepoId && r.available) : undefined;
         if (last) void openRepo(last.id);
         else setPage(list.length ? "repositories" : "repo");
       } catch (e) {
@@ -248,6 +251,24 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Settings saved in another window (theme, accent, AI, …) apply here too.
+  useEffect(() => {
+    if (typeof api.onSettingsChanged !== "function") return;
+    let unlisten: (() => void) | undefined;
+    let live = true;
+    void api
+      .onSettingsChanged((s) => setSettings(s))
+      .then((u) => {
+        if (live) unlisten = u;
+        else u();
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+      unlisten?.();
+    };
   }, []);
 
   // Progress lines from long-running git operations.

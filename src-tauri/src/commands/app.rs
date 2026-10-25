@@ -50,12 +50,20 @@ pub fn settings_get(state: State<'_, AppState>) -> Settings {
     state.settings()
 }
 
+/// Saves settings and tells every window ("settings-changed"), so they all use them at once.
 #[tauri::command]
-pub fn settings_save(state: State<'_, AppState>, settings: Settings) -> AppResult<Settings> {
+pub fn settings_save(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    settings: Settings,
+) -> AppResult<Settings> {
+    use tauri::Emitter;
     // last_repo_id is owned by the backend.
     let mut s = settings;
     s.last_repo_id = state.settings().last_repo_id;
-    state.save_settings(s)
+    let saved = state.save_settings(s)?;
+    let _ = app.emit("settings-changed", &saved);
+    Ok(saved)
 }
 
 #[tauri::command]

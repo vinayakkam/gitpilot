@@ -4,6 +4,7 @@ import { check, type Update } from "@tauri-apps/plugin-updater";
 import type { AppError } from "@/bindings/AppError";
 import type { UpdateSupport } from "@/bindings/UpdateSupport";
 import { api } from "@/lib/api";
+import { isMainWindow } from "@/lib/windows";
 import { useStore } from "@/store/AppStore";
 
 export type UpdatePhase =
@@ -92,7 +93,8 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
 
   // Background check shortly after startup, at most once a day.
   useEffect(() => {
-    if (!settings || startupDone.current || !settings.checkForUpdates || !support || support.installKind === "dev") return;
+    // Only the main window checks at startup, so repository windows don't repeat it.
+    if (!settings || startupDone.current || !settings.checkForUpdates || !support || support.installKind === "dev" || !isMainWindow()) return;
     startupDone.current = true;
     let last = 0;
     try {

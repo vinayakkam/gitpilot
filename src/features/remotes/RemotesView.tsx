@@ -13,6 +13,7 @@ import { toAppError } from "@/lib/errors";
 import { plural, relativeTime } from "@/lib/format";
 import { useAsync } from "@/lib/useAsync";
 import { useStore } from "@/store/AppStore";
+import { SubmodulesSection } from "./SubmodulesSection";
 
 function hostOf(url: string): string | null {
   const m = url.match(/^[a-z+]+:\/\/(?:[^@/]+@)?([^/:]+)/i) ?? url.match(/^[^@\s]+@([^:]+):/);
@@ -147,6 +148,8 @@ export function RemotesView() {
             </div>
           </section>
         )}
+
+        <SubmodulesSection />
       </div>
 
       {edit && <RemoteDialog initial={edit === "new" ? null : edit} onClose={() => setEdit(null)} />}

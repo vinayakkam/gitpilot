@@ -22,7 +22,8 @@ fn setup_env() {
         let cfg = dir.join("gitconfig");
         std::fs::write(
             &cfg,
-            "[user]\n\tname = Test User\n\temail = test@example.com\n[init]\n\tdefaultBranch = main\n[commit]\n\tgpgsign = false\n",
+            // Local-path submodules are blocked by default; the submodule test needs them.
+            "[user]\n\tname = Test User\n\temail = test@example.com\n[init]\n\tdefaultBranch = main\n[commit]\n\tgpgsign = false\n[protocol \"file\"]\n\tallow = always\n",
         )
         .unwrap();
         std::env::set_var("GIT_CONFIG_GLOBAL", &cfg);
@@ -1842,4 +1843,290 @@ async fn live_github_fork_pull_request_checkout() {
     let st = r.status().await.unwrap();
     assert_eq!(st.branch.head.as_deref(), Some("pr-1"));
     assert_eq!(st.branch.upstream, None);
+}
+
+#[tokio::test]
+async fn ssh_commit_signing_is_set_up_and_verified() {
+    use gitpilot_lib::git::signing::{self, SignatureStatus, SigningFormat, SigningScope};
+    let Ok(keygen) = which::which("ssh-keygen") else {
+        eprintln!("ssh-keygen not installed; skipping");
+        return;
+    };
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    let keys = tempfile::tempdir().unwrap();
+    let key = keys.path().join("id_ed25519");
+    let ok = std::process::Command::new(keygen)
+        .args(["-q", "-t", "ed25519", "-N", "", "-C", "test", "-f"])
+        .arg(&key)
+        .status()
+        .unwrap()
+        .success();
+    assert!(ok);
+    let allowed = keys.path().join("data").join("allowed_signers");
+
+    // Only this repository, so the shared test configuration isn't touched.
+    signing::enable(
+        &g,
+        Some(&root),
+        SigningScope::Repository,
+        SigningFormat::Ssh,
+        key.to_str().unwrap(),
+        &allowed,
+    )
+    .await
+    .unwrap();
+    let cfg = r.signing_config().await.unwrap();
+    assert!(cfg.enabled);
+    assert_eq!(cfg.scope, Some(SigningScope::Repository));
+    assert_eq!(cfg.format, SigningFormat::Ssh);
+    assert_eq!(cfg.key.as_deref(), key.to_str());
+    assert_eq!(cfg.allowed_signers.as_deref(), allowed.to_str());
+    assert!(std::fs::read_to_string(&allowed)
+        .unwrap()
+        .starts_with("test@example.com ssh-ed25519 "));
+
+    write(&root, "a.txt", "signed\n");
+    r.stage_all().await.unwrap();
+    let signed = r.commit("Signed commit").await.unwrap();
+    let s = r.signature(&signed).await.unwrap();
+    assert_eq!(s.status, SignatureStatus::Verified, "{s:?}");
+    assert_eq!(s.signer.as_deref(), Some("test@example.com"));
+
+    signing::disable(&g, Some(&root), SigningScope::Repository)
+        .await
+        .unwrap();
+    assert!(!r.signing_config().await.unwrap().enabled);
+    write(&root, "a.txt", "plain\n");
+    r.stage_all().await.unwrap();
+    let plain = r.commit("Plain commit").await.unwrap();
+    assert_eq!(
+        r.signature(&plain).await.unwrap().status,
+        SignatureStatus::NotSigned
+    );
+    assert!(signing::enable(
+        &g,
+        Some(&root),
+        SigningScope::Repository,
+        SigningFormat::Ssh,
+        "/missing/key",
+        &allowed
+    )
+    .await
+    .is_err());
+}
+
+#[tokio::test]
+async fn lfs_use_is_detected_with_or_without_git_lfs() {
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    let st = r.lfs_status(true).await.unwrap();
+    assert!(st.patterns.is_empty(), "no LFS yet");
+
+    write(
+        &root,
+        ".gitattributes",
+        "*.psd filter=lfs diff=lfs merge=lfs -text\n* text=auto\n",
+    );
+    write(&root, "art/.gitattributes", "*.mov filter=lfs -text\n");
+    r.stage_all().await.unwrap();
+    r.commit("LFS rules").await.unwrap();
+    let st = r.lfs_status(true).await.unwrap();
+    let pats: Vec<(&str, &str)> = st
+        .patterns
+        .iter()
+        .map(|p| (p.pattern.as_str(), p.file.as_str()))
+        .collect();
+    assert_eq!(
+        pats,
+        vec![("*.psd", ".gitattributes"), ("*.mov", "art/.gitattributes")]
+    );
+    let lfs_installed = which::which("git-lfs").is_ok();
+    assert_eq!(st.installed, lfs_installed);
+    assert!(r.lfs_track("--help").await.is_err());
+
+    if lfs_installed {
+        r.lfs_track("*.bin").await.unwrap();
+        let attrs = std::fs::read_to_string(root.join(".gitattributes")).unwrap();
+        assert!(attrs.contains("*.bin filter=lfs"));
+        r.lfs_untrack("*.bin").await.unwrap();
+        let attrs = std::fs::read_to_string(root.join(".gitattributes")).unwrap();
+        assert!(!attrs.contains("*.bin"));
+    } else {
+        let e = r.lfs_track("*.bin").await.unwrap_err();
+        assert!(e.message.contains("git-lfs.com"), "{}", e.message);
+    }
+}
+
+#[tokio::test]
+async fn submodules_are_listed_and_updated() {
+    use gitpilot_lib::git::submodules::SubmoduleState;
+    let g = git();
+    // The library a project depends on.
+    let (_dl, lib) = new_repo(&g).await;
+    let rl = Repo {
+        git: &g,
+        path: &lib,
+    };
+    write(&lib, "lib.txt", "v1\n");
+    rl.stage_all().await.unwrap();
+    rl.commit("lib v1").await.unwrap();
+
+    // The project, with the library as a submodule.
+    let (_dp, proj) = new_repo(&g).await;
+    let rp = Repo {
+        git: &g,
+        path: &proj,
+    };
+    assert!(rp.submodules().await.unwrap().is_empty());
+    g.run(
+        &proj,
+        [
+            "submodule",
+            "add",
+            "--quiet",
+            lib.to_str().unwrap(),
+            "deps/lib",
+        ],
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    rp.commit("Add lib").await.unwrap();
+    let s = rp.submodules().await.unwrap();
+    assert_eq!(s.len(), 1);
+    assert_eq!(
+        (s[0].path.as_str(), s[0].name.as_deref(), s[0].state),
+        ("deps/lib", Some("deps/lib"), SubmoduleState::UpToDate)
+    );
+    assert_eq!(s[0].url.as_deref(), lib.to_str());
+
+    // A fresh clone doesn't have the submodule's files yet.
+    let parent = tempfile::tempdir().unwrap();
+    let copy = repo::clone(
+        &g,
+        proj.to_str().unwrap(),
+        &parent.path().join("copy"),
+        None,
+        |_| {},
+    )
+    .await
+    .unwrap();
+    let rc = Repo {
+        git: &g,
+        path: &copy,
+    };
+    assert_eq!(
+        rc.submodules().await.unwrap()[0].state,
+        SubmoduleState::NotInitialized
+    );
+    assert!(rc
+        .submodule_update(&["../escape".into()], None, |_| {})
+        .await
+        .is_err());
+    rc.submodule_update(&[], None, |_| {}).await.unwrap();
+    assert_eq!(
+        rc.submodules().await.unwrap()[0].state,
+        SubmoduleState::UpToDate
+    );
+    assert_eq!(
+        std::fs::read_to_string(copy.join("deps/lib/lib.txt")).unwrap(),
+        "v1\n"
+    );
+
+    // A different commit checked out inside the submodule.
+    g.run(
+        &copy.join("deps/lib"),
+        ["commit", "--allow-empty", "-q", "-m", "local"],
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        rc.submodules().await.unwrap()[0].state,
+        SubmoduleState::DifferentCommit
+    );
+    rc.submodule_update(&["deps/lib".into()], None, |_| {})
+        .await
+        .unwrap();
+    assert_eq!(
+        rc.submodules().await.unwrap()[0].state,
+        SubmoduleState::UpToDate
+    );
+}
+
+#[tokio::test]
+async fn worktrees_are_added_listed_and_removed_safely() {
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    write(&root, "a.txt", "1\n");
+    r.stage_all().await.unwrap();
+    r.commit("one").await.unwrap();
+    r.branch_create("fix", None, false).await.unwrap();
+
+    let place = tempfile::tempdir().unwrap();
+    let fix_dir = place.path().join("app-fix");
+    let added = r
+        .worktree_add(fix_dir.to_str().unwrap(), "fix", false, None)
+        .await
+        .unwrap();
+    assert_eq!(added, fix_dir.display().to_string());
+    let feat_dir = place.path().join("app-feature");
+    r.worktree_add(feat_dir.to_str().unwrap(), "feature", true, Some("HEAD"))
+        .await
+        .unwrap();
+
+    let list = r.worktrees().await.unwrap();
+    assert_eq!(list.len(), 3);
+    assert!(list[0].main && list[0].current);
+    assert_eq!(list[0].branch.as_deref(), Some("main"));
+    let mut branches: Vec<_> = list.iter().filter_map(|w| w.branch.clone()).collect();
+    branches.sort();
+    assert_eq!(branches, vec!["feature", "fix", "main"]);
+
+    // A branch can only be checked out once.
+    let e = r.branch_switch("fix").await.unwrap_err();
+    assert!(e.message.contains("another worktree"), "{}", e.message);
+    // Folders must be new or empty.
+    assert!(r
+        .worktree_add(fix_dir.to_str().unwrap(), "main", false, None)
+        .await
+        .is_err());
+
+    // Uncommitted changes keep a worktree from being removed.
+    write(&fix_dir, "a.txt", "changed\n");
+    let e = r
+        .worktree_remove(fix_dir.to_str().unwrap())
+        .await
+        .unwrap_err();
+    assert_eq!(e.kind, ErrorKind::LocalChangesWouldBeOverwritten, "{e:?}");
+    assert!(fix_dir.exists());
+    assert!(
+        r.worktree_remove(root.to_str().unwrap()).await.is_err(),
+        "main"
+    );
+
+    r.worktree_remove(feat_dir.to_str().unwrap()).await.unwrap();
+    assert!(!feat_dir.exists());
+
+    // A deleted folder shows as prunable until pruned.
+    std::fs::remove_dir_all(&fix_dir).unwrap();
+    let list = r.worktrees().await.unwrap();
+    assert!(list
+        .iter()
+        .any(|w| w.prunable && w.branch.as_deref() == Some("fix")));
+    r.worktree_prune().await.unwrap();
+    assert_eq!(r.worktrees().await.unwrap().len(), 1);
 }

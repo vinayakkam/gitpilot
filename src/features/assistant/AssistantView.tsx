@@ -14,6 +14,7 @@ import { toAppError } from "@/lib/errors";
 import { plural } from "@/lib/format";
 import { useAsync } from "@/lib/useAsync";
 import { useStore } from "@/store/AppStore";
+import { ASSISTANT_TOOLS } from "./tools";
 
 interface Ctx {
   repo: string;
@@ -98,7 +99,9 @@ const TEMPLATES: { id: string; title: string; build: (c: Ctx) => string }[] = [
 export function AssistantView() {
   const { activeRepo, status, revision, toasts, settings, notify, openSettings } = useStore();
   const id = activeRepo?.id;
-  const claude = useAsync(() => api.claudeDetect(), [revision, settings?.claudeCode.path, settings?.claudeCode.terminal]);
+  const toolId = settings?.assistantTool ?? "claudeCode";
+  const tool = ASSISTANT_TOOLS[toolId];
+  const claude = useAsync(() => tool.detect(), [revision, toolId, settings?.claudeCode.path, settings?.opencode.path, settings?.claudeCode.terminal], settings != null);
   const recent = useAsync(() => api.log(id!, { rev: null, skip: 0, limit: 10, search: null, path: null }), [id, revision], id != null);
   const [tpl, setTpl] = useState(TEMPLATES[0]!.id);
   const [prompt, setPrompt] = useState("");
@@ -125,10 +128,10 @@ export function AssistantView() {
   const launch = async (withPrompt: boolean) => {
     setLaunching(true);
     try {
-      await api.claudeLaunch(id, withPrompt ? prompt : null);
-      notify({ tone: "success", title: "Opened Claude Code in a new terminal" });
+      await api.assistantLaunch(id, withPrompt ? prompt : null);
+      notify({ tone: "success", title: `Opened ${tool.name} in a new terminal` });
     } catch (e) {
-      notify({ tone: "error", title: "Couldn't open Claude Code", error: toAppError(e) });
+      notify({ tone: "error", title: `Couldn't open ${tool.name}`, error: toAppError(e) });
     } finally {
       setLaunching(false);
     }
@@ -190,15 +193,18 @@ export function AssistantView() {
             <>
               <CircleCheck size={15} className="shrink-0 text-success" />
               <span className="min-w-0 flex-1 truncate">
-                Claude Code {claude.data?.version ? <span className="text-muted">{claude.data.version}</span> : null}
+                {tool.name} {claude.data?.version ? <span className="text-muted">{claude.data.version}</span> : null}
                 <span className="ml-2 font-mono text-xs text-faint">{claude.data?.path}</span>
               </span>
+              <Button size="sm" variant="ghost" onClick={() => openSettings("claude")}>
+                Change assistant
+              </Button>
             </>
           ) : (
             <>
               <CircleDashed size={15} className="shrink-0 text-faint" />
-              <span className="flex-1">Claude Code wasn't found on this computer. Install it, or set its location in Settings.</span>
-              <Button size="sm" icon={<ExternalLink size={12} />} onClick={() => void openLink("https://docs.claude.com/en/docs/claude-code/setup")}>Install guide</Button>
+              <span className="flex-1">{tool.name} wasn't found on this computer. Install it, or set its location in Settings.</span>
+              <Button size="sm" icon={<ExternalLink size={12} />} onClick={() => void openLink(tool.installUrl)}>Install guide</Button>
               <Button size="sm" onClick={() => openSettings("claude")}>Settings</Button>
             </>
           )}
@@ -224,7 +230,7 @@ export function AssistantView() {
           />
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button variant="primary" icon={<SquareTerminal size={14} />} disabled={!found} loading={launching} onClick={() => void launch(sendPrompt)}>
-              {sendPrompt ? "Open in Claude Code with this prompt" : "Open Claude Code"}
+              {sendPrompt ? `Open in ${tool.name} with this prompt` : `Open ${tool.name}`}
             </Button>
             {sendPrompt && (
               <Button disabled={!found || launching} onClick={() => void launch(false)}>Open without prompt</Button>
@@ -234,7 +240,7 @@ export function AssistantView() {
             </Button>
           </div>
           <p className="mt-2 text-sm text-faint">
-            Claude Code opens in its own terminal window in {activeRepo.name}. It works there independently; GitPilot doesn't run anything it suggests.
+            {tool.name} opens in its own terminal window in {activeRepo.name}. It works there independently; GitPilot doesn't run anything it suggests.
             The prompt includes file names and branch info only, not file contents.
           </p>
         </div>

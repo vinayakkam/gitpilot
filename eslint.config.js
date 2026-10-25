@@ -15,6 +15,13 @@ export default tseslint.config(
       "react-hooks/exhaustive-deps": "warn",
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+      // Browser globals that look like ordinary variables (e.g. the store's `status`).
+      "no-restricted-globals": [
+        "error",
+        { name: "status", message: "Use the store's status (useStore), not window.status." },
+        { name: "name", message: "This is window.name; use a local variable." },
+        { name: "event", message: "Use the handler's event parameter." },
+      ],
     },
   },
 );

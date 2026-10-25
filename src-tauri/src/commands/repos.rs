@@ -103,6 +103,7 @@ pub async fn repo_init(state: State<'_, AppState>, path: String) -> AppResult<Re
 #[tauri::command]
 pub async fn repo_clone(
     app: AppHandle,
+    window: tauri::Window,
     state: State<'_, AppState>,
     url: String,
     parent: String,
@@ -117,7 +118,8 @@ pub async fn repo_clone(
     }
     let dest = parent.join(name);
     let git = state.git()?;
-    let guard = state.begin_cancellable("clone".into());
+    // One clone per window: cancel with op_cancel("clone:<window label>").
+    let guard = state.begin_cancellable(format!("clone:{}", window.label()));
     let root = repo::clone(
         &git,
         &url,
@@ -158,16 +160,25 @@ pub fn repo_rename(state: State<'_, AppState>, id: i64, name: String) -> AppResu
     state.db(|c| db::rename(c, id, &name))
 }
 
+/// Marks a repository as opened. `remember` (the main window only) makes it the one reopened
+/// at startup.
 #[tauri::command]
-pub fn repo_open(state: State<'_, AppState>, id: i64) -> AppResult<RepoRecord> {
+pub fn repo_open(state: State<'_, AppState>, id: i64, remember: bool) -> AppResult<RepoRecord> {
     state.db(|c| db::touch(c, id))?;
-    state.update_settings(|s| s.last_repo_id = Some(id))?;
+    if remember {
+        state.update_settings(|s| s.last_repo_id = Some(id))?;
+    }
     state.db(|c| db::get(c, id))
 }
 
 /// Starts watching a repository's files; the UI receives "repo-changed" events with its id.
 #[tauri::command]
-pub async fn repo_watch(app: AppHandle, state: State<'_, AppState>, id: i64) -> AppResult<()> {
+pub async fn repo_watch(
+    app: AppHandle,
+    window: tauri::Window,
+    state: State<'_, AppState>,
+    id: i64,
+) -> AppResult<()> {
     use tauri::Emitter;
     let root = state.repo_path(id)?;
     state
@@ -181,11 +192,49 @@ pub async fn repo_watch(app: AppHandle, state: State<'_, AppState>, id: i64) -> 
                 "Couldn't watch the repository for changes.",
             )
             .with_detail(e)
-        })
+        })?;
+    state.note_watch(window.label(), id);
+    Ok(())
 }
 
 #[tauri::command]
-pub async fn repo_unwatch(state: State<'_, AppState>, id: i64) -> AppResult<()> {
-    state.watches.unwatch(id);
+pub async fn repo_unwatch(
+    window: tauri::Window,
+    state: State<'_, AppState>,
+    id: i64,
+) -> AppResult<()> {
+    // Only release watches this window took, so a repeated unwatch can't stop another window's.
+    if state.note_unwatch(window.label(), id) {
+        state.watches.unwatch(id);
+    }
+    Ok(())
+}
+
+/// Opens repository `id` in its own window, or brings that window to the front if it's open.
+/// The window's label (`repo-<id>`) tells the page which repository to show.
+#[tauri::command]
+pub async fn window_open_repo(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+) -> AppResult<()> {
+    use tauri::Manager;
+    let rec = state.db(|c| db::get(c, id))?;
+    let label = format!("repo-{id}");
+    if let Some(w) = app.get_webview_window(&label) {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
+        return Ok(());
+    }
+    tauri::WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::App("index.html".into()))
+        .title(format!("{} — GitPilot", rec.name))
+        .inner_size(1280.0, 820.0)
+        .min_inner_size(900.0, 580.0)
+        .build()
+        .map_err(|e| {
+            AppError::new(ErrorKind::Internal, "The new window couldn't be opened.")
+                .with_detail(e.to_string())
+        })?;
     Ok(())
 }

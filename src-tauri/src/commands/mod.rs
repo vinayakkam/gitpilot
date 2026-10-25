@@ -8,6 +8,7 @@ pub mod github;
 pub mod history;
 pub mod remotes;
 pub mod repos;
+pub mod signing;
 
 use std::path::PathBuf;
 

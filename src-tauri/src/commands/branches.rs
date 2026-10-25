@@ -215,3 +215,51 @@ pub async fn tag_push(
     repo!(state, id, git, root, r);
     r.tag_push(&remote, &name, delete).await
 }
+
+#[tauri::command]
+pub async fn worktree_list(
+    state: State<'_, AppState>,
+    id: i64,
+) -> AppResult<Vec<crate::git::worktrees::Worktree>> {
+    repo!(state, id, git, root, r);
+    r.worktrees().await
+}
+
+/// Checks out `branch` (a new one with `new_branch`, from `start`) in a new folder `path`.
+#[tauri::command]
+pub async fn worktree_add(
+    state: State<'_, AppState>,
+    id: i64,
+    path: String,
+    branch: String,
+    new_branch: bool,
+    start: Option<String>,
+) -> AppResult<String> {
+    let lock = state.repo_lock(id);
+    let _g = lock.lock().await;
+    repo!(state, id, git, root, r);
+    r.worktree_add(&path, &branch, new_branch, start.as_deref())
+        .await
+}
+
+#[tauri::command]
+pub async fn worktree_remove(
+    state: State<'_, AppState>,
+    id: i64,
+    path: String,
+    confirmed: bool,
+) -> AppResult<()> {
+    require_confirmation(confirmed)?;
+    let lock = state.repo_lock(id);
+    let _g = lock.lock().await;
+    repo!(state, id, git, root, r);
+    r.worktree_remove(&path).await
+}
+
+#[tauri::command]
+pub async fn worktree_prune(state: State<'_, AppState>, id: i64) -> AppResult<()> {
+    let lock = state.repo_lock(id);
+    let _g = lock.lock().await;
+    repo!(state, id, git, root, r);
+    r.worktree_prune().await
+}

@@ -22,6 +22,7 @@ import { FileList, keyOf, type FileListActions } from "./FileList";
 import { IgnoreDialog } from "./IgnoreDialog";
 import { BlameView } from "@/features/history/BlameView";
 import { ConflictHelpDialog } from "./ConflictHelpDialog";
+import { LfsMissingNotice } from "./LfsMissingNotice";
 import { OperationBanner } from "./OperationBanner";
 
 export function ChangesView() {
@@ -120,6 +121,7 @@ export function ChangesView() {
     ignore: (fs) => setIgnoreFiles(fs),
     stash: (fs) => setStashFiles(fs),
     blame: (p) => setBlame({ path: p, rev: null }),
+    updateSubmodules: (paths) => void run("Update submodule", () => api.submoduleUpdate(id, paths), { success: "Submodule updated" }),
   };
 
   const discardTracked = discard?.filter((f) => f.area === "unstaged") ?? [];
@@ -158,6 +160,7 @@ export function ChangesView() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       {status && <OperationBanner status={status} />}
+      {id != null && <LfsMissingNotice repoId={id} />}
       <div className="flex min-h-0 flex-1">
         <div className="flex min-h-0 shrink-0 flex-col bg-surface" style={{ width }}>
           {files.length > 0 && (

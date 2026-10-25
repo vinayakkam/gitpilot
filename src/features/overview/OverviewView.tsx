@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { absoluteTime, plural, relativeTime } from "@/lib/format";
 import { useAsync } from "@/lib/useAsync";
 import { useStore } from "@/store/AppStore";
+import { LfsCard } from "./LfsCard";
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -109,6 +110,9 @@ export function OverviewView() {
                 <Server size={12} /> Add a remote
               </button>
             )}
+          </Row>
+          <Row label="Large files">
+            <LfsCard />
           </Row>
           {status.stashCount > 0 && <Row label="Stashes"><button type="button" className="text-accent-text hover:underline" onClick={() => setSection("branches")}>{plural(status.stashCount, "saved stash", "saved stashes")}</button></Row>}
         </dl>

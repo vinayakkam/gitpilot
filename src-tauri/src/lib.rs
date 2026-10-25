@@ -2,13 +2,16 @@
 
 pub mod ai;
 pub mod claude_code;
+pub mod cli;
 mod commands;
 pub mod db;
 pub mod error;
 pub mod git;
 pub mod github;
+pub mod opencode;
 pub mod secrets;
 pub mod settings;
+pub mod signing_keys;
 pub mod state;
 pub mod updates;
 pub mod watch;
@@ -30,6 +33,13 @@ pub fn run() {
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
             app.manage(st);
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                if let Some(st) = window.try_state::<state::AppState>() {
+                    st.release_window(window.label());
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::app::app_info,
@@ -68,8 +78,13 @@ pub fn run() {
             commands::changes::gitignore_add,
             commands::changes::untrack_paths,
             commands::changes::last_commit,
+            commands::changes::lfs_status,
+            commands::changes::lfs_track,
+            commands::changes::lfs_untrack,
+            commands::changes::lfs_install_hooks,
             commands::repos::repo_watch,
             commands::repos::repo_unwatch,
+            commands::repos::window_open_repo,
             commands::changes::commit_amend,
             commands::changes::commit_undo,
             commands::changes::discard_partial,
@@ -111,6 +126,10 @@ pub fn run() {
             commands::branches::stash_push,
             commands::branches::stash_apply,
             commands::branches::stash_drop,
+            commands::branches::worktree_list,
+            commands::branches::worktree_add,
+            commands::branches::worktree_remove,
+            commands::branches::worktree_prune,
             commands::remotes::remote_list,
             commands::remotes::remote_add,
             commands::remotes::remote_set_url,
@@ -119,6 +138,8 @@ pub fn run() {
             commands::remotes::sync_pull,
             commands::remotes::sync_push,
             commands::remotes::op_cancel,
+            commands::remotes::submodule_list,
+            commands::remotes::submodule_update,
             commands::github::github_account,
             commands::github::github_device_start,
             commands::github::github_device_wait,
@@ -134,7 +155,13 @@ pub fn run() {
             commands::assist::ai_pr_description,
             commands::assist::ai_conflict_help,
             commands::assist::claude_detect,
-            commands::assist::claude_launch,
+            commands::assist::opencode_detect,
+            commands::signing::signing_get,
+            commands::signing::signing_keys,
+            commands::signing::signing_enable,
+            commands::signing::signing_disable,
+            commands::signing::commit_signature,
+            commands::assist::assistant_launch,
             commands::assist::staged_diff_text,
             commands::assist::claude_auth_status,
             commands::assist::claude_login,

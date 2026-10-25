@@ -127,6 +127,24 @@ impl Default for ClaudeCodeSettings {
     }
 }
 
+/// The coding assistant the Assistant view opens in a terminal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum AssistantTool {
+    #[default]
+    ClaudeCode,
+    OpenCode,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export)]
+pub struct OpenCodeSettings {
+    /// Explicit path to the `opencode` executable; empty = auto-detect.
+    pub path: String,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 #[ts(export)]
@@ -157,7 +175,10 @@ pub struct Settings {
     /// Warn before committing files with Windows (CRLF) line endings into an LF repository.
     pub check_line_endings: bool,
     pub ai: AiSettings,
+    /// Claude Code's path, plus the terminal and launch options shared by every assistant.
     pub claude_code: ClaudeCodeSettings,
+    pub assistant_tool: AssistantTool,
+    pub opencode: OpenCodeSettings,
     pub github: GitHubSettings,
     /// Reopen the last repository on startup.
     pub reopen_last_repo: bool,
@@ -188,6 +209,8 @@ impl Default for Settings {
             check_line_endings: true,
             ai: AiSettings::default(),
             claude_code: ClaudeCodeSettings::default(),
+            assistant_tool: AssistantTool::default(),
+            opencode: OpenCodeSettings::default(),
             github: GitHubSettings::default(),
             reopen_last_repo: true,
             auto_refresh: true,

@@ -4,7 +4,7 @@ A desktop Git manager for Windows and Linux. GitPilot shows exactly what changed
 
 Built with Tauri 2 (Rust) and React. It runs your installed `git` executable; nothing is simulated.
 
-> Status: v0.4.2. Linux is built and tested; Windows installers are built by the GitHub Actions workflow and have been used on Windows. See [Known limitations](#known-limitations).
+> Status: v0.4.5. Linux is built and tested; Windows installers are built by the GitHub Actions workflow and have been used on Windows. See [Known limitations](#known-limitations).
 
 ## Features
 
@@ -28,7 +28,12 @@ Available now:
 - **Tags, stash selected files, discard single hunks or lines, and auto-refresh** when files change.
 - **.gitignore made easy** — right-click a file to ignore it, its extension or its folder; files committed before they were ignored are flagged with a one-click Stop tracking.
 - **Line-ending guard** — warns before you commit Windows (CRLF) line endings into an LF repository, which makes GitHub show every line as changed and breaks pull request suggestions ("context doesn't match"). One click converts the files.
-- **Claude Code** — detects the `claude` CLI, opens it in a terminal in the repository, with prompt templates filled from real repository context (branch, counts, file names, recent commits).
+- **Coding assistant** — opens Claude Code or OpenCode in a terminal in the repository, with prompt templates filled from real repository context (branch, counts, file names, recent commits).
+- **Multiple windows** — open any repository in its own window; settings apply to all windows at once.
+- **Worktrees** — check out another branch in its own folder, open it, remove it safely, clean up deleted ones.
+- **Submodules** — see each submodule's state, download or update them with progress.
+- **Git LFS** — see which file types are stored with LFS, track new ones, and get a warning when a repository needs LFS but it isn't installed.
+- **Signed commits** — set up SSH or GPG commit signing in a few clicks; History shows whether a commit's signature is verified.
 - **Updates in place** — checks GitHub Releases and installs signed updates without uninstalling (Windows installers, AppImage, .deb). See [docs/UPDATES.md](docs/UPDATES.md).
 - **Command palette** (`Ctrl+K`) — actions, branches, repositories, file history and commit search.
 - Light, dark and system themes; accent colours (classic blue by default, presets or any custom colour); comfortable/compact density; keyboard navigation throughout.
@@ -107,9 +112,9 @@ Settings → GitHub → **Sign in to GitHub**:
 
 The sign-in is used for GitHub's API only (repository list, pull requests). Cloning, fetching and pushing use your Git credential manager or SSH keys as before, so for private repositories over HTTPS you still need a credential helper (Git for Windows includes one), or choose SSH.
 
-## Claude Code integration
+## Coding assistant (Claude Code or OpenCode)
 
-GitPilot finds `claude` on `PATH` or in common install locations (`~/.local/bin`, `~/.claude/local`, npm global). The Assistant view builds a prompt from the repository's real state and opens Claude Code in a terminal in that folder (on Linux, `$TERMINAL` or the first known emulator; configurable). GitPilot never runs commands that Claude suggests.
+Choose the assistant in Settings → Coding assistant. GitPilot finds `claude` or `opencode` on `PATH` or in common install locations (`~/.local/bin`, `~/.claude/local`, `~/.opencode/bin`, npm global), or uses the path you set. The Assistant view builds a prompt from the repository's real state and opens the assistant in a terminal in that folder (on Linux, `$TERMINAL` or the first known emulator; configurable); OpenCode receives the prompt with `--prompt`. GitPilot never runs commands an assistant suggests.
 
 ## Troubleshooting
 
@@ -118,6 +123,8 @@ GitPilot finds `claude` on `PATH` or in common install locations (`~/.local/bin`
 - **"GitHub couldn't start the sign-in"** — the OAuth app's client ID is wrong or device flow isn't enabled for the app. Sign in with a token instead, or fix the client ID in Settings → GitHub.
 - **Blank window on Linux under some GPU/virtual setups** — try `WEBKIT_DISABLE_DMABUF_RENDERER=1`.
 - **"The system keychain isn't available"** — start a Secret Service (GNOME Keyring, KWallet) or use the environment variable fallback.
+- **"A submodule points to a folder on this computer"** — Git blocks submodules that use local paths unless you allow it (`git config protocol.file.allow always`). Only do this for repositories you trust.
+- **Signed commits fail** — GitPilot uses your key as is: a passphrase-protected SSH key needs to be loaded in your SSH agent, and a GPG key needs a working pinentry.
 - **Pull says branches diverged** — the default pull is fast-forward only. Choose merge or rebase in Settings → Git.
 
 ## Known limitations
@@ -126,6 +133,7 @@ GitPilot finds `claude` on `PATH` or in common install locations (`~/.local/bin`
 - Installers are unsigned until a code-signing certificate is configured — see [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md). Until then Windows shows a SmartScreen warning.
 - macOS is not a target.
 - Pull can't be cancelled once started.
+- Submodule updates can be cancelled, but a stopped update can leave a submodule half downloaded; run Update again.
 - GitHub features work with github.com only (not GitHub Enterprise Server), and list up to 1,000 of your repositories and the 50 most recently updated open pull requests.
 - Of the AI providers, only Claude Code has been exercised live; OpenRouter, Anthropic and OpenAI-compatible requests follow the documented APIs but haven't been run against the real services.
 
@@ -133,7 +141,7 @@ GitPilot finds `claude` on `PATH` or in common install locations (`~/.local/bin`
 
 - Git runs with argument vectors only (no shell); file paths always follow `--` with literal pathspecs; command-executing remote transports (`ext::`, `fd::`) are blocked.
 - The frontend refers to repositories by id; the backend decides which folder Git runs in.
-- Credentials in remote URLs are redacted everywhere they're displayed.
+- Credentials in remote URLs are redacted everywhere they're displayed, including submodule URLs.
 - AI keys and the GitHub token live in the OS keychain, never in the settings file. The GitHub token is sent only to api.github.com.
 - AI suggestions never change anything by themselves: conflict suggestions are applied only when you choose one, and only if the conflict still matches what the AI saw.
 - Destructive operations require confirmation in the UI *and* an explicit flag in the backend command.

@@ -21,6 +21,8 @@ pub struct AppState {
     pub watches: crate::watch::Watches,
     /// A "Sign in with GitHub" waiting for the user to enter the code.
     github_device: Mutex<Option<crate::github::PendingDevice>>,
+    /// Repositories each window watches, so a closed window's watches can be released.
+    window_watches: Mutex<HashMap<String, Vec<i64>>>,
 }
 
 impl AppState {
@@ -39,6 +41,7 @@ impl AppState {
             cancels: Mutex::new(HashMap::new()),
             watches: crate::watch::Watches::default(),
             github_device: Mutex::new(None),
+            window_watches: Mutex::new(HashMap::new()),
         })
     }
 
@@ -114,6 +117,46 @@ impl AppState {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .take()
+    }
+
+    pub fn note_watch(&self, window: &str, id: i64) {
+        self.window_watches
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .entry(window.to_string())
+            .or_default()
+            .push(id);
+    }
+
+    /// Forgets one watch of `id` by `window`. False if that window didn't hold one.
+    pub fn note_unwatch(&self, window: &str, id: i64) -> bool {
+        let mut map = self
+            .window_watches
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let Some(ids) = map.get_mut(window) else {
+            return false;
+        };
+        match ids.iter().position(|x| *x == id) {
+            Some(i) => {
+                ids.remove(i);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Releases every watch held by a window that was closed.
+    pub fn release_window(&self, window: &str) {
+        let ids = self
+            .window_watches
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(window)
+            .unwrap_or_default();
+        for id in ids {
+            self.watches.unwatch(id);
+        }
     }
 
     /// Per-repository lock that serializes mutating operations.

@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.4.5 — 2026-10-25
+
+### Work on more at once
+- **Open a repository in its own window.** Right-click a repository in Repositories (or search for it in the command palette) and choose **Open in new window**. If it's already open in a window, that window comes to the front. Settings changed in one window apply to all of them.
+- **Worktrees.** Branches → Worktrees → **New worktree…** checks out another branch in its own folder, so you can work on two branches without stashing. Open a worktree in GitPilot or in a new window, remove it (GitPilot refuses if it has changes that aren't committed), or clean up worktrees whose folders were deleted. Switching to a branch that's open in another worktree now explains why Git refuses.
+
+### Repositories that include other things
+- **Submodules.** Remotes lists a repository's submodules with their state (up to date, not downloaded, different commit checked out). **Download**, **Update** or **Update all**, with progress; open a submodule in GitPilot or a new window. Changed submodules in Changes have **Update submodule** in their menu.
+- **Git LFS.** Overview shows which file types a repository stores with Git LFS and how many of those files are downloaded. **Store a file type with LFS…**, stop storing one, and set up LFS for the repository. If a repository uses LFS but it isn't installed, Changes says so before you commit pointer files by mistake.
+
+### Signed commits
+- **Commit signing setup.** Settings → Git → Commit signing: pick one of your SSH or GPG keys and turn signing on for all repositories or just the open one. SSH signatures are set up so Git can verify them.
+- **Verified in History.** A commit's details show **Verified**, **Signed, unverified**, **Bad signature** and similar, with the signer on hover.
+
+### Assistant
+- **OpenCode.** Settings → Coding assistant (formerly Claude Code) lets the Assistant open **OpenCode** instead of Claude Code, with the same prompts. Claude Code is still used for AI commit messages when you pick it as the AI provider.
+
+### Fixed
+- A submodule that points to a folder on this computer now explains Git's safety block instead of showing a raw error.
+
 ## 0.4.2 — 2026-10-25
 
 ### GitHub
