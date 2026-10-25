@@ -74,7 +74,8 @@ describe("GitHubRepoPicker", () => {
     api.githubRepos.mockResolvedValue([ghRepo("me/web-app"), ghRepo("octo/cli")]);
     const onPick = vi.fn();
     inStore(<GitHubRepoPicker onPick={onPick} />);
-    fireEvent.change(await screen.findByLabelText("Search your repositories"), { target: { value: "cli" } });
+    expect(await screen.findByText("me/web-app")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Search your repositories"), { target: { value: "cli" } });
     expect(screen.queryByText("me/web-app")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("radio", { name: "SSH" }));
     fireEvent.click(screen.getByText("octo/cli"));
