@@ -4,6 +4,10 @@
 # Optional repository secrets:
 #   TAURI_SIGNING_PRIVATE_KEY / TAURI_SIGNING_PRIVATE_KEY_PASSWORD  → signed update packages + latest.json (in-app updates)
 #   WINDOWS_CERTIFICATE / WINDOWS_CERTIFICATE_PASSWORD              → Authenticode-signed Windows installers
+#
+# Optional repository variable (Settings → Secrets and variables → Actions → Variables):
+#   GITPILOT_GITHUB_CLIENT_ID → client ID of a GitHub OAuth app with device flow enabled, built in
+#                               for "Sign in with GitHub" (without it, users sign in with a token)
 name: Build installers
 
 on:
@@ -40,6 +44,7 @@ jobs:
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          GITPILOT_GITHUB_CLIENT_ID: ${{ vars.GITPILOT_GITHUB_CLIENT_ID }}
         run: |
           $config = @{ bundle = @{} }
           if ($env:TAURI_SIGNING_PRIVATE_KEY) {
@@ -104,6 +109,7 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          GITPILOT_GITHUB_CLIENT_ID: ${{ vars.GITPILOT_GITHUB_CLIENT_ID }}
         run: |
           if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
             npm run tauri build -- --bundles deb,appimage --config '{"bundle":{"createUpdaterArtifacts":true}}'

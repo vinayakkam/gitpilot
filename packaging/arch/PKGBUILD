@@ -2,7 +2,7 @@
 # Repackages the GitPilot .deb for Arch Linux / CachyOS / Manjaro / EndeavourOS.
 # Build: put GitPilot_<version>_amd64.deb next to this file (LICENSE is included here), then run `makepkg -si`.
 pkgname=gitpilot-bin
-pkgver=0.4.0
+pkgver=0.4.2
 pkgrel=1
 pkgdesc="Desktop Git manager: changes, diffs, hunk staging, history, branches, remotes"
 arch=('x86_64')
@@ -10,15 +10,15 @@ url="https://olittechnologies.co.in"
 license=('MIT')
 depends=('git' 'webkit2gtk-4.1' 'gtk3' 'libsoup3' 'dbus' 'hicolor-icon-theme')
 optdepends=(
-  'gnome-keyring: store AI API keys securely (or kwallet / any Secret Service provider)'
-  'kwallet: store AI API keys securely on KDE'
+  'gnome-keyring: store AI API keys and the GitHub sign-in securely (or kwallet / any Secret Service provider)'
+  'kwallet: store AI API keys and the GitHub sign-in securely on KDE'
   'xterm: a terminal for opening Claude Code (any terminal emulator works)'
 )
 provides=('gitpilot')
 conflicts=('gitpilot')
 options=('!strip' '!debug')
 source=("GitPilot_${pkgver}_amd64.deb" "LICENSE")
-sha256sums=('a0c72b1de49c564f18c5838b596f9f052063ca3f1eb51c844d5efd3c26edadc5'
+sha256sums=('1a322185999296fec3967565f4b0ac7981401eb529e80146416ac8254ea02230'
             'd1c1376cd0a251e9f38eed5a50df9cd4a7193f321be5161bebe166ff2fd7b49d')
 
 package() {

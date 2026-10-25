@@ -8,7 +8,9 @@
 GitPilot is a cross-platform (Windows + Linux) desktop Git manager. It manages multiple
 repositories, shows working-tree changes and diffs, stages/unstages (file and hunk level),
 commits, browses history, manages branches and remotes, runs fetch/pull/push, generates
-optional AI commit-message suggestions, and launches Claude Code in a repository.
+optional AI help (commit messages, explanations, pull request descriptions, conflict
+suggestions), works with GitHub (sign-in, clone from your list, pull requests), and launches
+Claude Code in a repository.
 
 Audience: beginners who want Git explained, and experienced developers who want a fast,
 precise GUI. Core principle: make Git understandable, make risky operations safe, feel like
@@ -26,7 +28,8 @@ React UI ──invoke()──▶ Tauri commands (src-tauri/src/commands/*) ─�
                                                                       ├─ db.rs     (SQLite: repo registry)
                                                                       ├─ settings.rs (JSON settings file)
                                                                       ├─ secrets.rs  (OS keychain)
-                                                                      ├─ ai.rs       (commit-message providers)
+                                                                      ├─ ai.rs       (AI providers + prompts)
+                                                                      ├─ github.rs   (GitHub API, device-flow sign-in)
                                                                       ├─ claude_code.rs (detect/launch CLI)
                                                                       ├─ watch.rs    (auto-refresh file watcher)
                                                                       └─ updates.rs  (install kind for the updater)
@@ -44,6 +47,7 @@ React UI ──invoke()──▶ Tauri commands (src-tauri/src/commands/*) ─�
   (`Repo`: status, staging, commits, branches, remotes, sync), `everyday.rs` (amend/undo,
   tags, partial discard), `explore.rs` (blame, compare, image previews), `rewrite.rs`
   (conflict blocks, interactive rebase, reset, backups), `eol.rs` (line-ending guard),
+  `pulls.rs` (checking out GitHub pull requests), `assist.rs` (diffs and commit lists sent to AI),
   `validate.rs` (input validation), `errors.rs` (stderr → `ErrorKind` classification),
   `redact.rs` (strips credentials from URLs/output before anything reaches the UI).
 - Commands take a `repo_id`, never a path. The backend resolves the path from the
@@ -56,17 +60,31 @@ React UI ──invoke()──▶ Tauri commands (src-tauri/src/commands/*) ─�
   Nothing that Git can answer reliably is stored.
 - `settings.rs`: `<app_config_dir>/settings.json`, typed `Settings` struct with serde defaults
   (missing/unknown fields tolerated).
-- `secrets.rs`: AI API keys in the OS keychain (Secret Service on Linux, Credential Manager
-  on Windows). Never in settings.json. Env var fallback (read-only): `GITPILOT_AI_API_KEY`,
-  `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` (Claude Code uses its own sign-in).
+- `secrets.rs`: AI API keys and the GitHub token in the OS keychain (Secret Service on Linux,
+  Credential Manager on Windows). Never in settings.json. Env var fallback (read-only):
+  `GITPILOT_AI_API_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` (Claude Code
+  uses its own sign-in); GitHub: `GITPILOT_GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_TOKEN`.
 
 ### AI (`ai.rs`)
 Provider enum: `OpenRouter` (default; `/chat/completions`, `/models`, `/key`), `ClaudeCode`
 (runs the user's signed-in Claude Code CLI headless — see `claude_code::print`), `Anthropic`
 (Messages API) and `OpenAiCompatible` (OpenAI, local servers like Ollama/LM Studio that speak
-`/v1/chat/completions`). Only the **staged**
-diff is sent; files matching sensitive patterns (`.env*`, keys, certs) are excluded and the
-diff is size-capped. Failures return errors — never fabricated suggestions. AI is off by default.
+`/v1/chat/completions`). Every feature goes through `ai::complete` (one system + user prompt).
+Features: commit messages (staged diff only), explain a commit or one file's changes, pull
+request title/description (branch commits + diff since the base), conflict suggestions (the
+conflict blocks with a few lines of context). Files matching sensitive patterns (`.env*`,
+keys, certs) are excluded and input is size-capped. Replies are parsed strictly; failures
+return errors — never fabricated output. AI is off by default and needs the privacy
+acknowledgement (`ai_ctx` in `commands/assist.rs`).
+
+### GitHub (`github.rs`, `git/pulls.rs`, `features/github`)
+github.com only, via api.github.com (REST + one GraphQL query for pull requests with checks and
+review state). Sign-in: OAuth device flow (client ID from Settings → GitHub, else built in with
+`GITPILOT_GITHUB_CLIENT_ID` at compile time; the device code stays in the backend) or a personal
+access token checked with `/user` before it is stored. Git operations never use this token:
+clone/fetch/push keep using the user's credential helper or SSH. Pull request checkout: same-repo
+PRs become their tracking branch; fork PRs are fetched from `refs/pull/<n>/head` into `pr-<n>`;
+existing branches are only fast-forwarded (`update-ref` with the old value).
 
 ### Claude Code (`claude_code.rs`)
 Detects `claude` on PATH plus known per-OS install locations; user can override the path.
@@ -157,9 +175,10 @@ libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev build-essential file`.
 ## Current implementation state
 
 See `DEVELOPMENT.md` → "Feature tracker", "Current implementation details" and "Known issues" for
-the authoritative status. In short (0.4.0): all core features are implemented and verified on Linux,
-and on Windows by the user; AI: Claude Code provider verified live, the others not;
-see DEVELOPMENT.md for what's verified per release.
+the authoritative status. In short (0.4.2): all core features are implemented and verified on Linux,
+and on Windows by the user (up to 0.4.0); AI: Claude Code provider verified live, the others not;
+0.4.2's GitHub and AI features are unit/integration-tested and visually checked with a mocked
+backend, but not yet exercised with a real GitHub sign-in or a live AI provider (see DEVELOPMENT.md).
 
 Environment notes: `cargo test`/`cargo clippy` rebuild `target/debug/gitpilot` in dev-server mode (it
 loads http://localhost:1420), so for manual runs use `npm run tauri dev` or a `tauri build` output.
@@ -186,6 +205,9 @@ Key decisions:
 - Fetch freshness comes from `FETCH_HEAD` mtime, not stored state.
 - External links: always `openLink()` from `src/lib/links.ts` (never `openUrl` directly). The opener capability is scoped to `https://*`; a URL outside the scope fails and shows a Copy link toast.
 - History rewriting (`git/rewrite.rs`): every reset / commit edit first saves a backup ref under `refs/gitpilot/backups/<ms>-<branch>` (uncommitted tracked changes under `refs/gitpilot/wip/`, labels under `refs/gitpilot/labels/`). Restore backs up the current state first. Interactive rebase runs from a generated todo (`build_todo`), never an editor.
+- AI conflict suggestions are applied with `conflict_apply_text`, which replaces a block only if
+  it still matches the text the AI saw (`rewrite::replace_block_text`).
+- Settings sections can be opened directly: `openSettings("ai" | "github" | …)` in the store.
 - Update notes: `latest.json` gets plain text (`scripts/notes.mjs`) because older versions display it raw; `ReleaseNotes` renders both plain and Markdown.
 
 ## Session continuity rules

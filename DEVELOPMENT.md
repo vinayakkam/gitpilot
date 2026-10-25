@@ -4,10 +4,10 @@
 
 - **Phase:** 6 — reliability and refinement (implemented on Linux and Windows; Windows verified by the user)
 - **Overall:** core Git workflow, branches, remotes, sync, AI provider integration, Claude Code integration and settings are implemented and verified on Linux against real repositories. Linux packages (deb, AppImage) build and launch.
-- **Current working area:** cross-platform verification and remaining feature gaps
-- **Most recently completed:** v0.4.0 — Batches A–C: everyday Git (amend, undo, tags, stash selected files, discard hunks/lines, auto-refresh), understanding code (blame, commit graph, compare any refs, image previews), conflicts and history (conflict resolver, edit commits, reset with backups) (session 8). Before that: v0.3.1 — readable update notes, Add to .gitignore (session 7)
+- **Current working area:** 0.4.2 (Batch D: GitHub and AI) — implemented on branch `release/0.4.2`, not pushed or released yet
+- **Most recently completed:** v0.4.2 (session 9, not released) — GitHub sign-in, clone from your repository list, pull requests (list with checks, create, check out), AI explain, AI pull request descriptions, AI conflict help. Before that: v0.4.0 — Batches A–C: everyday Git (amend, undo, tags, stash selected files, discard hunks/lines, auto-refresh), understanding code (blame, commit graph, compare any refs, image previews), conflicts and history (conflict resolver, edit commits, reset with backups) (session 8). Before that: v0.3.1 — readable update notes, Add to .gitignore (session 7)
 - **Windows:** verified by the user on a real Windows machine (2026-10-21, all features working); this environment still can't build for Windows
-- **Immediate next task:** 0.4.2 (Batch D) — the user confirmed 0.4.0 is complete and asked to start it (session 9, branch `release/0.4.2`).
+- **Immediate next task:** the user reviews branch `release/0.4.2`, tries GitHub sign-in and pull requests with a real account, and decides whether to merge, tag and release it. Then 0.4.5 (Batch E) — only when the user asks.
 
 ## Feature tracker
 
@@ -31,13 +31,15 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 - [x] Blame, commit graph, compare any refs, image previews (0.4.0)
 - [x] Conflict resolver, edit commits (interactive rebase), reset with backups + restore (0.4.0)
 - [~] AI commit message generation (OpenRouter default, Claude Code account, Anthropic, OpenAI-compatible). **Claude Code provider verified live in the real app.** OpenRouter/Anthropic/OpenAI request shapes unit-tested only (openrouter.ai unreachable from the build sandbox)
+- [~] AI explain (commit, one file's changes), AI pull request description, AI conflict help (0.4.2): prompts/parsers unit-tested, inputs integration-tested, UI checked with a mocked backend; no live provider call yet
+- [~] GitHub (0.4.2): sign-in (device flow + token), clone from your repository list, pull requests (list with checks/review, create, check out incl. forks). Parsers unit-tested, PR checkout integration-tested on a local remote and live against github.com (public fork PR), UI checked with a mocked backend; **not yet used with a real signed-in account**
 - [x] Accent colours (11 presets + custom; OKLCH-derived tokens; contrast unit-tested for every preset in both themes)
 - [x] .gitignore support (Add to .gitignore dialog; tracked-but-ignored files flagged with Stop tracking; integration-tested and verified in the real app)
 - [x] Line-ending guard (CRLF into LF repos; detection + fix + .gitattributes; integration-tested and verified in the real app)
 - [x] Claude Code integration (detection verified with real CLI 2.1.304; terminal launch verified with xterm + stand-in executable; prompt passed as one argv entry)
 - [x] Application settings (persisted JSON, validated; keychain for keys with env fallback)
 - [x] Error handling and safety (classified errors, plain messages + technical details, confirmations + backend flags)
-- [x] Automated tests (Rust 102 unit + 21 integration on temp repos; frontend 65 vitest — counts at the end of session 8)
+- [x] Automated tests (Rust 132 unit + 23 integration on temp repos, plus 1 opt-in live GitHub test; frontend 82 vitest — end of session 9)
 - [~] UI polish and visual QA (all main screens inspected on Linux/Xvfb, light + dark, min size; no screen-reader testing)
 - [x] Windows packaging (MSI + NSIS built by `.github/workflows/build-installers.yml` on windows-latest; installed and used by the user)
 - [x] Linux packaging (deb 5.1 MB and AppImage 80 MB built; AppImage launched; Arch/CachyOS `gitpilot-bin` package built with makepkg from `packaging/arch/PKGBUILD` — not yet installed on a real Arch system)
@@ -45,6 +47,18 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 - [~] Documentation and release preparation (README, CLAUDE.md, INSTALL.md, CHANGELOG, this file; CI builds installers and releases on tags; update packages are signed, installers are not — no code-signing certificate)
 
 ## Work log
+
+### Session 9 — 2026-10-25 (v0.4.2, branch `release/0.4.2`, not pushed)
+- User confirmed 0.4.0 is complete and asked to start 0.4.2, fix the documentation mismatches, work on a new branch, commit as much as possible and not push. First session on the user's own CachyOS machine (Node 26.11, Rust/cargo 1.98, git 2.56); `npm ci` was needed (fresh checkout). Baseline before changes: Rust 102 + 21, vitest 65, all checks pass.
+- **Docs** (c7e563e): DEVELOPMENT/CLAUDE/README/INSTALL brought in line with 0.4.0 (stale "most recent", duplicated tracker and README lines, "no file watcher", "no CI", non-existent `ops.rs`/`branches.rs`/`remotes.rs`, Windows "not yet built", version-specific file names).
+- **AI** (e8ad89e): `ai::complete` shared by every feature; `explain`, `pr_description`, `conflict_help` with strict JSON parsing; `rewrite.rs` now has one conflict scanner (`scan_conflicts`) behind `resolve_block`, `conflict_blocks` and `replace_block_text`; `git/assist.rs` builds the inputs. Commands `ai_explain` (tagged `ExplainTarget`), `ai_pr_description`, `ai_conflict_help`, `conflict_apply_text`. UI: `ExplainDialog`, `AiNote`/`AiError`, `ConflictHelpDialog` (editable suggestions, applied one at a time, later conflicts renumbered). Store gained `settingsTab`/`openSettings`.
+- **GitHub backend** (4a3fa8d): `github.rs`, `git/pulls.rs`, `commands/github.rs`, keychain slots in `secrets.rs`, `settings.github.clientId`, error kinds `githubNotSignedIn`/`githubFailed`. **UI** (ec1b478): Settings → GitHub, `SignInDialog`, `GitHubAccountCard`, clone picker, Pull requests section (Ctrl+7), `CreatePullRequestDialog`.
+- Bug found by probing the real endpoint: an unknown client ID makes `/login/device/code` return a bare 404, which read as "couldn't find that repository" → sign-in errors now name the client ID (2ce82cd). Live (opt-in) test checks out octocat/Hello-World#1, a fork PR, over HTTPS: passes.
+- Visual QA without Xvfb/xdotool (not installed): Vite with a mocked `__TAURI_INTERNALS__.invoke` and Playwright's cached headless Chromium driven over CDP (scripts kept in the session scratchpad, not in the repo). Checked light/dark and 900×580: Pull requests list, create dialog with AI text, unpushed-branch notice, Settings → GitHub, sign-in code and token views, clone picker (SSH pick fills URL and folder), Explain, conflict help. Found raw backticks in conflict help → rendered as markup (5bbb5f6).
+- "Write with AI" with a base branch that isn't fetched now says to fetch first (11db40a).
+- CI passes an optional `GITPILOT_GITHUB_CLIENT_ID` repository variable to the builds.
+- Release: version 0.4.2 in package.json, Cargo.toml, tauri.conf.json, PKGBUILD (checksum of the local release .deb; `makepkg` built `gitpilot-bin-0.4.2-1` from it).
+- Checks at the end: cargo fmt, clippy -D warnings, cargo test 132 unit + 23 integration (+1 ignored live), tsc, eslint, vitest 82, `npm run build`, release `.deb` build (5.8 MB). The release binary wasn't launched (no Xvfb here; it would open on the user's desktop).
 
 ### Session 8 — 2026-10-21 (v0.4.0)
 - User asked for the whole feature list; split into batches. A–C ship as **0.4.0**; D is planned for **0.4.2** and E for **0.4.5** (see Roadmap); nothing started until the user says 0.4.0 is complete.
@@ -163,7 +177,8 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 - **Discard:** tracked → backup copy in `<app_data>/discard-backups/<ms-timestamp>/` then `git restore --worktree`; untracked → OS trash, only after `git ls-files --others` confirms they're untracked.
 - **Conflicts:** shown with ours/theirs regions; "Mark as resolved" stages. "Stage everything" deliberately skips conflicted files.
 - **Merge/rebase/cherry-pick/revert:** started from the UI or a terminal; Continue/Skip/Abort in the Changes banner. Interactive rebase via Edit commits (0.4.0).
-- **AI:** off by default; requires privacy acknowledgement; staged diff only, sensitive file patterns excluded, 48 k char cap; errors never replaced with fabricated output.
+- **AI:** off by default; requires privacy acknowledgement; sensitive file patterns excluded, 48 k char cap; errors never replaced with fabricated output. Inputs: commit messages = staged diff; explain = a commit's diff or one file's changes (untracked files as added); PR description = commit messages (max 100) + diff `base...HEAD`; conflict help = the file's conflict blocks with 8 lines of context (sensitive files refused). Conflict suggestions apply only if the block is unchanged.
+- **GitHub:** api.github.com only, 30 s timeout, `X-GitHub-Api-Version: 2022-11-28`. Repository list: up to 10 pages × 100, sorted by last push, filtered client-side. Pull requests: one GraphQL query, 50 most recently updated open PRs. The link to GitHub prefers the current branch's remote, then `origin`, then the first github.com remote; forks show the parent's PRs by default. Creating a PR requires the branch to be pushed with nothing ahead; `head` is `owner:branch` across forks. Device flow: device code kept in `AppState`, waiting is cancellable (`op_cancel("github-login")`), slow_down honoured, network blips retried.
 - **Keychain:** Linux Secret Service via `keyring` (sync-secret-service + crypto-rust); in headless/no-DBus environments the UI shows the env-var fallback.
 - **Accessibility:** labels on icon buttons, tooltips, roles for lists/menus/dialogs, keyboard navigation, focus rings, non-color status. Not tested with a screen reader.
 
@@ -176,10 +191,12 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 5. **Native `title` tooltips** elsewhere (not file rows, fixed in 0.3.1) still render as GTK tooltips.
 6. **Sidebar doesn't auto-collapse** at narrow widths (user can collapse it).
 7. **CI doesn't gate on tests:** `.github/workflows/build-installers.yml` runs only on `v*` tags and manual dispatch; Windows `cargo test` failures don't block the installer. A test workflow on every push is planned for 0.4.5 (roadmap item 12).
+8. **GitHub features not used with a real account yet** (session 9): no OAuth app client ID exists for GitPilot, so "In the browser" sign-in is hidden unless one is entered in Settings → GitHub or built in (`GITPILOT_GITHUB_CLIENT_ID`, CI repository variable). The token sign-in, repository list, pull request list/create and the AI features were not exercised against the real services from this environment (no token or AI key used). Verified live: public API response shapes, the device-code error for an unknown client ID, and checking out a fork pull request over HTTPS.
+9. **Git over HTTPS doesn't use the GitHub sign-in:** cloning a private repository over HTTPS still needs a credential helper (or SSH). Deliberate for now; a possible follow-up is passing the token to git via `GIT_CONFIG_*` environment variables for github.com only.
 
 ## Roadmap (agreed with the user, 2026-10-21)
 
-**0.4.2 — Batch D: GitHub and AI**
+**0.4.2 — Batch D: GitHub and AI** (implemented in session 9; see Known issues #8 for what still needs a real account)
 1. Sign in with GitHub (OAuth device flow; needs the user's OAuth App Client ID, otherwise personal access token fallback; token in the OS keychain).
 2. Clone from your GitHub repo list (search).
 3. Pull requests: open a PR for the current branch, list open PRs with status/checks, check out a PR locally, open on GitHub.
@@ -197,7 +214,12 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 
 ## Next-session handoff
 
-**Continue with:** Batch D (0.4.2) on branch `release/0.4.2` — see the session 9 entry in the work log for what is done and what is left.
+**Continue with:** branch `release/0.4.2` is complete and committed but not pushed. Before releasing:
+1. With a real GitHub account: Settings → GitHub → sign in with a token; clone from the list; in a repository with a GitHub remote open Pull requests (checks/review shown), create a draft pull request, check out a pull request from a fork and one from the same repository.
+2. To offer "In the browser" sign-in: create a GitHub OAuth app (Developer settings → OAuth Apps, enable device flow; callback URL can be the repository URL), then either enter its client ID in Settings → GitHub or set the `GITPILOT_GITHUB_CLIENT_ID` repository variable so CI builds it in.
+3. With AI enabled: Explain in History and Changes, Write with AI in the pull request window, Ask AI on a real merge conflict.
+4. Then merge to main, tag `v0.4.2` (CI checks the tag matches the version) and push the tag.
+5. `packaging/arch/PKGBUILD` has the checksum of the locally built 0.4.2 .deb; if the released .deb is the CI build, update `sha256sums` from the release asset (as for earlier releases).
 
 Still unverified from earlier releases (each needs a hands-on check by the user or on a machine with network access and a desktop session):
 1. OpenRouter end to end: save key → key verified → model list → suggestion. Then Anthropic and an OpenAI-compatible endpoint (e.g. Ollama `http://localhost:11434/v1`).
