@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { Download, GitBranch, Info, Palette, Search, Settings2, Sparkles, Terminal } from "lucide-react";
+import { Download, GitBranch, GitPullRequest, Info, Palette, Search, Settings2, Sparkles, Terminal } from "lucide-react";
 import { openLink } from "@/lib/links";
 import type { Settings } from "@/bindings/Settings";
 import { Button } from "@/components/ui/Button";
@@ -14,6 +14,8 @@ import { UpdateSettings } from "@/features/updates/UpdateSettings";
 import { AiPane } from "./AiPane";
 import { AppearancePane } from "./AppearancePane";
 import { ClaudeAccount } from "./ClaudeAccount";
+import { GitHubAccountCard } from "@/features/github/GitHubAccountCard";
+import { githubAccountChanged } from "@/features/github/useGitHubAccount";
 import { Group, PaneHeader, TextSetting, type PaneProps } from "./parts";
 
 
@@ -22,6 +24,7 @@ const TABS: { id: SettingsTab; label: string; icon: ReactNode; keywords: string 
   { id: "general", label: "General", icon: <Settings2 size={15} />, keywords: "startup reopen last repository notifications success toast repositories auto refresh watch files changes" },
   { id: "appearance", label: "Appearance", icon: <Palette size={15} />, keywords: "theme dark light system accent colour color blue custom density compact diff layout side by side unified syntax highlighting" },
   { id: "git", label: "Git", icon: <GitBranch size={15} />, keywords: "git executable path identity name email initial branch main pull strategy fast-forward merge rebase commit message conventional line endings crlf lf gitattributes windows github pull request context" },
+  { id: "github", label: "GitHub", icon: <GitPullRequest size={15} />, keywords: "github account sign in login token personal access oauth device pull requests clone repositories client id" },
   { id: "ai", label: "AI", icon: <Sparkles size={15} />, keywords: "ai commit message suggestions openrouter model key api anthropic claude openai ollama lm studio privacy provider free" },
   { id: "claude", label: "Claude Code", icon: <Terminal size={15} />, keywords: "claude code account sign in login subscription terminal executable path launch prompt" },
   { id: "updates", label: "Updates", icon: <Download size={15} />, keywords: "update version check automatic install restart release" },
@@ -71,6 +74,7 @@ export function SettingsView() {
           {active === "general" && <GeneralPane {...props} />}
           {active === "appearance" && <AppearancePane {...props} />}
           {active === "git" && <GitPane {...props} />}
+          {active === "github" && <GitHubPane {...props} />}
           {active === "ai" && <AiPane settings={settings} save={saveSettings} />}
           {active === "claude" && <ClaudeCodePane {...props} />}
           {active === "updates" && <UpdatesPane />}
@@ -169,6 +173,32 @@ function GitPane({ settings, set }: PaneProps) {
       </Group>
       <Group title="New repositories">
         <TextSetting label="Initial branch name" hint="Used when GitPilot creates a repository. Leave empty to use Git's default (init.defaultBranch)." value={settings.defaultBranch} placeholder="main" mono onSave={(defaultBranch) => set({ defaultBranch })} />
+      </Group>
+    </>
+  );
+}
+
+function GitHubPane({ settings, save }: PaneProps) {
+  return (
+    <>
+      <PaneHeader title="GitHub" description="List your repositories when cloning, see open pull requests with their checks, open new ones, and check them out locally." />
+      <Group title="Account">
+        <GitHubAccountCard />
+        <p className="text-sm text-muted">The sign-in is used for GitHub's website features only. Cloning, fetching and pushing keep using your Git credentials (credential manager or SSH keys), as before.</p>
+      </Group>
+      <Group title="Sign-in app" description="Signing in through the browser needs a GitHub OAuth app with device flow enabled. Leave this empty to use the one built into GitPilot, if your version has one.">
+        <TextSetting
+          label="OAuth app client ID"
+          hint="Found on your OAuth app's page under GitHub → Settings → Developer settings. It isn't a secret."
+          value={settings.github.clientId}
+          mono
+          placeholder="Ov23li…"
+          onSave={async (clientId) => {
+            const ok = await save((s) => ({ ...s, github: { ...s.github, clientId: clientId.trim() } }));
+            githubAccountChanged();
+            return ok;
+          }}
+        />
       </Group>
     </>
   );

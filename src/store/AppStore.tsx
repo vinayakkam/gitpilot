@@ -10,9 +10,9 @@ import { LINK_FAILED_EVENT } from "@/lib/links";
 import { api, onProgress } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
 
-export type Section = "overview" | "changes" | "history" | "branches" | "remotes" | "assistant";
+export type Section = "overview" | "changes" | "history" | "branches" | "remotes" | "assistant" | "pulls";
 export type Page = "repo" | "repositories" | "settings";
-export type SettingsTab = "general" | "appearance" | "git" | "ai" | "claude" | "updates" | "about";
+export type SettingsTab = "general" | "appearance" | "git" | "github" | "ai" | "claude" | "updates" | "about";
 
 export interface Toast {
   id: number;

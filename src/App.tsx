@@ -13,6 +13,7 @@ import { HistoryView } from "@/features/history/HistoryView";
 import { RepoActionsProvider, useRepoActions } from "@/features/onboarding/RepoActions";
 import { Welcome } from "@/features/onboarding/Welcome";
 import { OverviewView } from "@/features/overview/OverviewView";
+import { PullRequestsView } from "@/features/github/PullRequestsView";
 import { CommandPalette } from "@/features/palette/CommandPalette";
 import { RemotesView } from "@/features/remotes/RemotesView";
 import { RepositoriesView } from "@/features/repositories/RepositoriesView";
@@ -67,6 +68,7 @@ function RepoWorkspace() {
         {section === "branches" && <BranchesView />}
         {section === "remotes" && <RemotesView />}
         {section === "assistant" && <AssistantView />}
+        {section === "pulls" && <PullRequestsView />}
       </main>
     </div>
   );
@@ -85,7 +87,7 @@ function Shell() {
       } else if (mod && e.key === ",") {
         e.preventDefault();
         setPage("settings");
-      } else if (mod && !e.shiftKey && /^[1-6]$/.test(e.key) && activeRepo) {
+      } else if (mod && !e.shiftKey && /^[1-7]$/.test(e.key) && activeRepo) {
         e.preventDefault();
         const s = SECTIONS[Number(e.key) - 1];
         if (s) setSection(s.id);

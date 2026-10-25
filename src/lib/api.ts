@@ -11,6 +11,12 @@ import type { BranchComparison } from "@/bindings/BranchComparison";
 import type { ClaudeAuthStatus } from "@/bindings/ClaudeAuthStatus";
 import type { ClaudeCodeInfo } from "@/bindings/ClaudeCodeInfo";
 import type { CommitDetail } from "@/bindings/CommitDetail";
+import type { CreatedPull } from "@/bindings/CreatedPull";
+import type { DeviceCode } from "@/bindings/DeviceCode";
+import type { GitHubAccount } from "@/bindings/GitHubAccount";
+import type { GitHubLink } from "@/bindings/GitHubLink";
+import type { GitHubRepo } from "@/bindings/GitHubRepo";
+import type { GitHubUser } from "@/bindings/GitHubUser";
 import type { DiscardResult } from "@/bindings/DiscardResult";
 import type { EolReport } from "@/bindings/EolReport";
 import type { ExplainTarget } from "@/bindings/ExplainTarget";
@@ -32,6 +38,8 @@ import type { LogQuery } from "@/bindings/LogQuery";
 import type { OpenRouterKeyInfo } from "@/bindings/OpenRouterKeyInfo";
 import type { OpenRouterModel } from "@/bindings/OpenRouterModel";
 import type { PathInspection } from "@/bindings/PathInspection";
+import type { PrCheckout } from "@/bindings/PrCheckout";
+import type { PullRequest } from "@/bindings/PullRequest";
 import type { PrDescription } from "@/bindings/PrDescription";
 import type { PullOptions } from "@/bindings/PullOptions";
 import type { ProgressEvent } from "@/bindings/ProgressEvent";
@@ -174,7 +182,22 @@ export const api = {
       confirmedForce: opts.forceWithLease ?? false,
     }),
 
-  /** Cancels a running clone ("clone") or a fetch/push in a repository ("repo:<id>"). */
+  // GitHub
+  githubAccount: () => invoke<GitHubAccount>("github_account"),
+  githubDeviceStart: () => invoke<DeviceCode>("github_device_start"),
+  /** Resolves once the user approved the sign-in on GitHub. Cancel with opCancel("github-login"). */
+  githubDeviceWait: () => invoke<GitHubUser>("github_device_wait"),
+  githubTokenSet: (token: string) => invoke<GitHubUser>("github_token_set", { token }),
+  githubSignOut: () => invoke<void>("github_sign_out"),
+  githubRepos: () => invoke<GitHubRepo[]>("github_repos"),
+  githubLink: (id: number) => invoke<GitHubLink | null>("github_link", { id }),
+  githubPulls: (owner: string, name: string) => invoke<PullRequest[]>("github_pulls", { owner, name }),
+  githubPullCreate: (id: number, owner: string, name: string, base: string, title: string, body: string, draft: boolean) =>
+    invoke<CreatedPull>("github_pull_create", { id, owner, name, base, title, body, draft }),
+  githubPullCheckout: (id: number, owner: string, name: string, number: number) =>
+    invoke<PrCheckout>("github_pull_checkout", { id, owner, name, number }),
+
+  /** Cancels a running clone ("clone"), a fetch/push in a repository ("repo:<id>") or a GitHub sign-in ("github-login"). */
   opCancel: (key: string) => invoke<boolean>("op_cancel", { key }),
 
   // assistance
