@@ -35,6 +35,7 @@ import { plural, relativeTime } from "@/lib/format";
 import { useAsync } from "@/lib/useAsync";
 import { TagsSection } from "./TagsSection";
 import { BackupsSection } from "./BackupsSection";
+import { WorktreesSection } from "./WorktreesSection";
 import { CompareFilesDialog, type CompareTarget } from "@/features/compare/CompareFilesDialog";
 import { useIntegrate } from "@/lib/useIntegrate";
 import { useStore } from "@/store/AppStore";
@@ -213,6 +214,7 @@ export function BranchesView() {
               )}
             </section>
             <TagsSection query={q} />
+            <WorktreesSection />
             <BackupsSection />
           </>
         )}

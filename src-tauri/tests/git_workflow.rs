@@ -2062,3 +2062,71 @@ async fn submodules_are_listed_and_updated() {
         SubmoduleState::UpToDate
     );
 }
+
+#[tokio::test]
+async fn worktrees_are_added_listed_and_removed_safely() {
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    write(&root, "a.txt", "1\n");
+    r.stage_all().await.unwrap();
+    r.commit("one").await.unwrap();
+    r.branch_create("fix", None, false).await.unwrap();
+
+    let place = tempfile::tempdir().unwrap();
+    let fix_dir = place.path().join("app-fix");
+    let added = r
+        .worktree_add(fix_dir.to_str().unwrap(), "fix", false, None)
+        .await
+        .unwrap();
+    assert_eq!(added, fix_dir.display().to_string());
+    let feat_dir = place.path().join("app-feature");
+    r.worktree_add(feat_dir.to_str().unwrap(), "feature", true, Some("HEAD"))
+        .await
+        .unwrap();
+
+    let list = r.worktrees().await.unwrap();
+    assert_eq!(list.len(), 3);
+    assert!(list[0].main && list[0].current);
+    assert_eq!(list[0].branch.as_deref(), Some("main"));
+    let mut branches: Vec<_> = list.iter().filter_map(|w| w.branch.clone()).collect();
+    branches.sort();
+    assert_eq!(branches, vec!["feature", "fix", "main"]);
+
+    // A branch can only be checked out once.
+    let e = r.branch_switch("fix").await.unwrap_err();
+    assert!(e.message.contains("another worktree"), "{}", e.message);
+    // Folders must be new or empty.
+    assert!(r
+        .worktree_add(fix_dir.to_str().unwrap(), "main", false, None)
+        .await
+        .is_err());
+
+    // Uncommitted changes keep a worktree from being removed.
+    write(&fix_dir, "a.txt", "changed\n");
+    let e = r
+        .worktree_remove(fix_dir.to_str().unwrap())
+        .await
+        .unwrap_err();
+    assert_eq!(e.kind, ErrorKind::LocalChangesWouldBeOverwritten, "{e:?}");
+    assert!(fix_dir.exists());
+    assert!(
+        r.worktree_remove(root.to_str().unwrap()).await.is_err(),
+        "main"
+    );
+
+    r.worktree_remove(feat_dir.to_str().unwrap()).await.unwrap();
+    assert!(!feat_dir.exists());
+
+    // A deleted folder shows as prunable until pruned.
+    std::fs::remove_dir_all(&fix_dir).unwrap();
+    let list = r.worktrees().await.unwrap();
+    assert!(list
+        .iter()
+        .any(|w| w.prunable && w.branch.as_deref() == Some("fix")));
+    r.worktree_prune().await.unwrap();
+    assert_eq!(r.worktrees().await.unwrap().len(), 1);
+}

@@ -37,6 +37,21 @@ pub fn classify(stderr: &str) -> AppError {
             ErrorKind::Locked,
             "Another Git process is using this repository. Wait for it to finish; if none is running, remove the stale .git/index.lock file.",
         )
+    } else if has("is already checked out at") || has("is already used by worktree at") {
+        (
+            ErrorKind::Git,
+            "That branch is checked out in another worktree. A branch can only be open in one place: switch that worktree to another branch, or open it instead.",
+        )
+    } else if has("contains modified or untracked files") {
+        (
+            ErrorKind::LocalChangesWouldBeOverwritten,
+            "This worktree has changes that aren't committed. Commit, stash or discard them there first.",
+        )
+    } else if has("cannot remove a locked working tree") || (has("is locked") && has("worktree")) {
+        (
+            ErrorKind::Locked,
+            "This worktree is locked (git worktree lock). Unlock it in a terminal with git worktree unlock, then try again.",
+        )
     } else if has("transport 'file' not allowed") {
         (
             ErrorKind::Git,
@@ -164,6 +179,28 @@ pub fn classify(stderr: &str) -> AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explains_worktree_errors() {
+        assert!(
+            classify("fatal: 'main' is already checked out at '/work/app'")
+                .message
+                .contains("another worktree")
+        );
+        assert!(
+            classify("fatal: 'main' is already used by worktree at '/work/app'")
+                .message
+                .contains("another worktree")
+        );
+        assert_eq!(
+            classify("fatal: '/work/app-fix' contains modified or untracked files, use --force to delete it").kind,
+            ErrorKind::LocalChangesWouldBeOverwritten
+        );
+        assert_eq!(
+            classify("fatal: cannot remove a locked working tree, lock reason: x").kind,
+            ErrorKind::Locked
+        );
+    }
 
     #[test]
     fn explains_blocked_local_submodules() {

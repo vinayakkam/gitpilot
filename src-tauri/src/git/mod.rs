@@ -19,6 +19,7 @@ pub mod signing;
 pub mod status;
 pub mod submodules;
 pub mod validate;
+pub mod worktrees;
 
 pub use repo::Repo;
 pub use runner::Git;

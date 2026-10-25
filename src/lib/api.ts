@@ -57,6 +57,7 @@ import type { SequenceAction } from "@/bindings/SequenceAction";
 import type { Stash } from "@/bindings/Stash";
 import type { Submodule } from "@/bindings/Submodule";
 import type { UpdateSupport } from "@/bindings/UpdateSupport";
+import type { Worktree } from "@/bindings/Worktree";
 
 export const api = {
   // app
@@ -172,6 +173,12 @@ export const api = {
     invoke<BranchComparison>("branch_compare", { id, base, head }),
   branchSetUpstream: (id: number, branch: string, upstream: string | null) =>
     invoke<void>("branch_set_upstream", { id, branch, upstream }),
+  worktreeList: (id: number) => invoke<Worktree[]>("worktree_list", { id }),
+  /** Returns the new worktree's folder. */
+  worktreeAdd: (id: number, path: string, branch: string, newBranch: boolean, start: string | null) =>
+    invoke<string>("worktree_add", { id, path, branch, newBranch, start }),
+  worktreeRemove: (id: number, path: string) => invoke<void>("worktree_remove", { id, path, confirmed: true }),
+  worktreePrune: (id: number) => invoke<void>("worktree_prune", { id }),
   stashList: (id: number) => invoke<Stash[]>("stash_list", { id }),
   stashPush: (id: number, message: string, includeUntracked: boolean) =>
     invoke<void>("stash_push", { id, message, includeUntracked }),
