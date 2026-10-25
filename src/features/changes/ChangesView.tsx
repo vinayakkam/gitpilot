@@ -121,6 +121,7 @@ export function ChangesView() {
     ignore: (fs) => setIgnoreFiles(fs),
     stash: (fs) => setStashFiles(fs),
     blame: (p) => setBlame({ path: p, rev: null }),
+    updateSubmodules: (paths) => void run("Update submodule", () => api.submoduleUpdate(id, paths), { success: "Submodule updated" }),
   };
 
   const discardTracked = discard?.filter((f) => f.area === "unstaged") ?? [];

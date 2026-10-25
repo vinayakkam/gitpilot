@@ -22,7 +22,8 @@ fn setup_env() {
         let cfg = dir.join("gitconfig");
         std::fs::write(
             &cfg,
-            "[user]\n\tname = Test User\n\temail = test@example.com\n[init]\n\tdefaultBranch = main\n[commit]\n\tgpgsign = false\n",
+            // Local-path submodules are blocked by default; the submodule test needs them.
+            "[user]\n\tname = Test User\n\temail = test@example.com\n[init]\n\tdefaultBranch = main\n[commit]\n\tgpgsign = false\n[protocol \"file\"]\n\tallow = always\n",
         )
         .unwrap();
         std::env::set_var("GIT_CONFIG_GLOBAL", &cfg);
@@ -1963,4 +1964,101 @@ async fn lfs_use_is_detected_with_or_without_git_lfs() {
         let e = r.lfs_track("*.bin").await.unwrap_err();
         assert!(e.message.contains("git-lfs.com"), "{}", e.message);
     }
+}
+
+#[tokio::test]
+async fn submodules_are_listed_and_updated() {
+    use gitpilot_lib::git::submodules::SubmoduleState;
+    let g = git();
+    // The library a project depends on.
+    let (_dl, lib) = new_repo(&g).await;
+    let rl = Repo {
+        git: &g,
+        path: &lib,
+    };
+    write(&lib, "lib.txt", "v1\n");
+    rl.stage_all().await.unwrap();
+    rl.commit("lib v1").await.unwrap();
+
+    // The project, with the library as a submodule.
+    let (_dp, proj) = new_repo(&g).await;
+    let rp = Repo {
+        git: &g,
+        path: &proj,
+    };
+    assert!(rp.submodules().await.unwrap().is_empty());
+    g.run(
+        &proj,
+        [
+            "submodule",
+            "add",
+            "--quiet",
+            lib.to_str().unwrap(),
+            "deps/lib",
+        ],
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    rp.commit("Add lib").await.unwrap();
+    let s = rp.submodules().await.unwrap();
+    assert_eq!(s.len(), 1);
+    assert_eq!(
+        (s[0].path.as_str(), s[0].name.as_deref(), s[0].state),
+        ("deps/lib", Some("deps/lib"), SubmoduleState::UpToDate)
+    );
+    assert_eq!(s[0].url.as_deref(), lib.to_str());
+
+    // A fresh clone doesn't have the submodule's files yet.
+    let parent = tempfile::tempdir().unwrap();
+    let copy = repo::clone(
+        &g,
+        proj.to_str().unwrap(),
+        &parent.path().join("copy"),
+        None,
+        |_| {},
+    )
+    .await
+    .unwrap();
+    let rc = Repo {
+        git: &g,
+        path: &copy,
+    };
+    assert_eq!(
+        rc.submodules().await.unwrap()[0].state,
+        SubmoduleState::NotInitialized
+    );
+    assert!(rc
+        .submodule_update(&["../escape".into()], None, |_| {})
+        .await
+        .is_err());
+    rc.submodule_update(&[], None, |_| {}).await.unwrap();
+    assert_eq!(
+        rc.submodules().await.unwrap()[0].state,
+        SubmoduleState::UpToDate
+    );
+    assert_eq!(
+        std::fs::read_to_string(copy.join("deps/lib/lib.txt")).unwrap(),
+        "v1\n"
+    );
+
+    // A different commit checked out inside the submodule.
+    g.run(
+        &copy.join("deps/lib"),
+        ["commit", "--allow-empty", "-q", "-m", "local"],
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        rc.submodules().await.unwrap()[0].state,
+        SubmoduleState::DifferentCommit
+    );
+    rc.submodule_update(&["deps/lib".into()], None, |_| {})
+        .await
+        .unwrap();
+    assert_eq!(
+        rc.submodules().await.unwrap()[0].state,
+        SubmoduleState::UpToDate
+    );
 }

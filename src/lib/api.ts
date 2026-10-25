@@ -55,6 +55,7 @@ import type { SigningKey } from "@/bindings/SigningKey";
 import type { SigningScope } from "@/bindings/SigningScope";
 import type { SequenceAction } from "@/bindings/SequenceAction";
 import type { Stash } from "@/bindings/Stash";
+import type { Submodule } from "@/bindings/Submodule";
 import type { UpdateSupport } from "@/bindings/UpdateSupport";
 
 export const api = {
@@ -215,6 +216,10 @@ export const api = {
     invoke<CreatedPull>("github_pull_create", { id, owner, name, base, title, body, draft }),
   githubPullCheckout: (id: number, owner: string, name: string, number: number) =>
     invoke<PrCheckout>("github_pull_checkout", { id, owner, name, number }),
+
+  submoduleList: (id: number) => invoke<Submodule[]>("submodule_list", { id }),
+  /** Downloads and checks out submodules (`paths` empty = all). Cancellable with opCancel("repo:<id>"). */
+  submoduleUpdate: (id: number, paths: string[]) => invoke<void>("submodule_update", { id, paths }),
 
   /** Cancels a running clone ("clone"), a fetch/push in a repository ("repo:<id>") or a GitHub sign-in ("github-login"). */
   opCancel: (key: string) => invoke<boolean>("op_cancel", { key }),

@@ -124,3 +124,32 @@ pub async fn sync_push(
 pub fn op_cancel(state: State<'_, AppState>, key: String) -> bool {
     state.cancel(&key)
 }
+
+#[tauri::command]
+pub async fn submodule_list(
+    state: State<'_, AppState>,
+    id: i64,
+) -> AppResult<Vec<crate::git::submodules::Submodule>> {
+    repo!(state, id, git, root, r);
+    r.submodules().await
+}
+
+/// Downloads and checks out submodules (`paths` empty = all). Cancel with `op_cancel("repo:<id>")`.
+#[tauri::command]
+pub async fn submodule_update(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+    paths: Vec<String>,
+) -> AppResult<()> {
+    let lock = state.repo_lock(id);
+    let _g = lock.lock().await;
+    repo!(state, id, git, root, r);
+    let guard = state.begin_cancellable(format!("repo:{id}"));
+    r.submodule_update(
+        &paths,
+        Some(&guard.notify),
+        progress(&app, Some(id), "submodule"),
+    )
+    .await
+}

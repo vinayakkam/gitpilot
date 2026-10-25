@@ -37,6 +37,11 @@ pub fn classify(stderr: &str) -> AppError {
             ErrorKind::Locked,
             "Another Git process is using this repository. Wait for it to finish; if none is running, remove the stale .git/index.lock file.",
         )
+    } else if has("transport 'file' not allowed") {
+        (
+            ErrorKind::Git,
+            "A submodule points to a folder on this computer, and Git blocks that by default for safety. If you trust this repository, allow it with `git config protocol.file.allow always` in a terminal, then try again.",
+        )
     } else if has("gpg failed to sign") || has("error: cannot run gpg") || has("failed to sign") {
         (
             ErrorKind::SigningFailed,
@@ -159,6 +164,12 @@ pub fn classify(stderr: &str) -> AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explains_blocked_local_submodules() {
+        let e = classify("Cloning into 'deps/lib'...\nfatal: transport 'file' not allowed\nfatal: clone of '/x' into submodule path 'deps/lib' failed");
+        assert!(e.message.contains("protocol.file.allow"), "{}", e.message);
+    }
 
     #[test]
     fn classifies_common_errors() {

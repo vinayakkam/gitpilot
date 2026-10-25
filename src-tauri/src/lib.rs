@@ -126,6 +126,8 @@ pub fn run() {
             commands::remotes::sync_pull,
             commands::remotes::sync_push,
             commands::remotes::op_cancel,
+            commands::remotes::submodule_list,
+            commands::remotes::submodule_update,
             commands::github::github_account,
             commands::github::github_device_start,
             commands::github::github_device_wait,

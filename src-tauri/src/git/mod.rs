@@ -17,6 +17,7 @@ pub mod rewrite;
 pub mod runner;
 pub mod signing;
 pub mod status;
+pub mod submodules;
 pub mod validate;
 
 pub use repo::Repo;
