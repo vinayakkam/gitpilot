@@ -225,8 +225,9 @@ Key decisions:
   `gpg.ssh.allowedSignersFile` only when the user has none. Signature status is computed per
   commit in the details pane, not for the log.
 - LFS detection reads `.gitattributes` itself, so it works without git-lfs installed.
-- CI: `.github/workflows/ci.yml` runs every check on Linux and Windows for each push/PR;
-  `build-installers.yml` builds installers on tags or manual runs.
+- CI: no checks on push or PRs (the user tests by hand). `build-installers.yml` (tags `v*` and
+  manual runs) runs the checks before building: the Linux job runs typecheck, lint, vitest and
+  `cargo test`; the Windows job's `cargo test` must pass before its installers are built.
 - Lint: `no-restricted-globals` forbids `status`/`name`/`event` (browser globals that look like
   variables).
 - Update notes: `latest.json` gets plain text (`scripts/notes.mjs`) because older versions display it raw; `ReleaseNotes` renders both plain and Markdown.

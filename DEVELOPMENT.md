@@ -5,7 +5,7 @@
 - **Phase:** 6 — reliability and refinement (implemented on Linux and Windows; Windows verified by the user)
 - **Overall:** core Git workflow, branches, remotes, sync, AI provider integration, Claude Code integration and settings are implemented and verified on Linux against real repositories. Linux packages (deb, AppImage) build and launch.
 - **Current working area:** 0.4.5 (Batch E) — implemented on branch `release/0.4.5` (session 10), not pushed or released yet
-- **Most recently completed:** v0.4.5 (session 10, not released) — multiple windows, worktrees, submodules, Git LFS, commit signing + Verified, OpenCode in the Assistant, CI on every push. Before that: v0.4.2 (session 9, released as `v0.4.2`) — GitHub sign-in, clone from your repository list, pull requests (list with checks, create, check out), AI explain, AI pull request descriptions, AI conflict help. Before that: v0.4.0 — Batches A–C: everyday Git (amend, undo, tags, stash selected files, discard hunks/lines, auto-refresh), understanding code (blame, commit graph, compare any refs, image previews), conflicts and history (conflict resolver, edit commits, reset with backups) (session 8). Before that: v0.3.1 — readable update notes, Add to .gitignore (session 7)
+- **Most recently completed:** v0.4.5 (session 10, not released) — multiple windows, worktrees, submodules, Git LFS, commit signing + Verified, OpenCode in the Assistant; checks gate the installer builds. Before that: v0.4.2 (session 9, released as `v0.4.2`) — GitHub sign-in, clone from your repository list, pull requests (list with checks, create, check out), AI explain, AI pull request descriptions, AI conflict help. Before that: v0.4.0 — Batches A–C: everyday Git (amend, undo, tags, stash selected files, discard hunks/lines, auto-refresh), understanding code (blame, commit graph, compare any refs, image previews), conflicts and history (conflict resolver, edit commits, reset with backups) (session 8). Before that: v0.3.1 — readable update notes, Add to .gitignore (session 7)
 - **Windows:** verified by the user on a real Windows machine (2026-10-21, all features working); this environment still can't build for Windows
 - **Immediate next task:** the user reviews branch `release/0.4.5`, pushes it so the new CI runs on Windows, checks multiple windows in the real app, and decides whether to merge, tag and release. No further batch is planned yet.
 
@@ -39,7 +39,7 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 - [x] Claude Code integration (detection verified with real CLI 2.1.304; terminal launch verified with xterm + stand-in executable; prompt passed as one argv entry)
 - [x] Application settings (persisted JSON, validated; keychain for keys with env fallback)
 - [x] Error handling and safety (classified errors, plain messages + technical details, confirmations + backend flags)
-- [x] Automated tests (Rust 163 unit + 27 integration on temp repos, plus 1 opt-in live GitHub test; frontend 101 vitest — end of session 10). CI runs them on Linux and Windows for every push (`ci.yml`, not yet run)
+- [x] Automated tests (Rust 163 unit + 27 integration on temp repos, plus 1 opt-in live GitHub test; frontend 101 vitest — end of session 10). CI runs them only when installers are built (tags and manual runs); the Windows job stops if its tests fail
 - [~] UI polish and visual QA (all main screens inspected on Linux/Xvfb, light + dark, min size; no screen-reader testing)
 - [x] Windows packaging (MSI + NSIS built by `.github/workflows/build-installers.yml` on windows-latest; installed and used by the user)
 - [x] Linux packaging (deb 5.1 MB and AppImage 80 MB built; AppImage launched; Arch/CachyOS `gitpilot-bin` package built with makepkg from `packaging/arch/PKGBUILD` — not yet installed on a real Arch system)
@@ -62,6 +62,7 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 - Visual QA (mocked backend + headless Chromium, as in session 9): Coding assistant settings, Assistant with OpenCode (dark), Commit signing settings, Verified badge, Overview LFS row, LFS-missing banner, Submodules, Worktrees list and dialog.
 - Deviation from the plan: no "Open in new window" in the sidebar's repository switcher (one menu item can't have two actions); it's in Repositories, the palette, worktrees and submodules.
 - Running three vitest suites at once made several tests (old and new) time out at Testing Library's 1 s wait; waits are now 4 s and tests 20 s, and all pass in three parallel runs (29bdc91).
+- After the user found per-push CI too slow: `ci.yml` removed and the Windows tests in `build-installers.yml` made blocking; `release/0.4.5` fast-forwarded into `main` locally (not pushed; commits from then on without the Claude co-author line, at the user's request).
 - Checks at the end: strict check script (tsc, eslint, vitest 101, cargo fmt, clippy -D warnings, cargo test 163 + 27 + 1 ignored), release `.deb` build, `makepkg`.
 
 ### Session 9 — 2026-10-25 (v0.4.2, released as `v0.4.2`)
@@ -206,7 +207,7 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 4. **Detection of a hanging `claude --version`** waits up to 10 s before the Assistant enables its launch button.
 5. **Native `title` tooltips** elsewhere (not file rows, fixed in 0.3.1) still render as GTK tooltips.
 6. **Sidebar doesn't auto-collapse** at narrow widths (user can collapse it).
-7. **CI on every push is new and hasn't run yet:** `.github/workflows/ci.yml` (0.4.5) runs all checks on Linux and Windows; the Rust tests have never been run on Windows in this project before, so the first run may need fixes. `build-installers.yml` still lets Windows `cargo test` failures through when building installers.
+7. **No checks on push or PRs (by choice, session 10):** a per-push workflow was tried in 0.4.5 and removed because it took too long; the user tests features by hand. Checks run only in `build-installers.yml` (tags `v*`, manual runs): Linux runs everything before building, and Windows `cargo test` now has to pass before the Windows installers are built. The Rust tests have not passed on Windows in CI yet, so the first Windows build may need fixes.
 8. **GitHub features not used with a real account yet** (session 9): no OAuth app client ID exists for GitPilot, so "In the browser" sign-in is hidden unless one is entered in Settings → GitHub or built in (`GITPILOT_GITHUB_CLIENT_ID`, CI repository variable). The token sign-in, repository list, pull request list/create and the AI features were not exercised against the real services from this environment (no token or AI key used). Verified live: public API response shapes, the device-code error for an unknown client ID, and checking out a fork pull request over HTTPS.
 9. **Git over HTTPS doesn't use the GitHub sign-in:** cloning a private repository over HTTPS still needs a credential helper (or SSH). Deliberate for now; a possible follow-up is passing the token to git via `GIT_CONFIG_*` environment variables for github.com only.
 10. **Multiple windows not run in the real app yet** (session 10): no desktop session was used; window creation, the `repo-*` capability and watch release on close are unverified by hand.
@@ -228,13 +229,13 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 9. Submodules (list, init, update).
 10. Git LFS (tracked files, track new types, warn if LFS missing).
 11. Commit signing setup (GPG/SSH) + "Verified" mark in History.
-12. CI: run the full test suite on Windows and Linux on every push.
+12. CI: run the full test suite on Windows and Linux (done as a gate in the installer build; per-push runs dropped at the user's request).
 13. Assistant: choose between Claude Code and OpenCode (`opencode` CLI) — detect it, launch it in a terminal in the repository with the selected prompt, and switch in Settings (added at the user's request, 2026-10-25).
 
 ## Next-session handoff
 
 **Continue with:** branch `release/0.4.5` is complete and committed but not pushed. Before releasing:
-1. Push the branch: `ci.yml` runs every check on Linux and, for the first time as a gate, on Windows. Fix whatever Windows reports (likely candidates: path separators in tests, `ssh-keygen`/signing availability on the runner).
+1. Test the features by hand (below). The checks run when you start the installer build (tag `v0.4.5` or "Run workflow"); the Windows job now stops if Windows tests fail, so fix whatever it reports (likely candidates: path separators in tests, `ssh-keygen`/signing on the runner).
 2. Real app (`npm run tauri dev`): Repositories → Open in new window; check the window opens on the right repository, settings changes apply to both windows, closing it stops its file watching, and clone/cancel works in each window.
 3. OpenCode: Settings → Coding assistant → OpenCode, then Assistant → Open in OpenCode (a terminal opens in the repository with the prompt).
 4. Signing with your own key: Settings → Git → Commit signing → choose your SSH key → commit → History shows Verified. GPG if you use it.

@@ -33,9 +33,9 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
-      - name: Rust tests (Windows has not been verified before; failures are reported but don't block the installer)
+      # A failing Windows test stops the Windows installers from being built.
+      - name: Rust tests
         working-directory: src-tauri
-        continue-on-error: true
         run: cargo test
       - name: Build MSI and NSIS installers
         shell: pwsh
