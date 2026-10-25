@@ -375,7 +375,7 @@ export function HistoryView() {
                     onClick={() => {
                       if (id == null) return;
                       const hash = detail.summary.hash;
-                      setExplain({ title: `Commit ${detail.summary.shortHash}`, load: () => api.aiExplain(id, { kind: "commit", hash }) });
+                      setExplain({ title: `Explain commit ${detail.summary.shortHash}`, load: () => api.aiExplain(id, { kind: "commit", hash }) });
                     }}
                   />
                   <IconButton size="sm" label="Revert this commit…" icon={<Undo2 size={13} />} disabled={status?.state !== "normal"} onClick={() => setRevert(detail.summary)} />

@@ -6,6 +6,7 @@ import type { ConflictSuggestion } from "@/bindings/ConflictSuggestion";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { TextArea } from "@/components/ui/Field";
+import { ReleaseNotes } from "@/components/ui/ReleaseNotes";
 import { Spinner } from "@/components/ui/Spinner";
 import { AiError, AiNote } from "@/features/assistant/AiNote";
 import { api } from "@/lib/api";
@@ -100,7 +101,7 @@ export function ConflictHelpDialog({ path, onClose }: { path: string | null; onC
         {error && <AiError error={error} onSetUp={onClose} />}
         {help && (
           <>
-            {help.summary && <p className="selectable text-base">{help.summary}</p>}
+            {help.summary && <ReleaseNotes source={help.summary} className="selectable text-base" />}
             {items.map((s) => (
               <section key={s.uid} className="flex flex-col gap-2 rounded border border-border p-3" aria-label={`Conflict ${s.index + 1}`}>
                 <div className="flex items-center gap-2">
@@ -109,7 +110,7 @@ export function ConflictHelpDialog({ path, onClose }: { path: string | null; onC
                     Use this
                   </Button>
                 </div>
-                {s.explanation && <p className="selectable text-base text-muted">{s.explanation}</p>}
+                {s.explanation && <ReleaseNotes source={s.explanation} className="selectable text-base" />}
                 <TextArea
                   aria-label={`Suggested text for conflict ${s.index + 1}`}
                   spellCheck={false}

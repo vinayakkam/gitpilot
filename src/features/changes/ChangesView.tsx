@@ -232,7 +232,7 @@ export function ChangesView() {
                   icon={<Sparkles size={13} />}
                   onClick={() =>
                     setExplain({
-                      title: `Changes to ${focused.path}`,
+                      title: `Explain changes to ${focused.path}`,
                       load: () => api.aiExplain(id, { kind: "change", path: focused.path, area: focused.area, origPath: focused.origPath }),
                     })
                   }
