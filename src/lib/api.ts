@@ -21,6 +21,7 @@ import type { DiscardResult } from "@/bindings/DiscardResult";
 import type { EolReport } from "@/bindings/EolReport";
 import type { ExplainTarget } from "@/bindings/ExplainTarget";
 import type { LastCommit } from "@/bindings/LastCommit";
+import type { LfsStatus } from "@/bindings/LfsStatus";
 import type { Backup } from "@/bindings/Backup";
 import type { ConflictChoice } from "@/bindings/ConflictChoice";
 import type { ConflictHelp } from "@/bindings/ConflictHelp";
@@ -119,6 +120,11 @@ export const api = {
   gitignoreAdd: (id: number, patterns: string[], untrack: string[]) =>
     invoke<string[]>("gitignore_add", { id, patterns, untrack, confirmed: untrack.length > 0 }),
   untrackPaths: (id: number, paths: string[]) => invoke<void>("untrack_paths", { id, paths, confirmed: true }),
+  /** `withFiles` also lists LFS files and checks hooks (slower). */
+  lfsStatus: (id: number, withFiles: boolean) => invoke<LfsStatus>("lfs_status", { id, withFiles }),
+  lfsTrack: (id: number, pattern: string) => invoke<void>("lfs_track", { id, pattern }),
+  lfsUntrack: (id: number, pattern: string) => invoke<void>("lfs_untrack", { id, pattern, confirmed: true }),
+  lfsInstallHooks: (id: number) => invoke<void>("lfs_install_hooks", { id }),
   eolCheck: (id: number) => invoke<EolReport>("eol_check", { id }),
   eolFix: (id: number, paths: string[]) => invoke<number>("eol_fix", { id, paths }),
   eolAddGitattributes: (id: number) => invoke<boolean>("eol_add_gitattributes", { id }),

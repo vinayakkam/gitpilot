@@ -1918,3 +1918,49 @@ async fn ssh_commit_signing_is_set_up_and_verified() {
     .await
     .is_err());
 }
+
+#[tokio::test]
+async fn lfs_use_is_detected_with_or_without_git_lfs() {
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    let st = r.lfs_status(true).await.unwrap();
+    assert!(st.patterns.is_empty(), "no LFS yet");
+
+    write(
+        &root,
+        ".gitattributes",
+        "*.psd filter=lfs diff=lfs merge=lfs -text\n* text=auto\n",
+    );
+    write(&root, "art/.gitattributes", "*.mov filter=lfs -text\n");
+    r.stage_all().await.unwrap();
+    r.commit("LFS rules").await.unwrap();
+    let st = r.lfs_status(true).await.unwrap();
+    let pats: Vec<(&str, &str)> = st
+        .patterns
+        .iter()
+        .map(|p| (p.pattern.as_str(), p.file.as_str()))
+        .collect();
+    assert_eq!(
+        pats,
+        vec![("*.psd", ".gitattributes"), ("*.mov", "art/.gitattributes")]
+    );
+    let lfs_installed = which::which("git-lfs").is_ok();
+    assert_eq!(st.installed, lfs_installed);
+    assert!(r.lfs_track("--help").await.is_err());
+
+    if lfs_installed {
+        r.lfs_track("*.bin").await.unwrap();
+        let attrs = std::fs::read_to_string(root.join(".gitattributes")).unwrap();
+        assert!(attrs.contains("*.bin filter=lfs"));
+        r.lfs_untrack("*.bin").await.unwrap();
+        let attrs = std::fs::read_to_string(root.join(".gitattributes")).unwrap();
+        assert!(!attrs.contains("*.bin"));
+    } else {
+        let e = r.lfs_track("*.bin").await.unwrap_err();
+        assert!(e.message.contains("git-lfs.com"), "{}", e.message);
+    }
+}

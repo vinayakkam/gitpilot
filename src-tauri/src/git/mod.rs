@@ -6,6 +6,7 @@ pub mod eol;
 pub mod errors;
 pub mod everyday;
 pub mod explore;
+pub mod lfs;
 pub mod locate;
 pub mod log;
 pub mod pulls;
