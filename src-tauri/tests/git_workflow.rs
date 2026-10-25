@@ -1621,6 +1621,8 @@ async fn ai_inputs_and_applying_a_conflict_suggestion() {
     let diff = String::from_utf8(diff).unwrap();
     assert!(diff.contains("+TOP-feature") && diff.contains("+hello"));
     assert!(r.branch_changes_since("--upload-pack=x").await.is_err());
+    let missing = r.branch_changes_since("origin/main").await.unwrap_err();
+    assert!(missing.message.contains("Fetch"), "{}", missing.message);
 
     let one = String::from_utf8(r.commit_diff_raw(&hash).await.unwrap()).unwrap();
     assert!(one.contains("diff --git a/new.txt b/new.txt") && !one.contains("TOP-feature"));

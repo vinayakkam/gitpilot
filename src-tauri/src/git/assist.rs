@@ -67,6 +67,30 @@ impl Repo<'_> {
     /// Commit messages (oldest first) and the diff of HEAD since it split from `base`.
     pub async fn branch_changes_since(&self, base: &str) -> AppResult<(String, Vec<u8>)> {
         let base = v::revision(base)?;
+        let known = self
+            .git
+            .run(
+                self.path,
+                [
+                    "rev-parse",
+                    "--verify",
+                    "--quiet",
+                    &format!("{base}^{{commit}}"),
+                ],
+                RunOpts {
+                    ok_codes: &[1],
+                    read_only: true,
+                    ..RunOpts::default()
+                },
+            )
+            .await?
+            .code
+            == 0;
+        if !known {
+            return Err(AppError::invalid(format!(
+                "GitPilot doesn't have {base} on this computer yet. Fetch, then try again."
+            )));
+        }
         let range = format!("{base}..HEAD");
         let raw = self
             .git
