@@ -27,7 +27,9 @@ React UI ──invoke()──▶ Tauri commands (src-tauri/src/commands/*) ─�
                                                                       ├─ settings.rs (JSON settings file)
                                                                       ├─ secrets.rs  (OS keychain)
                                                                       ├─ ai.rs       (commit-message providers)
-                                                                      └─ claude_code.rs (detect/launch CLI)
+                                                                      ├─ claude_code.rs (detect/launch CLI)
+                                                                      ├─ watch.rs    (auto-refresh file watcher)
+                                                                      └─ updates.rs  (install kind for the updater)
 ```
 
 ### Git execution layer (`src-tauri/src/git/`)
@@ -38,9 +40,12 @@ React UI ──invoke()──▶ Tauri commands (src-tauri/src/commands/*) ─�
   null stdin (unless a patch/message is piped), a timeout, and `CREATE_NO_WINDOW` on Windows.
 - `locate.rs`: finds git (settings override → PATH → common Windows install dirs).
 - `status.rs` (porcelain v2 `-z` parser), `diff.rs` (unified diff parser + hunk
-  extraction), `log.rs`, `branches.rs`, `remotes.rs`, `ops.rs` (mutating operations),
-  `errors.rs` (stderr → `ErrorKind` classification), `redact.rs` (strips credentials
-  from URLs/output before anything reaches the UI).
+  extraction), `log.rs`, `refs.rs` (branches, remotes, stashes parsers), `repo.rs`
+  (`Repo`: status, staging, commits, branches, remotes, sync), `everyday.rs` (amend/undo,
+  tags, partial discard), `explore.rs` (blame, compare, image previews), `rewrite.rs`
+  (conflict blocks, interactive rebase, reset, backups), `eol.rs` (line-ending guard),
+  `validate.rs` (input validation), `errors.rs` (stderr → `ErrorKind` classification),
+  `redact.rs` (strips credentials from URLs/output before anything reaches the UI).
 - Commands take a `repo_id`, never a path. The backend resolves the path from the
   registry, so the frontend cannot point git at arbitrary directories. File paths are
   validated as relative, no `..`, and always passed after `--`.
@@ -88,11 +93,12 @@ Every command returns `Result<T, AppError>`. `AppError` serializes as
 src/                     React app
   bindings/              generated TS types (ts-rs) — do not edit by hand
   lib/                   api.ts (invoke wrappers), errors, format helpers, hooks
-  store/                 app-level state (React context + reducer)
-  components/ui/         design-system primitives (Button, Dialog, Menu, Toast, …)
-  components/layout/     Sidebar, RepoToolbar, AppShell
-  features/<area>/       onboarding, overview, changes, diff, commit, history,
-                         branches, remotes, assistant, settings, palette
+  store/                 app-level state (React context)
+  components/ui/         design-system primitives (Button, Dialog, Menu, Tooltip, …)
+  components/layout/     Sidebar, RepoToolbar, Toaster
+  features/<area>/       onboarding, repositories, overview, changes, diff, compare,
+                         history, branches, remotes, sync, assistant, settings,
+                         updates, palette
   styles/                tokens.css (design tokens, light/dark), base.css
 src-tauri/
   src/commands/          #[tauri::command] fns grouped by area
@@ -151,8 +157,8 @@ libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev build-essential file`.
 ## Current implementation state
 
 See `DEVELOPMENT.md` → "Feature tracker", "Current implementation details" and "Known issues" for
-the authoritative status. In short (end of session 1): all core features are implemented and verified
-on Linux and Windows (Windows verified by the user); AI: Claude Code provider verified live, others not;
+the authoritative status. In short (0.4.0): all core features are implemented and verified on Linux,
+and on Windows by the user; AI: Claude Code provider verified live, the others not;
 see DEVELOPMENT.md for what's verified per release.
 
 Environment notes: `cargo test`/`cargo clippy` rebuild `target/debug/gitpilot` in dev-server mode (it

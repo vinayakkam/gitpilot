@@ -5,9 +5,9 @@
 - **Phase:** 6 — reliability and refinement (implemented on Linux and Windows; Windows verified by the user)
 - **Overall:** core Git workflow, branches, remotes, sync, AI provider integration, Claude Code integration and settings are implemented and verified on Linux against real repositories. Linux packages (deb, AppImage) build and launch.
 - **Current working area:** cross-platform verification and remaining feature gaps
-- **Most recently completed:** v0.3.1 — readable update notes, Add to .gitignore, tracked-but-ignored files (session 7). Before that: v0.3.0 — accent colours, line-ending guard, OpenRouter default provider, Claude Code account provider, rearranged settings (session 6)
+- **Most recently completed:** v0.4.0 — Batches A–C: everyday Git (amend, undo, tags, stash selected files, discard hunks/lines, auto-refresh), understanding code (blame, commit graph, compare any refs, image previews), conflicts and history (conflict resolver, edit commits, reset with backups) (session 8). Before that: v0.3.1 — readable update notes, Add to .gitignore (session 7)
 - **Windows:** verified by the user on a real Windows machine (2026-10-21, all features working); this environment still can't build for Windows
-- **Immediate next task:** wait for the user to say 0.4.0 is complete, then start 0.4.2 (Batch D). Do not start before that.
+- **Immediate next task:** 0.4.2 (Batch D) — the user confirmed 0.4.0 is complete and asked to start it (session 9, branch `release/0.4.2`).
 
 ## Feature tracker
 
@@ -33,17 +33,16 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 - [~] AI commit message generation (OpenRouter default, Claude Code account, Anthropic, OpenAI-compatible). **Claude Code provider verified live in the real app.** OpenRouter/Anthropic/OpenAI request shapes unit-tested only (openrouter.ai unreachable from the build sandbox)
 - [x] Accent colours (11 presets + custom; OKLCH-derived tokens; contrast unit-tested for every preset in both themes)
 - [x] .gitignore support (Add to .gitignore dialog; tracked-but-ignored files flagged with Stop tracking; integration-tested and verified in the real app)
-- [x] .gitignore support (Add to .gitignore dialog; tracked-but-ignored files flagged with Stop tracking; integration-tested and verified in the real app)
 - [x] Line-ending guard (CRLF into LF repos; detection + fix + .gitattributes; integration-tested and verified in the real app)
 - [x] Claude Code integration (detection verified with real CLI 2.1.304; terminal launch verified with xterm + stand-in executable; prompt passed as one argv entry)
 - [x] Application settings (persisted JSON, validated; keychain for keys with env fallback)
 - [x] Error handling and safety (classified errors, plain messages + technical details, confirmations + backend flags)
-- [x] Automated tests (Rust 84 unit + 18 integration on temp repos; frontend 52 vitest)
+- [x] Automated tests (Rust 102 unit + 21 integration on temp repos; frontend 65 vitest — counts at the end of session 8)
 - [~] UI polish and visual QA (all main screens inspected on Linux/Xvfb, light + dark, min size; no screen-reader testing)
 - [x] Windows packaging (MSI + NSIS built by `.github/workflows/build-installers.yml` on windows-latest; installed and used by the user)
 - [x] Linux packaging (deb 5.1 MB and AppImage 80 MB built; AppImage launched; Arch/CachyOS `gitpilot-bin` package built with makepkg from `packaging/arch/PKGBUILD` — not yet installed on a real Arch system)
 - [x] In-app updates (verified end to end for AppImage; Windows/.deb unverified)
-- [~] Documentation and release preparation (README, CLAUDE.md, this file; no signing, no CI)
+- [~] Documentation and release preparation (README, CLAUDE.md, INSTALL.md, CHANGELOG, this file; CI builds installers and releases on tags; update packages are signed, installers are not — no code-signing certificate)
 
 ## Work log
 
@@ -155,7 +154,7 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 
 ## Current implementation details
 
-- **Status refresh:** on window focus, after every operation, and manually (F5 / Ctrl+R / toolbar). No filesystem watcher.
+- **Status refresh:** on window focus, after every operation, manually (F5 / Ctrl+R / toolbar), and when files change on disk (`watch.rs`, setting `autoRefresh`, ignored folders not watched, debounced).
 - **Operations:** one at a time per window (`run()` in the store); per-repo async mutex in the backend for mutating commands.
 - **Timeouts:** local git 120 s; network 15 min. Fetch/push/clone can be cancelled; pull can't (stopping mid-merge could leave a half-updated tree).
 - **File list:** not virtualized (diff is). Thousands of changed files will render slowly.
@@ -171,12 +170,12 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 ## Known issues
 
 1. **Windows:** user reported on 2026-10-21 that all features work on Windows (0.3.x installers built by CI). Not tested in this environment (no Windows host); CI still builds installers without running the test suite on Windows.
-2. **AI providers not tested live** — request shapes for Anthropic Messages API (`anthropic-version: 2023-06-01`) and `/chat/completions` are written to the documented formats but no real call was made. Verify the default model id.
+2. **AI providers other than Claude Code not tested live** — the Claude Code provider was verified in the real app (session 6). Request shapes for OpenRouter, the Anthropic Messages API (`anthropic-version: 2023-06-01`) and OpenAI-compatible `/chat/completions` are written to the documented formats and unit-tested, but no real call was made from this environment.
 3. **Real Claude Code session not observed** — with the real CLI in this sandbox the terminal opened and closed immediately (the sandboxed CLI exits); the mechanism was verified with a stand-in executable. Check on a normal desktop.
 4. **Detection of a hanging `claude --version`** waits up to 10 s before the Assistant enables its launch button.
 5. **Native `title` tooltips** elsewhere (not file rows, fixed in 0.3.1) still render as GTK tooltips.
 6. **Sidebar doesn't auto-collapse** at narrow widths (user can collapse it).
-8. **No CI** configured.
+7. **CI doesn't gate on tests:** `.github/workflows/build-installers.yml` runs only on `v*` tags and manual dispatch; Windows `cargo test` failures don't block the installer. A test workflow on every push is planned for 0.4.5 (roadmap item 12).
 
 ## Roadmap (agreed with the user, 2026-10-21)
 
@@ -198,19 +197,12 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 
 ## Next-session handoff
 
-**Continue with:** on a real machine, check OpenRouter end to end (save key → key verified → model list → suggestion) and "Sign in with Claude" (terminal opens `claude auth login`; status flips after returning to GitPilot). Then the Windows items below.
+**Continue with:** Batch D (0.4.2) on branch `release/0.4.2` — see the session 9 entry in the work log for what is done and what is left.
 
-1. On a Windows machine with Rust (MSVC), Node 20+, WebView2 and Git for Windows:
-   ```
-   npm install
-   cd src-tauri && cargo check && cargo test && cd ..
-   npm run tauri dev
-   npm run tauri build -- --bundles nsis,msi
-   ```
-   Fix compile errors in the Windows-only paths listed under Known issues #1. Verify: git auto-detection with and without Git on PATH; no console windows flash when git runs; keychain save/remove; Claude Code launch opens a console in the repo; CRLF repositories show correct diffs and hunk staging (`core.autocrlf=true`).
-2. Live AI check: set `ANTHROPIC_API_KEY`, enable AI in Settings, stage changes, click the sparkles button. Then an OpenAI-compatible endpoint (e.g. Ollama `http://localhost:11434/v1`).
-3. Then pick from: line-level staging (`features/diff/DiffViewer.tsx` + new backend patch builder in `git/diff.rs`), cancellation for network ops (`git/runner.rs::run_streaming` + a cancel command), file-list virtualization (`features/changes/FileList.tsx`), CI workflow running the checks above on ubuntu + windows.
+Still unverified from earlier releases (each needs a hands-on check by the user or on a machine with network access and a desktop session):
+1. OpenRouter end to end: save key → key verified → model list → suggestion. Then Anthropic and an OpenAI-compatible endpoint (e.g. Ollama `http://localhost:11434/v1`).
+2. "Sign in with Claude": the terminal opens `claude auth login` and the status flips after returning to GitPilot.
+3. In-app updates for the Windows installers and the .deb package (AppImage is verified).
+4. Arch package installed with `pacman -U` on a real Arch/CachyOS system.
 
-**Relevant files:** `src-tauri/src/git/runner.rs`, `src-tauri/src/git/locate.rs`, `src-tauri/src/claude_code.rs`, `src-tauri/src/secrets.rs`, `src-tauri/tauri.conf.json`.
-
-**QA harness used this session (Linux):** Xvfb `:99` at 1440×900, `xdotool` for input, `import` for screenshots, env `WEBKIT_DISABLE_DMABUF_RENDERER=1 WEBKIT_DISABLE_COMPOSITING_MODE=1`. Note: `cargo test`/`cargo clippy` rebuild `target/debug/gitpilot` in dev-server mode — use `target/release/gitpilot` or `npm run tauri dev` for manual runs.
+**QA harness (Linux):** Xvfb `:99` at 1440×900, `xdotool` for input, `import` for screenshots, env `WEBKIT_DISABLE_DMABUF_RENDERER=1 WEBKIT_DISABLE_COMPOSITING_MODE=1`. Note: `cargo test`/`cargo clippy` rebuild `target/debug/gitpilot` in dev-server mode — use `target/release/gitpilot` or `npm run tauri dev` for manual runs.

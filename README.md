@@ -4,7 +4,7 @@ A desktop Git manager for Windows and Linux. GitPilot shows exactly what changed
 
 Built with Tauri 2 (Rust) and React. It runs your installed `git` executable; nothing is simulated.
 
-> Status: early development (v0.1.0). Linux is built and tested. Windows installers are built by the GitHub Actions workflow — see [Known limitations](#known-limitations).
+> Status: v0.4.0. Linux is built and tested; Windows installers are built by the GitHub Actions workflow and have been used on Windows. See [Known limitations](#known-limitations).
 
 ## Features
 
@@ -25,7 +25,6 @@ Available now:
 - **Understand code** — blame, a commit graph, file-by-file compare of any two branches/tags/commits, and before/after image previews.
 - **Tags, stash selected files, discard single hunks or lines, and auto-refresh** when files change.
 - **.gitignore made easy** — right-click a file to ignore it, its extension or its folder; files committed before they were ignored are flagged with a one-click Stop tracking.
-- **.gitignore made easy** — right-click a file to ignore it, its extension or its folder; files committed before they were ignored are flagged with a one-click Stop tracking.
 - **Line-ending guard** — warns before you commit Windows (CRLF) line endings into an LF repository, which makes GitHub show every line as changed and breaks pull request suggestions ("context doesn't match"). One click converts the files.
 - **Claude Code** — detects the `claude` CLI, opens it in a terminal in the repository, with prompt templates filled from real repository context (branch, counts, file names, recent commits).
 - **Updates in place** — checks GitHub Releases and installs signed updates without uninstalling (Windows installers, AppImage, .deb). See [docs/UPDATES.md](docs/UPDATES.md).
@@ -38,16 +37,17 @@ Step-by-step instructions for Windows, CachyOS/Arch and Debian/Ubuntu are in [IN
 
 ### Linux
 
-Download from your build (see below):
+Download from [GitHub Releases](https://github.com/vinayakkam/gitpilot/releases) (replace `<version>` with the version you downloaded):
 
-- **AppImage**: `chmod +x GitPilot_0.1.0_amd64.AppImage && ./GitPilot_0.1.0_amd64.AppImage`
-- **Debian/Ubuntu**: `sudo apt install ./GitPilot_0.1.0_amd64.deb` (pulls in `git`, WebKitGTK 4.1 and GTK 3)
+- **AppImage**: `chmod +x GitPilot_<version>_amd64.AppImage && ./GitPilot_<version>_amd64.AppImage`
+- **Debian/Ubuntu**: `sudo apt install ./GitPilot_<version>_amd64.deb` (pulls in `git`, WebKitGTK 4.1 and GTK 3)
+- **Arch/CachyOS**: `gitpilot-bin` package — see [INSTALL.md](INSTALL.md)
 
 Git must be installed (`sudo apt install git`, `dnf install git`, …).
 
 ### Windows
 
-Not yet built. When built (see below), the NSIS installer installs per-user. Git for Windows must be installed; GitPilot looks on `PATH`, in `Program Files\Git`, `%LOCALAPPDATA%\Programs\Git`, Scoop and GitHub Desktop's bundled Git, or you can set the path in Settings → Git.
+Download the MSI or the setup `.exe` from [GitHub Releases](https://github.com/vinayakkam/gitpilot/releases). The setup `.exe` (NSIS) installs per-user. Git for Windows must be installed; GitPilot looks on `PATH`, in `Program Files\Git`, `%LOCALAPPDATA%\Programs\Git`, Scoop and GitHub Desktop's bundled Git, or you can set the path in Settings → Git.
 
 ## Development
 
@@ -81,7 +81,7 @@ npm run tauri build -- --bundles deb,appimage   # on Linux
 npm run tauri build -- --bundles nsis,msi       # on Windows
 ```
 
-Output goes to `src-tauri/target/release/bundle/`. Builds are not code-signed.
+Output goes to `src-tauri/target/release/bundle/`. Installers are not code-signed; update packages are signed with the updater key in CI (see [docs/UPDATES.md](docs/UPDATES.md)).
 
 See [CLAUDE.md](CLAUDE.md) for architecture and conventions and [DEVELOPMENT.md](DEVELOPMENT.md) for current status.
 
@@ -110,14 +110,11 @@ GitPilot finds `claude` on `PATH` or in common install locations (`~/.local/bin`
 
 ## Known limitations
 
-- Windows: installers are built on GitHub's Windows machines but haven't been hands-on tested on a Windows PC yet.
+- Windows: the test suite isn't run on Windows in CI yet (installers are built there and have been used on Windows).
 - Installers are unsigned until a code-signing certificate is configured — see [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md). Until then Windows shows a SmartScreen warning.
 - macOS is not a target.
-- Interactive rebase (squash/reorder/edit) and reset aren't in the UI.
 - Pull can't be cancelled once started.
-- Status refreshes on window focus and after operations; there's no file watcher.
-- No commit graph visualization.
-- The AI integration hasn't been exercised against a live provider yet.
+- Of the AI providers, only Claude Code has been exercised live; OpenRouter, Anthropic and OpenAI-compatible requests follow the documented APIs but haven't been run against the real services.
 
 ## Security and privacy
 
@@ -125,7 +122,7 @@ GitPilot finds `claude` on `PATH` or in common install locations (`~/.local/bin`
 - The frontend refers to repositories by id; the backend decides which folder Git runs in.
 - Credentials in remote URLs are redacted everywhere they're displayed.
 - Destructive operations require confirmation in the UI *and* an explicit flag in the backend command.
-- Tauri capabilities are limited to the folder picker, clipboard writes and opening URLs.
+- Tauri capabilities are limited to the folder picker and confirmation dialogs, clipboard writes, opening `https://` links, and the updater (download, install, restart).
 
 ## Contributing
 
