@@ -1815,3 +1815,29 @@ async fn pull_requests_are_checked_out_without_losing_local_commits() {
     assert!(c.diverged && !c.updated);
     assert_eq!(head(&g, &b).await, mine, "local commit kept");
 }
+
+/// Needs network access: `cargo test -- --ignored live_github`.
+#[tokio::test]
+#[ignore]
+async fn live_github_fork_pull_request_checkout() {
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    // octocat/Hello-World#1 comes from a fork (unoju/Hello-World).
+    let c = r
+        .checkout_pull_head(
+            "https://github.com/octocat/Hello-World.git",
+            1,
+            None,
+            |_| {},
+        )
+        .await
+        .unwrap();
+    assert_eq!((c.branch.as_str(), c.created), ("pr-1", true));
+    let st = r.status().await.unwrap();
+    assert_eq!(st.branch.head.as_deref(), Some("pr-1"));
+    assert_eq!(st.branch.upstream, None);
+}

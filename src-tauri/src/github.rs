@@ -369,6 +369,20 @@ async fn graphql(token: &str, query: &str, variables: Value) -> AppResult<Value>
     Ok(body)
 }
 
+/// The sign-in endpoints answer a wrong client ID with a bare 404, which `api_error` would
+/// describe as a missing repository.
+fn sign_in_err(e: AppError) -> AppError {
+    if e.kind == ErrorKind::NetworkFailed {
+        return e;
+    }
+    let mut out = AppError::new(
+        ErrorKind::GithubFailed,
+        "GitHub couldn't start the sign-in. Check the client ID in Settings → GitHub; the OAuth app must have device flow enabled.",
+    );
+    out.detail = e.detail;
+    out
+}
+
 pub fn not_signed_in() -> AppError {
     AppError::new(
         ErrorKind::GithubNotSignedIn,
@@ -407,7 +421,7 @@ pub async fn device_start(client_id: &str) -> AppResult<(DeviceCode, PendingDevi
         .post(format!("{LOGIN}/device/code"))
         .header("Accept", "application/json")
         .form(&[("client_id", client_id), ("scope", SCOPES)]);
-    let v = send(req).await?;
+    let v = send(req).await.map_err(sign_in_err)?;
     let (Some(device_code), Some(user_code), Some(uri)) = (
         v["device_code"].as_str(),
         v["user_code"].as_str(),
@@ -503,7 +517,7 @@ pub async fn device_wait(p: PendingDevice, cancel: &tokio::sync::Notify) -> AppR
         let v = match send(req).await {
             Ok(v) => v,
             Err(e) if e.kind == ErrorKind::NetworkFailed => continue,
-            Err(e) => return Err(e),
+            Err(e) => return Err(sign_in_err(e)),
         };
         match parse_poll(&v) {
             Poll::Token(t) => return Ok(t),
@@ -822,6 +836,15 @@ mod tests {
             matches!(parse_poll(&json!({"error": "expired_token"})), Poll::Failed(m) if m.contains("expired"))
         );
         assert!(matches!(parse_poll(&json!({})), Poll::Failed(_)));
+    }
+
+    #[test]
+    fn sign_in_errors_name_the_client_id() {
+        let e = sign_in_err(api_error(404, r#"{"error":"Not Found"}"#, false));
+        assert!(e.message.contains("client ID"), "{}", e.message);
+        assert!(e.detail.unwrap().contains("HTTP 404"));
+        let net = AppError::new(ErrorKind::NetworkFailed, "offline");
+        assert_eq!(sign_in_err(net).message, "offline");
     }
 
     #[test]
