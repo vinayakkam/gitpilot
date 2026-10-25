@@ -96,7 +96,7 @@ const TEMPLATES: { id: string; title: string; build: (c: Ctx) => string }[] = [
 ];
 
 export function AssistantView() {
-  const { activeRepo, status, revision, toasts, settings, notify, setPage } = useStore();
+  const { activeRepo, status, revision, toasts, settings, notify, openSettings } = useStore();
   const id = activeRepo?.id;
   const claude = useAsync(() => api.claudeDetect(), [revision, settings?.claudeCode.path, settings?.claudeCode.terminal]);
   const recent = useAsync(() => api.log(id!, { rev: null, skip: 0, limit: 10, search: null, path: null }), [id, revision], id != null);
@@ -199,7 +199,7 @@ export function AssistantView() {
               <CircleDashed size={15} className="shrink-0 text-faint" />
               <span className="flex-1">Claude Code wasn't found on this computer. Install it, or set its location in Settings.</span>
               <Button size="sm" icon={<ExternalLink size={12} />} onClick={() => void openLink("https://docs.claude.com/en/docs/claude-code/setup")}>Install guide</Button>
-              <Button size="sm" onClick={() => setPage("settings")}>Settings</Button>
+              <Button size="sm" onClick={() => openSettings("claude")}>Settings</Button>
             </>
           )}
         </div>

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.4.2 — 2026-10-25
+
+### GitHub
+- **Sign in to GitHub.** Settings → GitHub. Paste a personal access token or, where this version offers it, sign in through your browser with a one-time code. The sign-in is kept in your system keychain, never in the settings file. Cloning, pulling and pushing keep using your usual Git credentials.
+- **Clone from your repository list.** The clone window has a **Your GitHub repositories** tab: search your repositories (including organization and private ones), pick HTTPS or SSH, and the address and folder name are filled in.
+- **Pull requests.** A new **Pull requests** section (Ctrl+7) lists open pull requests with their checks (passed, failed, running), review state and draft status. **Check out** brings one to your computer; a pull request from a fork gets a `pr-<number>` branch, and checking out again updates it without ever discarding your own commits. **Open on GitHub** opens it in your browser.
+- **Open a pull request.** If your branch doesn't have one yet, **Create pull request** opens it from GitPilot, as a draft if you like. If the branch or some commits aren't on GitHub yet, GitPilot offers to push first. For forks, pull requests go to the original repository by default.
+
+### AI
+- **Explain a commit or a change.** The sparkles button in a commit's details (History) or above a file's diff (Changes) explains in plain language what changed.
+- **Write a pull request description.** **Write with AI** in the pull request window drafts the title and description from the branch's commits and changes.
+- **Conflict help.** **Ask AI** in a conflicted file suggests a resolution for each conflict, with a short explanation. Nothing changes until you choose **Use this**, and you can edit a suggestion before using it.
+- As before, AI is off until you turn it on, files that look like secrets are never sent, and every answer says which model wrote it.
+
+### Changed
+- **Set up AI** buttons now open Settings at the AI section.
+
 ## 0.4.0 — 2026-10-21
 
 ### Everyday Git

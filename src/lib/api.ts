@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { AiProviderKind } from "@/bindings/AiProviderKind";
 import type { AiSuggestions } from "@/bindings/AiSuggestions";
+import type { AiText } from "@/bindings/AiText";
 import type { AppInfo } from "@/bindings/AppInfo";
 import type { Area } from "@/bindings/Area";
 import type { Branch } from "@/bindings/Branch";
@@ -10,11 +11,19 @@ import type { BranchComparison } from "@/bindings/BranchComparison";
 import type { ClaudeAuthStatus } from "@/bindings/ClaudeAuthStatus";
 import type { ClaudeCodeInfo } from "@/bindings/ClaudeCodeInfo";
 import type { CommitDetail } from "@/bindings/CommitDetail";
+import type { CreatedPull } from "@/bindings/CreatedPull";
+import type { DeviceCode } from "@/bindings/DeviceCode";
+import type { GitHubAccount } from "@/bindings/GitHubAccount";
+import type { GitHubLink } from "@/bindings/GitHubLink";
+import type { GitHubRepo } from "@/bindings/GitHubRepo";
+import type { GitHubUser } from "@/bindings/GitHubUser";
 import type { DiscardResult } from "@/bindings/DiscardResult";
 import type { EolReport } from "@/bindings/EolReport";
+import type { ExplainTarget } from "@/bindings/ExplainTarget";
 import type { LastCommit } from "@/bindings/LastCommit";
 import type { Backup } from "@/bindings/Backup";
 import type { ConflictChoice } from "@/bindings/ConflictChoice";
+import type { ConflictHelp } from "@/bindings/ConflictHelp";
 import type { RebaseCommit } from "@/bindings/RebaseCommit";
 import type { RebaseStep } from "@/bindings/RebaseStep";
 import type { ResetMode } from "@/bindings/ResetMode";
@@ -29,6 +38,9 @@ import type { LogQuery } from "@/bindings/LogQuery";
 import type { OpenRouterKeyInfo } from "@/bindings/OpenRouterKeyInfo";
 import type { OpenRouterModel } from "@/bindings/OpenRouterModel";
 import type { PathInspection } from "@/bindings/PathInspection";
+import type { PrCheckout } from "@/bindings/PrCheckout";
+import type { PullRequest } from "@/bindings/PullRequest";
+import type { PrDescription } from "@/bindings/PrDescription";
 import type { PullOptions } from "@/bindings/PullOptions";
 import type { ProgressEvent } from "@/bindings/ProgressEvent";
 import type { Remote } from "@/bindings/Remote";
@@ -85,6 +97,9 @@ export const api = {
     invoke<FileDiff>("compare_file_diff", { id, base, head, threeDot, path, origPath }),
   conflictResolveBlock: (id: number, path: string, index: number, choice: ConflictChoice) => invoke<number>("conflict_resolve_block", { id, path, index, choice }),
   conflictTakeSide: (id: number, path: string, current: boolean) => invoke<void>("conflict_take_side", { id, path, current }),
+  /** Replaces one conflict with `text`, only if it still reads exactly `expected`. Returns the conflicts left. */
+  conflictApplyText: (id: number, path: string, index: number, expected: string, text: string) =>
+    invoke<number>("conflict_apply_text", { id, path, index, expected, text }),
   rebaseCommits: (id: number, base: string | null) => invoke<RebaseCommit[]>("rebase_commits", { id, base }),
   rebaseInteractive: (id: number, base: string | null, steps: RebaseStep[], confirmedPushed: boolean) =>
     invoke<Backup>("rebase_interactive", { id, base, steps, confirmedPushed }),
@@ -167,11 +182,30 @@ export const api = {
       confirmedForce: opts.forceWithLease ?? false,
     }),
 
-  /** Cancels a running clone ("clone") or a fetch/push in a repository ("repo:<id>"). */
+  // GitHub
+  githubAccount: () => invoke<GitHubAccount>("github_account"),
+  githubDeviceStart: () => invoke<DeviceCode>("github_device_start"),
+  /** Resolves once the user approved the sign-in on GitHub. Cancel with opCancel("github-login"). */
+  githubDeviceWait: () => invoke<GitHubUser>("github_device_wait"),
+  githubTokenSet: (token: string) => invoke<GitHubUser>("github_token_set", { token }),
+  githubSignOut: () => invoke<void>("github_sign_out"),
+  githubRepos: () => invoke<GitHubRepo[]>("github_repos"),
+  githubLink: (id: number) => invoke<GitHubLink | null>("github_link", { id }),
+  githubPulls: (owner: string, name: string) => invoke<PullRequest[]>("github_pulls", { owner, name }),
+  githubPullCreate: (id: number, owner: string, name: string, base: string, title: string, body: string, draft: boolean) =>
+    invoke<CreatedPull>("github_pull_create", { id, owner, name, base, title, body, draft }),
+  githubPullCheckout: (id: number, owner: string, name: string, number: number) =>
+    invoke<PrCheckout>("github_pull_checkout", { id, owner, name, number }),
+
+  /** Cancels a running clone ("clone"), a fetch/push in a repository ("repo:<id>") or a GitHub sign-in ("github-login"). */
   opCancel: (key: string) => invoke<boolean>("op_cancel", { key }),
 
   // assistance
   aiSuggestCommit: (id: number) => invoke<AiSuggestions>("ai_suggest_commit", { id }),
+  aiExplain: (id: number, target: ExplainTarget) => invoke<AiText>("ai_explain", { id, target }),
+  /** `base` is the branch the pull request goes into, as a local ref (e.g. "origin/main"). */
+  aiPrDescription: (id: number, base: string) => invoke<PrDescription>("ai_pr_description", { id, base }),
+  aiConflictHelp: (id: number, path: string) => invoke<ConflictHelp>("ai_conflict_help", { id, path }),
   claudeDetect: () => invoke<ClaudeCodeInfo>("claude_detect"),
   claudeLaunch: (id: number, prompt: string | null) => invoke<void>("claude_launch", { id, prompt }),
   claudeAuthStatus: () => invoke<ClaudeAuthStatus>("claude_auth_status"),

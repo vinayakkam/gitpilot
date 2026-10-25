@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, Input } from "@/components/ui/Field";
 import { ErrorNotice } from "@/components/ui/Misc";
+import { Segmented } from "@/components/ui/Segmented";
+import { GitHubRepoPicker } from "@/features/github/GitHubRepoPicker";
 import { api } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
 import { repoNameFromUrl } from "@/lib/format";
@@ -173,6 +175,7 @@ function CloneDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
   const [parent, setParent] = useState("");
   const [name, setName] = useState("");
   const [nameTouched, setNameTouched] = useState(false);
+  const [source, setSource] = useState<"url" | "github">("url");
   const [busy, setBusy] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
@@ -181,6 +184,7 @@ function CloneDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
     setUrl("");
     setName("");
     setNameTouched(false);
+    setSource("url");
     setError(null);
   };
 
@@ -223,7 +227,7 @@ function CloneDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
       width={500}
       title="Clone a repository"
       description="Copy a repository from GitHub, GitLab, Bitbucket or any Git server to this computer."
-      onSubmit={submit}
+      onSubmit={source === "url" ? submit : undefined}
       footer={
         <>
           {busy ? (
@@ -233,64 +237,85 @@ function CloneDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
           ) : (
             <Button onClick={onClose}>Cancel</Button>
           )}
-          <Button type="submit" variant="primary" loading={busy}>
+          <Button type="submit" variant="primary" loading={busy} disabled={source === "github"}>
             {busy ? "Cloning…" : "Clone"}
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-3">
-        <Field
-          label="Repository URL"
-          hint={
-            isSsh
-              ? "SSH URLs use your SSH keys and agent. If authentication fails, check your SSH setup for this host."
-              : "HTTPS or SSH, e.g. https://github.com/owner/repo.git or git@gitlab.com:owner/repo.git"
-          }
-        >
-          {(p) => (
-            <Input
-              {...p}
-              autoFocus
-              placeholder="https://…"
-              value={url}
-              disabled={busy}
-              onChange={(e) => {
-                setUrl(e.target.value);
-                if (!nameTouched) setName(repoNameFromUrl(e.target.value));
-              }}
-            />
-          )}
-        </Field>
-        <Field label="Location" hint="The repository is cloned into a new folder inside this one.">
-          {(p) => (
-            <div className="flex gap-2">
-              <Input {...p} readOnly value={parent} placeholder="Choose a folder" className="font-mono text-sm" />
-              <Button
-                disabled={busy}
-                onClick={async () => {
-                  const f = await pickFolder("Choose where to clone", parent || undefined);
-                  if (f) setParent(f);
-                }}
-              >
-                Choose…
-              </Button>
-            </div>
-          )}
-        </Field>
-        <Field label="Folder name">
-          {(p) => (
-            <Input
-              {...p}
-              value={name}
-              disabled={busy}
-              onChange={(e) => {
-                setNameTouched(true);
-                setName(e.target.value);
-              }}
-            />
-          )}
-        </Field>
+        <Segmented
+          label="Clone from"
+          value={source}
+          onChange={setSource}
+          options={[
+            { value: "url", label: "Repository URL" },
+            { value: "github", label: "Your GitHub repositories" },
+          ]}
+        />
+        {source === "github" && !busy ? (
+          <GitHubRepoPicker
+            onPick={(repo, picked) => {
+              setUrl(picked);
+              if (!nameTouched) setName(repo.name);
+              setSource("url");
+            }}
+          />
+        ) : (
+          <>
+            <Field
+              label="Repository URL"
+              hint={
+                isSsh
+                  ? "SSH URLs use your SSH keys and agent. If authentication fails, check your SSH setup for this host."
+                  : "HTTPS or SSH, e.g. https://github.com/owner/repo.git or git@gitlab.com:owner/repo.git"
+              }
+            >
+              {(p) => (
+                <Input
+                  {...p}
+                  autoFocus
+                  placeholder="https://…"
+                  value={url}
+                  disabled={busy}
+                  onChange={(e) => {
+                    setUrl(e.target.value);
+                    if (!nameTouched) setName(repoNameFromUrl(e.target.value));
+                  }}
+                />
+              )}
+            </Field>
+            <Field label="Location" hint="The repository is cloned into a new folder inside this one.">
+              {(p) => (
+                <div className="flex gap-2">
+                  <Input {...p} readOnly value={parent} placeholder="Choose a folder" className="font-mono text-sm" />
+                  <Button
+                    disabled={busy}
+                    onClick={async () => {
+                      const f = await pickFolder("Choose where to clone", parent || undefined);
+                      if (f) setParent(f);
+                    }}
+                  >
+                    Choose…
+                  </Button>
+                </div>
+              )}
+            </Field>
+            <Field label="Folder name">
+              {(p) => (
+                <Input
+                  {...p}
+                  value={name}
+                  disabled={busy}
+                  onChange={(e) => {
+                    setNameTouched(true);
+                    setName(e.target.value);
+                  }}
+                />
+              )}
+            </Field>
+          </>
+        )}
         {busy && (
           <p className="selectable truncate font-mono text-sm text-muted" aria-live="polite">
             {progress ?? "Connecting…"}

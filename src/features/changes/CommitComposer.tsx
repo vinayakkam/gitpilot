@@ -52,7 +52,7 @@ export async function undoLastCommit(id: number, confirmedPushed: boolean) {
 }
 
 export function CommitComposer({ stagedCount }: { stagedCount: number }) {
-  const { activeRepo, status, settings, run, busy, setPage, notify } = useStore();
+  const { activeRepo, status, settings, run, busy, openSettings, notify } = useStore();
   const id = activeRepo?.id;
   const [summary, setSummary] = useState("");
   const [body, setBody] = useState("");
@@ -180,7 +180,7 @@ export function CommitComposer({ stagedCount }: { stagedCount: number }) {
   const suggest = async () => {
     if (!id) return;
     if (!settings?.ai.enabled) {
-      setPage("settings");
+      openSettings("ai");
       notify({ tone: "info", title: "Turn on AI suggestions in Settings → AI first." });
       return;
     }

@@ -128,22 +128,7 @@ pub fn parse_reply(text: &str) -> AppResult<Vec<Suggestion>> {
     struct Reply {
         suggestions: Vec<Suggestion>,
     }
-    let start = text.find('{');
-    let end = text.rfind('}');
-    let (Some(s), Some(e)) = (start, end) else {
-        return Err(AppError::new(
-            ErrorKind::AiFailed,
-            "The AI response wasn't in the expected format.",
-        )
-        .with_detail(text.chars().take(500).collect::<String>()));
-    };
-    let reply: Reply = serde_json::from_str(&text[s..=e]).map_err(|err| {
-        AppError::new(
-            ErrorKind::AiFailed,
-            "The AI response wasn't in the expected format.",
-        )
-        .with_detail(err.to_string())
-    })?;
+    let reply: Reply = parse_json_object(text)?;
     let out: Vec<Suggestion> = reply
         .suggestions
         .into_iter()
@@ -192,31 +177,37 @@ fn http_client() -> AppResult<reqwest::Client> {
         })
 }
 
-pub async fn suggest(
+fn ensure_enabled(cfg: &AiSettings) -> AppResult<()> {
+    if cfg.enabled {
+        Ok(())
+    } else {
+        Err(AppError::new(
+            ErrorKind::AiNotConfigured,
+            "AI features are turned off. Enable them in Settings → AI.",
+        ))
+    }
+}
+
+/// Name of the model shown next to AI output.
+pub fn model_label(cfg: &AiSettings) -> String {
+    match (cfg.provider, cfg.model.trim()) {
+        (AiProviderKind::ClaudeCode, "") => "Claude Code".to_string(),
+        (AiProviderKind::ClaudeCode, m) => format!("Claude Code · {m}"),
+        (_, m) => m.to_string(),
+    }
+}
+
+/// Sends one system + user prompt to the configured provider and returns the reply text.
+pub async fn complete(
     cfg: &AiSettings,
-    convention: CommitConvention,
     api_key: Option<String>,
     claude: Option<std::path::PathBuf>,
-    raw_diff: &str,
-) -> AppResult<AiSuggestions> {
-    if !cfg.enabled {
-        return Err(AppError::new(
-            ErrorKind::AiNotConfigured,
-            "AI suggestions are turned off. Enable them in Settings → AI.",
-        ));
-    }
-    let prepared = prepare_diff(raw_diff);
-    if prepared.files == 0 {
-        return Err(AppError::invalid(if prepared.excluded.is_empty() {
-            "Stage some changes first — suggestions are based on staged changes only."
-        } else {
-            "All staged files look sensitive (keys, .env files…), so nothing was sent."
-        }));
-    }
-    let system = system_prompt(convention, cfg.include_body);
-    let user = format!("Staged diff:\n\n{}", prepared.text);
+    system: &str,
+    user: &str,
+    max_tokens: u32,
+) -> AppResult<String> {
+    ensure_enabled(cfg)?;
     let client = http_client()?;
-
     let text = match cfg.provider {
         AiProviderKind::OpenRouter => {
             let key = api_key.ok_or_else(|| {
@@ -231,7 +222,7 @@ pub async fn suggest(
                 .json(&json!({
                     "model": cfg.model.trim(),
                     "temperature": 0.2,
-                    "max_tokens": 800,
+                    "max_tokens": max_tokens,
                     "messages": [
                         {"role": "system", "content": system},
                         {"role": "user", "content": user}
@@ -278,7 +269,7 @@ pub async fn suggest(
                 .header("anthropic-version", "2023-06-01")
                 .json(&json!({
                     "model": cfg.model.trim(),
-                    "max_tokens": 800,
+                    "max_tokens": max_tokens,
                     "system": system,
                     "messages": [{"role": "user", "content": user}],
                 }))
@@ -314,17 +305,341 @@ pub async fn suggest(
                 .to_string()
         }
     };
+    if text.trim().is_empty() {
+        return Err(AppError::new(
+            ErrorKind::AiFailed,
+            "The AI returned an empty response. Try again, or pick another model.",
+        ));
+    }
+    Ok(text)
+}
 
+pub async fn suggest(
+    cfg: &AiSettings,
+    convention: CommitConvention,
+    api_key: Option<String>,
+    claude: Option<std::path::PathBuf>,
+    raw_diff: &str,
+) -> AppResult<AiSuggestions> {
+    ensure_enabled(cfg)?;
+    let prepared = prepare_diff(raw_diff);
+    if prepared.files == 0 {
+        return Err(AppError::invalid(if prepared.excluded.is_empty() {
+            "Stage some changes first — suggestions are based on staged changes only."
+        } else {
+            "All staged files look sensitive (keys, .env files…), so nothing was sent."
+        }));
+    }
+    let system = system_prompt(convention, cfg.include_body);
+    let user = format!("Staged diff:\n\n{}", prepared.text);
+    let text = complete(cfg, api_key, claude, &system, &user, 800).await?;
     Ok(AiSuggestions {
         suggestions: parse_reply(&text)?,
         excluded_files: prepared.excluded,
         truncated: prepared.truncated,
-        model: match (cfg.provider, cfg.model.trim()) {
-            (AiProviderKind::ClaudeCode, "") => "Claude Code".to_string(),
-            (AiProviderKind::ClaudeCode, m) => format!("Claude Code · {m}"),
-            (_, m) => m.to_string(),
-        },
+        model: model_label(cfg),
     })
+}
+
+/// A plain-language answer, e.g. an explanation of a commit.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AiText {
+    /// Short paragraphs and "- " bullets (a small Markdown subset).
+    pub text: String,
+    /// Files left out of the request because they may contain secrets.
+    pub excluded_files: Vec<String>,
+    /// The diff was shortened to fit the request size limit.
+    pub truncated: bool,
+    pub model: String,
+}
+
+pub const EXPLAIN_SYSTEM: &str = "You explain code changes to a developer who is reviewing them.\n\
+Rules:\n\
+- Describe only what the diff shows. Never guess at changes that aren't there; say so when the intent is unclear.\n\
+- Start with one or two sentences on what the change does overall.\n\
+- Then list the notable changes as \"- \" bullets. Mention risks or edge cases only when the diff gives a concrete reason.\n\
+- Plain language, at most about 250 words. Use `backticks` for identifiers. No headings, tables or code blocks.\n\
+Reply with the explanation only.";
+
+/// Explains a diff (a commit, or one file's changes). `what` describes it, e.g. "Commit abc123: Fix login".
+pub async fn explain(
+    cfg: &AiSettings,
+    api_key: Option<String>,
+    claude: Option<std::path::PathBuf>,
+    what: &str,
+    raw_diff: &str,
+) -> AppResult<AiText> {
+    ensure_enabled(cfg)?;
+    let prepared = prepare_diff(raw_diff);
+    if prepared.files == 0 {
+        return Err(AppError::invalid(if prepared.excluded.is_empty() {
+            "There are no changes to explain."
+        } else {
+            "The changed files look sensitive (keys, .env files…), so nothing was sent."
+        }));
+    }
+    let user = format!("{what}\n\nDiff:\n\n{}", prepared.text);
+    let text = complete(cfg, api_key, claude, EXPLAIN_SYSTEM, &user, 1200).await?;
+    Ok(AiText {
+        text: strip_fences(&text),
+        excluded_files: prepared.excluded,
+        truncated: prepared.truncated,
+        model: model_label(cfg),
+    })
+}
+
+/// Models sometimes wrap the whole answer in a code fence despite the instructions.
+fn strip_fences(text: &str) -> String {
+    let t = text.trim();
+    if let Some(rest) = t.strip_prefix("```") {
+        if let Some(body) = rest.strip_suffix("```") {
+            // Drop an optional language tag on the opening fence line.
+            let body = body.split_once('\n').map(|(_, b)| b).unwrap_or(body);
+            return body.trim().to_string();
+        }
+    }
+    t.to_string()
+}
+
+#[derive(Debug, Clone, Serialize, TS, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PrDescription {
+    pub title: String,
+    /// Markdown.
+    pub body: String,
+    /// Files left out of the request because they may contain secrets.
+    pub excluded_files: Vec<String>,
+    /// The diff was shortened to fit the request size limit.
+    pub truncated: bool,
+    pub model: String,
+}
+
+/// GitHub rejects longer pull request titles.
+pub const MAX_PR_TITLE: usize = 256;
+
+pub const PR_SYSTEM: &str = "You write GitHub pull request descriptions from a branch's commits and diff.\n\
+Rules:\n\
+- Describe only what the commits and diff show. Never invent issue numbers, links, test results or motivations.\n\
+- Title: imperative mood, at most 72 characters, no trailing period.\n\
+- Body: Markdown. One or two sentences summarising the change, then a \"## Changes\" section with \"- \" bullets. Add a \"## Testing\" section only if the diff adds or changes tests, and say only what they cover.\n\
+Respond with JSON only, no prose, in exactly this shape:\n\
+{\"title\":\"...\",\"body\":\"...\"}";
+
+pub fn parse_pr_reply(text: &str) -> AppResult<PrDescription> {
+    #[derive(Deserialize)]
+    struct Reply {
+        title: String,
+        #[serde(default)]
+        body: String,
+    }
+    let reply: Reply = parse_json_object(text)?;
+    let title: String = reply
+        .title
+        .trim()
+        .trim_end_matches('.')
+        .chars()
+        .take(MAX_PR_TITLE)
+        .collect();
+    if title.is_empty() {
+        return Err(AppError::new(
+            ErrorKind::AiFailed,
+            "The AI didn't return a usable title.",
+        ));
+    }
+    Ok(PrDescription {
+        title,
+        body: reply.body.trim().to_string(),
+        excluded_files: Vec::new(),
+        truncated: false,
+        model: String::new(),
+    })
+}
+
+/// Writes a pull request title and body. `commits` is a plain list of the branch's commit messages.
+pub async fn pr_description(
+    cfg: &AiSettings,
+    api_key: Option<String>,
+    claude: Option<std::path::PathBuf>,
+    commits: &str,
+    raw_diff: &str,
+) -> AppResult<PrDescription> {
+    ensure_enabled(cfg)?;
+    if commits.trim().is_empty() {
+        return Err(AppError::invalid(
+            "This branch has no commits that aren't already on the base branch.",
+        ));
+    }
+    let prepared = prepare_diff(raw_diff);
+    let user = format!(
+        "Commits (oldest first):\n{}\n\nDiff:\n\n{}",
+        commits.trim(),
+        prepared.text
+    );
+    let text = complete(cfg, api_key, claude, PR_SYSTEM, &user, 1500).await?;
+    let mut d = parse_pr_reply(&text)?;
+    d.excluded_files = prepared.excluded;
+    d.truncated = prepared.truncated;
+    d.model = model_label(cfg);
+    Ok(d)
+}
+
+/// One conflict as sent to the AI, plus the AI's proposal.
+#[derive(Debug, Clone, Serialize, TS, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ConflictSuggestion {
+    /// 0-based conflict number in the file.
+    pub index: u32,
+    /// The conflict exactly as it is in the file, markers included. Sent back when applying,
+    /// so a suggestion is never applied to a conflict that has changed since.
+    pub block: String,
+    pub explanation: String,
+    /// Text that replaces the whole conflict.
+    pub resolution: String,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ConflictHelp {
+    pub summary: String,
+    pub suggestions: Vec<ConflictSuggestion>,
+    pub model: String,
+}
+
+pub const CONFLICT_SYSTEM: &str = "You help a developer resolve Git merge conflicts in one file.\n\
+For each numbered conflict you get the current branch's version (CURRENT), the version being merged in (INCOMING), the common ancestor (BASE) when available, and a few lines around it.\n\
+Rules:\n\
+- Propose a resolution that keeps what both sides intended when they are compatible. When they contradict, pick one and say why.\n\
+- The resolution is the exact text that replaces the whole conflict: no conflict markers, same indentation and style as the file.\n\
+- Never add changes that neither side made, and never touch code outside the conflict.\n\
+- If you can't tell what's right, still pick the safest option and say what the developer should check.\n\
+- Explanations: one to three plain sentences each. Summary: one or two sentences about what the two sides changed.\n\
+Respond with JSON only, no prose, in exactly this shape:\n\
+{\"summary\":\"...\",\"blocks\":[{\"index\":0,\"explanation\":\"...\",\"resolution\":\"...\"}]}";
+
+/// Builds the prompt for a conflicted file's blocks.
+pub fn conflict_prompt(path: &str, blocks: &[crate::git::rewrite::ConflictBlock]) -> String {
+    let mut out = format!("File: {path}\n");
+    for b in blocks {
+        out.push_str(&format!(
+            "\n### Conflict {}\nCURRENT ({}):\n{}\n",
+            b.index, b.ours_label, b.ours
+        ));
+        if let Some(base) = &b.base {
+            out.push_str(&format!("BASE:\n{base}\n"));
+        }
+        out.push_str(&format!(
+            "INCOMING ({}):\n{}\nLines before:\n{}\nLines after:\n{}\n",
+            b.theirs_label, b.theirs, b.before, b.after
+        ));
+    }
+    out
+}
+
+fn is_marker_line(l: &str) -> bool {
+    ["<<<<<<<", "=======", ">>>>>>>", "|||||||"]
+        .iter()
+        .any(|m| l.starts_with(m))
+}
+
+/// Matches the AI's reply to the file's conflicts. Suggestions for unknown conflicts, duplicates
+/// and resolutions that still contain conflict markers are dropped.
+pub fn parse_conflict_reply(
+    text: &str,
+    blocks: &[crate::git::rewrite::ConflictBlock],
+) -> AppResult<(String, Vec<ConflictSuggestion>)> {
+    #[derive(Deserialize)]
+    struct Item {
+        index: u32,
+        #[serde(default)]
+        explanation: String,
+        resolution: String,
+    }
+    #[derive(Deserialize)]
+    struct Reply {
+        #[serde(default)]
+        summary: String,
+        blocks: Vec<Item>,
+    }
+    let reply: Reply = parse_json_object(text)?;
+    let mut out: Vec<ConflictSuggestion> = Vec::new();
+    for it in reply.blocks {
+        let Some(b) = blocks.iter().find(|b| b.index as u32 == it.index) else {
+            continue;
+        };
+        if out.iter().any(|s| s.index == it.index) || it.resolution.lines().any(is_marker_line) {
+            continue;
+        }
+        out.push(ConflictSuggestion {
+            index: it.index,
+            block: b.raw.clone(),
+            explanation: it.explanation.trim().to_string(),
+            resolution: it.resolution,
+        });
+    }
+    out.sort_by_key(|s| s.index);
+    if out.is_empty() {
+        return Err(AppError::new(
+            ErrorKind::AiFailed,
+            "The AI didn't return a usable suggestion for these conflicts.",
+        ));
+    }
+    Ok((reply.summary.trim().to_string(), out))
+}
+
+/// Suggests resolutions for the conflicts in one file. Nothing is changed; the user applies them.
+pub async fn conflict_help(
+    cfg: &AiSettings,
+    api_key: Option<String>,
+    claude: Option<std::path::PathBuf>,
+    path: &str,
+    blocks: &[crate::git::rewrite::ConflictBlock],
+) -> AppResult<ConflictHelp> {
+    ensure_enabled(cfg)?;
+    if is_sensitive(path) {
+        return Err(AppError::invalid(
+            "This file looks sensitive (keys, .env files…), so it isn't sent to an AI provider.",
+        ));
+    }
+    if blocks.is_empty() {
+        return Err(AppError::invalid(
+            "There are no conflicts left in this file.",
+        ));
+    }
+    let user = conflict_prompt(path, blocks);
+    if user.len() > MAX_PROMPT_DIFF_CHARS {
+        return Err(AppError::invalid(
+            "These conflicts are too large to send. Resolve them by hand or pick a side for the whole file.",
+        ));
+    }
+    let text = complete(cfg, api_key, claude, CONFLICT_SYSTEM, &user, 4000).await?;
+    let (summary, suggestions) = parse_conflict_reply(&text, blocks)?;
+    Ok(ConflictHelp {
+        summary,
+        suggestions,
+        model: model_label(cfg),
+    })
+}
+
+/// Finds the outermost JSON object in a reply (models sometimes add prose or code fences).
+fn parse_json_object<T: serde::de::DeserializeOwned>(text: &str) -> AppResult<T> {
+    let bad = || {
+        AppError::new(
+            ErrorKind::AiFailed,
+            "The AI response wasn't in the expected format.",
+        )
+    };
+    let (Some(s), Some(e)) = (text.find('{'), text.rfind('}')) else {
+        return Err(bad().with_detail(text.chars().take(500).collect::<String>()));
+    };
+    if e < s {
+        return Err(bad().with_detail(text.chars().take(500).collect::<String>()));
+    }
+    serde_json::from_str(&text[s..=e]).map_err(|err| bad().with_detail(err.to_string()))
 }
 
 #[derive(Debug, Clone, Serialize, TS)]
@@ -523,6 +838,49 @@ mod tests {
         );
         assert_eq!(k.usage, 1.25);
         assert_eq!(k.limit, None);
+    }
+
+    #[test]
+    fn parses_pr_reply() {
+        let d = parse_pr_reply("```json\n{\"title\":\" Add login. \",\"body\":\"Adds it.\\n\\n## Changes\\n- a\"}\n```").unwrap();
+        assert_eq!(d.title, "Add login");
+        assert!(d.body.starts_with("Adds it.\n\n## Changes"));
+        let long = format!("{{\"title\":\"{}\"}}", "x".repeat(400));
+        assert_eq!(parse_pr_reply(&long).unwrap().title.len(), MAX_PR_TITLE);
+        assert!(parse_pr_reply("{\"title\":\"  \"}").is_err());
+        assert!(parse_pr_reply("} no json {").is_err());
+    }
+
+    #[test]
+    fn strips_wrapping_fence() {
+        assert_eq!(strip_fences("```markdown\nHello\n- a\n```"), "Hello\n- a");
+        assert_eq!(strip_fences("Plain `x`."), "Plain `x`.");
+    }
+
+    #[test]
+    fn conflict_prompt_and_reply() {
+        let text = "a\n<<<<<<< HEAD\nmine\n=======\ntheirs\n>>>>>>> feature\nb\n<<<<<<< HEAD\nm2\n=======\nt2\n>>>>>>> feature\n";
+        let blocks = crate::git::rewrite::conflict_blocks(text, 2);
+        let prompt = conflict_prompt("src/x.rs", &blocks);
+        assert!(prompt.contains("File: src/x.rs"));
+        assert!(prompt.contains("### Conflict 0\nCURRENT (HEAD):\nmine\n"));
+        assert!(prompt.contains("INCOMING (feature):\nt2\n"));
+
+        let reply = r#"Here you go: {"summary":"Both renamed it.","blocks":[
+            {"index":1,"explanation":"Keep both.","resolution":"m2\nt2\n"},
+            {"index":0,"explanation":"Theirs is newer.","resolution":"theirs\n"},
+            {"index":0,"explanation":"dup","resolution":"x"},
+            {"index":7,"explanation":"unknown","resolution":"x"}]}"#;
+        let (summary, s) = parse_conflict_reply(reply, &blocks).unwrap();
+        assert_eq!(summary, "Both renamed it.");
+        assert_eq!(s.len(), 2);
+        assert_eq!((s[0].index, s[0].resolution.as_str()), (0, "theirs\n"));
+        assert_eq!(s[0].block, blocks[0].raw);
+        assert_eq!(s[1].explanation, "Keep both.");
+
+        // Resolutions that still contain conflict markers are never offered.
+        let bad = r#"{"summary":"","blocks":[{"index":0,"resolution":"<<<<<<< HEAD\nx\n"}]}"#;
+        assert!(parse_conflict_reply(bad, &blocks).is_err());
     }
 
     #[test]

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Copy, FileClock, GitCommitHorizontal, GitCompare, GitFork, GitMerge, History, ListOrdered, RotateCcw, ScanSearch, Tag as TagIcon, Undo2, X } from "lucide-react";
+import { Copy, FileClock, GitCommitHorizontal, GitCompare, GitFork, GitMerge, History, ListOrdered, RotateCcw, ScanSearch, Sparkles, Tag as TagIcon, Undo2, X } from "lucide-react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import type { AppError } from "@/bindings/AppError";
 import type { CommitDetail } from "@/bindings/CommitDetail";
@@ -19,6 +19,7 @@ import { StatusGlyph } from "@/components/ui/StatusGlyph";
 import { DiffViewer } from "@/features/diff/DiffViewer";
 import { TagDialog } from "@/features/branches/TagDialog";
 import { CompareFilesDialog, type CompareTarget } from "@/features/compare/CompareFilesDialog";
+import { ExplainDialog, type ExplainRequest } from "@/features/assistant/ExplainDialog";
 import { BlameView } from "./BlameView";
 import { EditCommitsDialog } from "./EditCommitsDialog";
 import { ResetDialog } from "./ResetDialog";
@@ -126,6 +127,7 @@ export function HistoryView() {
   const [error, setError] = useState<AppError | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   const [detail, setDetail] = useState<CommitDetail | null>(null);
+  const [explain, setExplain] = useState<ExplainRequest | null>(null);
   const [detailErr, setDetailErr] = useState<AppError | null>(null);
   const [file, setFile] = useState<CommitFile | null>(null);
   const [diff, setDiff] = useState<FileDiff | null>(null);
@@ -365,6 +367,17 @@ export function HistoryView() {
                     <span className="font-mono">{detail.summary.shortHash}</span>
                   </Button>
                   <IconButton size="sm" label="Copy full message" icon={<Copy size={13} />} onClick={() => copy(detail.message, "Message")} />
+                  <IconButton
+                    size="sm"
+                    label="Explain this commit with AI"
+                    icon={<Sparkles size={13} />}
+                    disabled={id == null}
+                    onClick={() => {
+                      if (id == null) return;
+                      const hash = detail.summary.hash;
+                      setExplain({ title: `Explain commit ${detail.summary.shortHash}`, load: () => api.aiExplain(id, { kind: "commit", hash }) });
+                    }}
+                  />
                   <IconButton size="sm" label="Revert this commit…" icon={<Undo2 size={13} />} disabled={status?.state !== "normal"} onClick={() => setRevert(detail.summary)} />
                 </div>
               </div>
@@ -456,6 +469,7 @@ export function HistoryView() {
       <TagDialog target={tagOn} onClose={() => setTagOn(null)} />
       <CompareFilesDialog target={compare} onClose={() => setCompare(null)} />
       <BlameView target={blame} onClose={() => setBlame(null)} />
+      <ExplainDialog request={explain} onClose={() => setExplain(null)} />
       <EditCommitsDialog target={editFrom} onClose={() => setEditFrom(null)} />
       <ResetDialog target={resetTo} onClose={() => setResetTo(null)} />
       <ConfirmDialog

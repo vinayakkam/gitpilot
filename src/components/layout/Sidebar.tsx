@@ -4,6 +4,7 @@ import {
   FileDiff,
   FolderGit2,
   GitBranch,
+  GitPullRequest,
   History,
   LayoutList,
   PanelLeftClose,
@@ -34,6 +35,7 @@ export const SECTIONS: { id: Section; label: string; icon: ReactNode; key: strin
   { id: "branches", label: "Branches", icon: <GitBranch size={16} />, key: "4" },
   { id: "remotes", label: "Remotes", icon: <Server size={16} />, key: "5" },
   { id: "assistant", label: "Assistant", icon: <Sparkles size={16} />, key: "6" },
+  { id: "pulls", label: "Pull requests", icon: <GitPullRequest size={16} />, key: "7" },
 ];
 
 function NavItem({

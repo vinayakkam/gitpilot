@@ -19,6 +19,8 @@ pub struct AppState {
     locks: Mutex<HashMap<i64, Arc<tokio::sync::Mutex<()>>>>,
     cancels: Mutex<HashMap<String, Arc<tokio::sync::Notify>>>,
     pub watches: crate::watch::Watches,
+    /// A "Sign in with GitHub" waiting for the user to enter the code.
+    github_device: Mutex<Option<crate::github::PendingDevice>>,
 }
 
 impl AppState {
@@ -36,6 +38,7 @@ impl AppState {
             locks: Mutex::new(HashMap::new()),
             cancels: Mutex::new(HashMap::new()),
             watches: crate::watch::Watches::default(),
+            github_device: Mutex::new(None),
         })
     }
 
@@ -100,6 +103,17 @@ impl AppState {
             .with_detail(rec.path));
         }
         Ok(p)
+    }
+
+    pub fn set_github_device(&self, p: Option<crate::github::PendingDevice>) {
+        *self.github_device.lock().unwrap_or_else(|e| e.into_inner()) = p;
+    }
+
+    pub fn take_github_device(&self) -> Option<crate::github::PendingDevice> {
+        self.github_device
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take()
     }
 
     /// Per-repository lock that serializes mutating operations.

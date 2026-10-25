@@ -1590,3 +1590,256 @@ async fn conflicts_interactive_rebase_and_reset_backups() {
         "only GitPilot backups"
     );
 }
+
+#[tokio::test]
+async fn ai_inputs_and_applying_a_conflict_suggestion() {
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    write(&root, "c.txt", "top\nmiddle\nbottom\n");
+    r.stage_all().await.unwrap();
+    r.commit("Base").await.unwrap();
+
+    // Branch changes for a pull request description: commits oldest first, diff since the split.
+    r.branch_create("feature", None, true).await.unwrap();
+    write(&root, "c.txt", "TOP-feature\nmiddle\nbottom\n");
+    r.stage_all().await.unwrap();
+    r.commit("Change top\n\nBecause the old one was wrong.")
+        .await
+        .unwrap();
+    write(&root, "new.txt", "hello\n");
+    r.stage_all().await.unwrap();
+    let hash = r.commit("Add new file").await.unwrap();
+    let (commits, diff) = r.branch_changes_since("main").await.unwrap();
+    assert_eq!(
+        commits,
+        "- Change top\n  Because the old one was wrong.\n- Add new file\n"
+    );
+    let diff = String::from_utf8(diff).unwrap();
+    assert!(diff.contains("+TOP-feature") && diff.contains("+hello"));
+    assert!(r.branch_changes_since("--upload-pack=x").await.is_err());
+    let missing = r.branch_changes_since("origin/main").await.unwrap_err();
+    assert!(missing.message.contains("Fetch"), "{}", missing.message);
+
+    let one = String::from_utf8(r.commit_diff_raw(&hash).await.unwrap()).unwrap();
+    assert!(one.contains("diff --git a/new.txt b/new.txt") && !one.contains("TOP-feature"));
+
+    // One file's changes, including a new untracked file.
+    write(&root, "c.txt", "TOP-feature\nmiddle!\nbottom\n");
+    write(&root, "untracked.txt", "u1\nu2\n");
+    let d = r
+        .change_diff_raw("c.txt", Area::Unstaged, None)
+        .await
+        .unwrap();
+    assert!(String::from_utf8(d).unwrap().contains("+middle!"));
+    let d = r
+        .change_diff_raw("untracked.txt", Area::Untracked, None)
+        .await
+        .unwrap();
+    assert!(String::from_utf8(d)
+        .unwrap()
+        .ends_with("+++ b/untracked.txt\n+u1\n+u2\n"));
+    assert!(r
+        .change_diff_raw("../x", Area::Unstaged, None)
+        .await
+        .is_err());
+    std::fs::remove_file(root.join("untracked.txt")).unwrap();
+    let backups = tempfile::tempdir().unwrap();
+    r.discard_tracked(&["c.txt".into()], backups.path())
+        .await
+        .unwrap();
+
+    // A conflict, resolved with a suggested text.
+    r.branch_switch("main").await.unwrap();
+    write(&root, "c.txt", "TOP-main\nmiddle\nbottom\n");
+    r.stage_all().await.unwrap();
+    r.commit("Main top").await.unwrap();
+    assert!(
+        r.merge("feature").await.is_err(),
+        "conflict stops the merge"
+    );
+    let blocks = r.conflict_blocks("c.txt").await.unwrap();
+    assert_eq!(blocks.len(), 1);
+    assert_eq!(blocks[0].ours, "TOP-main\n");
+    assert_eq!(blocks[0].theirs, "TOP-feature\n");
+    assert_eq!(blocks[0].after, "middle\nbottom\n");
+
+    // A stale block is refused and the file is left alone.
+    let before = std::fs::read_to_string(root.join("c.txt")).unwrap();
+    assert!(r
+        .conflict_apply_text("c.txt", 0, "<<<<<<< HEAD\nold\n", "x")
+        .await
+        .is_err());
+    assert_eq!(std::fs::read_to_string(root.join("c.txt")).unwrap(), before);
+
+    let left = r
+        .conflict_apply_text("c.txt", 0, &blocks[0].raw, "TOP-merged")
+        .await
+        .unwrap();
+    assert_eq!(left, 0);
+    assert_eq!(
+        std::fs::read_to_string(root.join("c.txt")).unwrap(),
+        "TOP-merged\nmiddle\nbottom\n"
+    );
+}
+
+#[tokio::test]
+async fn pull_requests_are_checked_out_without_losing_local_commits() {
+    let g = git();
+    let bare = tempfile::tempdir().unwrap();
+    g.run(
+        bare.path(),
+        ["init", "--bare", "-b", "main"],
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    let url = bare.path().display().to_string();
+
+    // "GitHub": an author pushes main, a branch, and a fork's pull request head.
+    let (_d1, a) = new_repo(&g).await;
+    let ra = Repo { git: &g, path: &a };
+    ra.remote_add("origin", &url).await.unwrap();
+    write(&a, "x.txt", "1\n");
+    ra.stage_all().await.unwrap();
+    ra.commit("one").await.unwrap();
+    ra.push(None, false, false, None, |_| {}).await.unwrap();
+    ra.branch_create("feature", None, true).await.unwrap();
+    write(&a, "f.txt", "feature\n");
+    ra.stage_all().await.unwrap();
+    ra.commit("feature work").await.unwrap();
+    ra.push(None, true, false, None, |_| {}).await.unwrap();
+    ra.branch_create("fork-work", Some("main"), true)
+        .await
+        .unwrap();
+    write(&a, "p.txt", "from a fork\n");
+    ra.stage_all().await.unwrap();
+    let pr1 = ra.commit("fork change").await.unwrap();
+    g.run(
+        &a,
+        ["push", "origin", "HEAD:refs/pull/1/head"],
+        Default::default(),
+    )
+    .await
+    .unwrap();
+
+    // A reviewer's clone.
+    let parent = tempfile::tempdir().unwrap();
+    let b = repo::clone(&g, &url, &parent.path().join("review"), None, |_| {})
+        .await
+        .unwrap();
+    let rb = Repo { git: &g, path: &b };
+    let head = |g: &Git, b: &Path| {
+        let (g, b) = (g.clone(), b.to_path_buf());
+        async move {
+            g.read(&b, ["rev-parse", "HEAD"])
+                .await
+                .unwrap()
+                .trim()
+                .to_string()
+        }
+    };
+
+    // Same-repository pull request: the real branch, tracking the remote.
+    let c = rb
+        .checkout_pull_branch("origin", "feature", None, |_| {})
+        .await
+        .unwrap();
+    assert_eq!((c.branch.as_str(), c.created), ("feature", true));
+    let st = rb.status().await.unwrap();
+    assert_eq!(st.branch.head.as_deref(), Some("feature"));
+    assert_eq!(st.branch.upstream.as_deref(), Some("origin/feature"));
+    rb.branch_switch("main").await.unwrap();
+    let again = rb
+        .checkout_pull_branch("origin", "feature", None, |_| {})
+        .await
+        .unwrap();
+    assert!(!again.created && !again.updated && !again.diverged);
+
+    // Fork pull request: fetched from refs/pull/1/head into pr-1.
+    let c = rb
+        .checkout_pull_head("origin", 1, None, |_| {})
+        .await
+        .unwrap();
+    assert_eq!((c.branch.as_str(), c.created), ("pr-1", true));
+    assert_eq!(head(&g, &b).await, pr1);
+    assert!(rb
+        .checkout_pull_head("--upload-pack=x", 1, None, |_| {})
+        .await
+        .is_err());
+    assert!(rb
+        .checkout_pull_head("origin", 99, None, |_| {})
+        .await
+        .is_err());
+
+    // The author pushes more: checking out again fast-forwards pr-1 (also when not on it).
+    write(&a, "p.txt", "from a fork\nmore\n");
+    ra.stage_all().await.unwrap();
+    let pr1b = ra.commit("more fork work").await.unwrap();
+    g.run(
+        &a,
+        ["push", "origin", "HEAD:refs/pull/1/head"],
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    rb.branch_switch("main").await.unwrap();
+    let c = rb
+        .checkout_pull_head("origin", 1, None, |_| {})
+        .await
+        .unwrap();
+    assert!(c.updated && !c.diverged);
+    assert_eq!(head(&g, &b).await, pr1b);
+
+    // A local commit on pr-1, then the author force-pushes: pr-1 is left alone.
+    write(&b, "mine.txt", "local\n");
+    rb.stage_all().await.unwrap();
+    let mine = rb.commit("my review fix").await.unwrap();
+    g.run(
+        &a,
+        [
+            "push",
+            "--force",
+            "origin",
+            &format!("{pr1}:refs/pull/1/head"),
+        ],
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    let c = rb
+        .checkout_pull_head("origin", 1, None, |_| {})
+        .await
+        .unwrap();
+    assert!(c.diverged && !c.updated);
+    assert_eq!(head(&g, &b).await, mine, "local commit kept");
+}
+
+/// Needs network access: `cargo test -- --ignored live_github`.
+#[tokio::test]
+#[ignore]
+async fn live_github_fork_pull_request_checkout() {
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    // octocat/Hello-World#1 comes from a fork (unoju/Hello-World).
+    let c = r
+        .checkout_pull_head(
+            "https://github.com/octocat/Hello-World.git",
+            1,
+            None,
+            |_| {},
+        )
+        .await
+        .unwrap();
+    assert_eq!((c.branch.as_str(), c.created), ("pr-1", true));
+    let st = r.status().await.unwrap();
+    assert_eq!(st.branch.head.as_deref(), Some("pr-1"));
+    assert_eq!(st.branch.upstream, None);
+}

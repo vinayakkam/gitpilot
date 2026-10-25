@@ -10,8 +10,9 @@ import { LINK_FAILED_EVENT } from "@/lib/links";
 import { api, onProgress } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
 
-export type Section = "overview" | "changes" | "history" | "branches" | "remotes" | "assistant";
+export type Section = "overview" | "changes" | "history" | "branches" | "remotes" | "assistant" | "pulls";
 export type Page = "repo" | "repositories" | "settings";
+export type SettingsTab = "general" | "appearance" | "git" | "github" | "ai" | "claude" | "updates" | "about";
 
 export interface Toast {
   id: number;
@@ -60,6 +61,11 @@ interface Store {
   setHistoryJump: (q: string | null) => void;
   setPage: (p: Page) => void;
   setSection: (s: Section) => void;
+  /** Section shown in Settings. */
+  settingsTab: SettingsTab;
+  setSettingsTab: (t: SettingsTab) => void;
+  /** Opens Settings at a section, e.g. "ai" from an AI button that isn't set up yet. */
+  openSettings: (t: SettingsTab) => void;
   openRepo: (id: number) => Promise<void>;
   refreshRepos: () => Promise<RepoRecord[]>;
   refreshStatus: () => Promise<void>;
@@ -88,6 +94,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [activeId, setActiveId] = useState<number | null>(null);
   const [page, setPage] = useState<Page>("repo");
   const [section, setSection] = useState<Section>("changes");
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
   const [status, setStatus] = useState<RepoStatus | null>(null);
   const [statusError, setStatusError] = useState<AppError | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
@@ -335,6 +342,12 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     setSection: (s) => {
       setSection(s);
       setPage("repo");
+    },
+    settingsTab,
+    setSettingsTab,
+    openSettings: (t) => {
+      setSettingsTab(t);
+      setPage("settings");
     },
     openRepo,
     refreshRepos,

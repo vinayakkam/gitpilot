@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowRight, Columns2, FileWarning, Minus, Plus, Rows3 } from "lucide-react";
+import { ArrowRight, Columns2, FileWarning, Minus, Plus, Rows3, Sparkles } from "lucide-react";
 import type { AppError } from "@/bindings/AppError";
 import type { DiffLine } from "@/bindings/DiffLine";
 import type { DiffMode } from "@/bindings/DiffMode";
@@ -49,11 +49,15 @@ interface Props {
     resolveBlock: (index: number, choice: "current" | "incoming" | "both") => void;
     takeSide: (current: boolean) => void;
     markResolved: () => void;
+    /** Ask the AI for suggested resolutions. */
+    help?: () => void;
   };
   /** Throw away a hunk / the selected lines (unstaged changes only). */
   discardHunk?: HunkAction;
   discardLines?: LineAction;
   busy?: boolean;
+  /** Extra buttons in the file header (e.g. Explain). */
+  actions?: ReactNode;
   emptyTitle?: string;
   emptyBody?: string;
 }
@@ -223,7 +227,7 @@ export function diffKey(d: FileDiff | null): string {
   return [d.oldPath, d.newPath, ...d.hunks.map((h) => `${h.header}\n${h.lines.map((l) => `${l.kind}:${l.content}`).join("\n")}`)].join("\u0000");
 }
 
-export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight, hunkAction, lineAction, discardHunk, discardLines, conflict, busy, emptyTitle, emptyBody }: Props) {
+export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight, hunkAction, lineAction, discardHunk, discardLines, conflict, busy, actions, emptyTitle, emptyBody }: Props) {
   const [sel, setSel] = useState<Selection>(null);
   // A different diff (after staging, or another file) invalidates line indices. A refresh that
   // returns the same content (auto-refresh, window focus) keeps the selection.
@@ -456,6 +460,7 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
           <span className="hidden shrink-0 text-xs text-faint lg:inline">Click + or − markers to pick lines</span>
         )}
         {loading && <Spinner size={12} />}
+        {actions}
         {!diff.conflictView && (
           <Segmented
             size="sm"
@@ -485,6 +490,11 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
           )}
           {conflictCount > 0 ? (
             <>
+              {conflict.help && (
+                <Button size="sm" icon={<Sparkles size={12} />} disabled={busy} onClick={conflict.help}>
+                  Ask AI
+                </Button>
+              )}
               <Button size="sm" disabled={busy} onClick={() => conflict.takeSide(true)}>
                 Use current version
               </Button>
