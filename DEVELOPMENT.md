@@ -211,6 +211,7 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 10. Git LFS (tracked files, track new types, warn if LFS missing).
 11. Commit signing setup (GPG/SSH) + "Verified" mark in History.
 12. CI: run the full test suite on Windows and Linux on every push.
+13. Assistant: choose between Claude Code and OpenCode (`opencode` CLI) — detect it, launch it in a terminal in the repository with the selected prompt, and switch in Settings (added at the user's request, 2026-10-25).
 
 ## Next-session handoff
 
