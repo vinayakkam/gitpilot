@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  AppWindow,
   ArrowDownToLine,
   ArrowUpFromLine,
   DownloadCloud,
@@ -30,6 +31,7 @@ import { api } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
 import { modKey } from "@/lib/platform";
 import { useDebounced } from "@/lib/useAsync";
+import { useOpenWindow } from "@/features/repositories/useOpenWindow";
 import { useStore } from "@/store/AppStore";
 
 interface Item {
@@ -43,6 +45,7 @@ interface Item {
 
 export function CommandPalette() {
   const store = useStore();
+  const openWindow = useOpenWindow();
   const toolId = store.settings?.assistantTool ?? "claudeCode";
   const { paletteOpen, setPaletteOpen, activeRepo, status, repos, run } = store;
   const { addExisting, startClone, createNew } = useRepoActions();
@@ -128,8 +131,11 @@ export function CommandPalette() {
       for (const br of branches.filter((x) => !x.isRemote && !x.isCurrent).slice(0, f ? 50 : 5))
         out.push({ id: `br-${br.name}`, group: "Switch branch", label: br.name, icon: <GitBranch size={15} />, run: () => switchTo({ kind: "local", name: br.name }) });
     }
-    for (const r of repos.filter((r) => r.id !== id && r.available))
+    for (const r of repos.filter((r) => r.id !== id && r.available)) {
       out.push({ id: `repo-${r.id}`, group: "Repositories", label: r.name, hint: r.path, icon: <FolderGit2 size={15} />, run: () => void store.openRepo(r.id) });
+      // Only while searching, so the unfiltered list doesn't show every repository twice.
+      if (f) out.push({ id: `repo-window-${r.id}`, group: "Repositories", label: `${r.name} in a new window`, hint: r.path, icon: <AppWindow size={15} />, run: () => void openWindow({ id: r.id }) });
+    }
     out.push(
       { id: "open", group: "Repositories", label: "Open a repository…", icon: <FolderOpen size={15} />, run: () => void addExisting() },
       { id: "clone", group: "Repositories", label: "Clone a repository…", icon: <DownloadCloud size={15} />, run: startClone },

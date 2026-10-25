@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { DownloadCloud, FolderGit2, FolderOpen, FolderPlus, FolderSearch, MoreHorizontal, Pencil, Trash2, TriangleAlert } from "lucide-react";
+import { AppWindow, DownloadCloud, FolderGit2, FolderOpen, FolderPlus, FolderSearch, MoreHorizontal, Pencil, Trash2, TriangleAlert } from "lucide-react";
 import type { AppError } from "@/bindings/AppError";
 import type { RepoRecord } from "@/bindings/RepoRecord";
 import { Button } from "@/components/ui/Button";
@@ -15,9 +15,11 @@ import { api } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
 import { relativeTime } from "@/lib/format";
 import { useStore } from "@/store/AppStore";
+import { useOpenWindow } from "./useOpenWindow";
 
 export function RepositoriesView() {
   const { repos, activeRepo, openRepo, refreshRepos, notify, setPage } = useStore();
+  const openWindow = useOpenWindow();
   const { addExisting, startClone, createNew, relocate } = useRepoActions();
   const [q, setQ] = useState("");
   const [remove, setRemove] = useState<RepoRecord | null>(null);
@@ -31,6 +33,7 @@ export function RepositoriesView() {
 
   const items = (r: RepoRecord): MenuItem[] => [
     { label: "Open", icon: <FolderOpen size={14} />, disabled: !r.available, onSelect: () => void openRepo(r.id) },
+    { label: "Open in new window", icon: <AppWindow size={14} />, disabled: !r.available, onSelect: () => void openWindow({ id: r.id }) },
     { label: "Rename in GitPilot…", icon: <Pencil size={14} />, onSelect: () => setRename(r) },
     { label: "Locate folder…", icon: <FolderSearch size={14} />, onSelect: () => void relocate(r) },
     { type: "separator" },

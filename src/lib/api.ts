@@ -1,6 +1,7 @@
 // Typed wrappers around every Tauri command. Components never call invoke() directly.
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { isMainWindow } from "./windows";
 import type { AiProviderKind } from "@/bindings/AiProviderKind";
 import type { AiSuggestions } from "@/bindings/AiSuggestions";
 import type { AiText } from "@/bindings/AiText";
@@ -78,7 +79,12 @@ export const api = {
   repoRemove: (id: number) => invoke<void>("repo_remove", { id }),
   repoRelocate: (id: number, path: string) => invoke<RepoRecord>("repo_relocate", { id, path }),
   repoRename: (id: number, name: string) => invoke<RepoRecord>("repo_rename", { id, name }),
-  repoOpen: (id: number) => invoke<RepoRecord>("repo_open", { id }),
+  /** Only the main window's choice is reopened at the next start. */
+  repoOpen: (id: number) => invoke<RepoRecord>("repo_open", { id, remember: isMainWindow() }),
+  /** Opens a repository in its own window, or focuses that window. */
+  windowOpenRepo: (id: number) => invoke<void>("window_open_repo", { id }),
+  /** Settings saved in any window. */
+  onSettingsChanged: (cb: (s: Settings) => void): Promise<UnlistenFn> => listen<Settings>("settings-changed", (ev) => cb(ev.payload)),
 
   // working tree
   status: (id: number) => invoke<RepoStatus>("status_get", { id }),
@@ -228,7 +234,7 @@ export const api = {
   /** Downloads and checks out submodules (`paths` empty = all). Cancellable with opCancel("repo:<id>"). */
   submoduleUpdate: (id: number, paths: string[]) => invoke<void>("submodule_update", { id, paths }),
 
-  /** Cancels a running clone ("clone"), a fetch/push in a repository ("repo:<id>") or a GitHub sign-in ("github-login"). */
+  /** Cancels a running clone ("clone:<window label>"), a fetch/push in a repository ("repo:<id>") or a GitHub sign-in ("github-login"). */
   opCancel: (key: string) => invoke<boolean>("op_cancel", { key }),
 
   // assistance

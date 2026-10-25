@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { FolderGit2, FolderPlus, Lock, Trash2 } from "lucide-react";
+import { AppWindow, FolderGit2, FolderPlus, Lock, Trash2 } from "lucide-react";
 import type { AppError } from "@/bindings/AppError";
 import type { Worktree } from "@/bindings/Worktree";
 import { Button } from "@/components/ui/Button";
@@ -13,6 +13,7 @@ import { toAppError } from "@/lib/errors";
 import { pickFolder } from "@/lib/repoFlows";
 import { useAsync } from "@/lib/useAsync";
 import { useStore } from "@/store/AppStore";
+import { useOpenWindow } from "@/features/repositories/useOpenWindow";
 import { branchNameProblem } from "./NewBranchDialog";
 
 /** Joins a folder chosen in the picker and a new folder name, keeping the platform's separator. */
@@ -31,6 +32,7 @@ export function WorktreesSection() {
   const { activeRepo, status, revision, run, busy, openRepo, refreshRepos, notify } = useStore();
   const id = activeRepo?.id;
   const list = useAsync(() => api.worktreeList(id!), [id, revision], id != null);
+  const openWindow = useOpenWindow();
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<Worktree | null>(null);
   if (id == null || !activeRepo) return null;
@@ -82,9 +84,12 @@ export function WorktreesSection() {
             )}
             {w.prunable && <Badge tone="warning">folder missing</Badge>}
             {!w.current && !w.prunable && (
-              <Button size="sm" onClick={() => void open(w)}>
-                Open
-              </Button>
+              <>
+                <Button size="sm" onClick={() => void open(w)}>
+                  Open
+                </Button>
+                <IconButton size="sm" label={`Open ${w.branch ?? "worktree"} in a new window`} icon={<AppWindow size={13} />} onClick={() => void openWindow({ path: w.path })} />
+              </>
             )}
             {!w.main && !w.current && <IconButton size="sm" tone="danger" label={`Remove worktree ${w.branch ?? w.path}…`} icon={<Trash2 size={13} />} onClick={() => setRemoving(w)} />}
           </div>

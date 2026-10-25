@@ -1,4 +1,4 @@
-import { Download, FolderGit2, Package, RefreshCw } from "lucide-react";
+import { AppWindow, Download, FolderGit2, Package, RefreshCw } from "lucide-react";
 import type { Submodule } from "@/bindings/Submodule";
 import type { SubmoduleState } from "@/bindings/SubmoduleState";
 import { Button } from "@/components/ui/Button";
@@ -7,6 +7,7 @@ import { Badge, ErrorNotice } from "@/components/ui/Misc";
 import { api } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
 import { useAsync } from "@/lib/useAsync";
+import { useOpenWindow } from "@/features/repositories/useOpenWindow";
 import { useStore } from "@/store/AppStore";
 
 const STATE: Record<SubmoduleState, { label: string; tone: "success" | "warning" | "danger" | "neutral" }> = {
@@ -21,6 +22,7 @@ export function SubmodulesSection() {
   const { activeRepo, revision, run, busy, openRepo, refreshRepos, notify } = useStore();
   const id = activeRepo?.id;
   const subs = useAsync(() => api.submoduleList(id!), [id, revision], id != null);
+  const openWindow = useOpenWindow();
   if (id == null || !activeRepo) return null;
   if (subs.error) return <ErrorNotice className="mt-8" error={subs.error} />;
   const list = subs.data ?? [];
@@ -71,7 +73,12 @@ export function SubmodulesSection() {
                   {s.state === "notInitialized" ? "Download" : "Update"}
                 </Button>
               )}
-              {s.state !== "notInitialized" && <IconButton size="sm" label={`Open ${s.path} in GitPilot`} icon={<FolderGit2 size={13} />} onClick={() => void open(s)} />}
+              {s.state !== "notInitialized" && (
+                <>
+                  <IconButton size="sm" label={`Open ${s.path} in GitPilot`} icon={<FolderGit2 size={13} />} onClick={() => void open(s)} />
+                  <IconButton size="sm" label={`Open ${s.path} in a new window`} icon={<AppWindow size={13} />} onClick={() => void openWindow({ path: `${activeRepo.path}/${s.path}` })} />
+                </>
+              )}
             </div>
           </div>
         ))}

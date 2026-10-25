@@ -12,6 +12,7 @@ import { api } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
 import { repoNameFromUrl } from "@/lib/format";
 import { pickFolder } from "@/lib/repoFlows";
+import { windowLabel } from "@/lib/windows";
 import { useStore } from "@/store/AppStore";
 
 interface RepoActions {
@@ -214,7 +215,7 @@ function CloneDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
 
   const cancelClone = () => {
     setCancelling(true);
-    void api.opCancel("clone");
+    void api.opCancel(`clone:${windowLabel()}`);
   };
 
   const isSsh = /^(ssh:\/\/|[\w.-]+@[\w.-]+:)/.test(url.trim());

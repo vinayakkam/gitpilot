@@ -34,6 +34,13 @@ pub fn run() {
             app.manage(st);
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                if let Some(st) = window.try_state::<state::AppState>() {
+                    st.release_window(window.label());
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             commands::app::app_info,
             commands::app::settings_get,
@@ -77,6 +84,7 @@ pub fn run() {
             commands::changes::lfs_install_hooks,
             commands::repos::repo_watch,
             commands::repos::repo_unwatch,
+            commands::repos::window_open_repo,
             commands::changes::commit_amend,
             commands::changes::commit_undo,
             commands::changes::discard_partial,
