@@ -25,7 +25,7 @@ import { Group, PaneHeader, TextSetting, type PaneProps } from "./parts";
 const TABS: { id: SettingsTab; label: string; icon: ReactNode; keywords: string }[] = [
   { id: "general", label: "General", icon: <Settings2 size={15} />, keywords: "startup reopen last repository notifications success toast repositories auto refresh watch files changes fetch background remote new commits interval" },
   { id: "appearance", label: "Appearance", icon: <Palette size={15} />, keywords: "theme dark light system accent colour color blue custom density compact diff layout side by side unified syntax highlighting" },
-  { id: "git", label: "Git", icon: <GitBranch size={15} />, keywords: "git executable path identity name email initial branch main pull strategy fast-forward merge rebase commit message conventional line endings crlf lf gitattributes windows github pull request context signing sign gpg ssh key verified signature" },
+  { id: "git", label: "Git", icon: <GitBranch size={15} />, keywords: "git executable path identity name email initial branch main pull strategy fast-forward merge rebase commit message conventional line endings crlf lf gitattributes windows github pull request context signing sign gpg ssh key verified signature editor vscode code zed sublime jetbrains merge tool mergetool meld kdiff3 terminal" },
   { id: "github", label: "GitHub", icon: <GitPullRequest size={15} />, keywords: "github account sign in login token personal access oauth device pull requests clone repositories client id" },
   { id: "ai", label: "AI", icon: <Sparkles size={15} />, keywords: "ai commit message suggestions openrouter model key api anthropic claude openai ollama lm studio privacy provider free" },
   { id: "claude", label: "Coding assistant", icon: <Terminal size={15} />, keywords: "assistant claude code opencode open code account sign in login subscription terminal executable path launch prompt" },
@@ -186,9 +186,47 @@ function GitPane({ settings, set }: PaneProps) {
           )}
         </Field>
       </Group>
+      <Group title="External tools" description="Used by Open in editor (toolbar, file menus, Blame) and Open in merge tool (conflicts).">
+        <ExternalTools settings={settings} set={set} />
+      </Group>
       <Group title="New repositories">
         <TextSetting label="Initial branch name" hint="Used when GitPilot creates a repository. Leave empty to use Git's default (init.defaultBranch)." value={settings.defaultBranch} placeholder="main" mono onSave={(defaultBranch) => set({ defaultBranch })} />
       </Group>
+    </>
+  );
+}
+
+function ExternalTools({ settings, set }: Pick<PaneProps, "settings" | "set">) {
+  const t = settings.tools;
+  const editors = useAsync(() => api.editorList(), [t.editorPath]);
+  const found = editors.data?.filter((e) => e.id !== "custom") ?? [];
+  const setTools = (patch: Partial<typeof t>) => set({ tools: { ...t, ...patch } });
+  return (
+    <>
+      <Field label="Code editor" hint={found.length || editors.loading ? undefined : "No editor was found on this computer. Choose Other and enter its path."}>
+        {(p) => (
+          <Select {...p} value={t.editor} onChange={(e) => void setTools({ editor: e.target.value })}>
+            <option value="">{found[0] ? `Automatic (${found[0].name})` : "Automatic"}</option>
+            {found.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.name}
+              </option>
+            ))}
+            <option value="custom">Other…</option>
+          </Select>
+        )}
+      </Field>
+      {t.editor === "custom" && (
+        <TextSetting label="Editor executable" hint="Opens the repository or file you choose; jumping to a line works for the editors listed above." value={t.editorPath} mono browse="file" onSave={(editorPath) => setTools({ editorPath })} />
+      )}
+      <TextSetting
+        label="Merge tool"
+        hint="A git mergetool name such as meld, kdiff3, vscode or vimdiff. Leave empty to use Git's merge.tool setting."
+        value={t.mergeTool}
+        placeholder="meld"
+        mono
+        onSave={(mergeTool) => setTools({ mergeTool: mergeTool.trim() })}
+      />
     </>
   );
 }

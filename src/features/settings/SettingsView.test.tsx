@@ -18,6 +18,8 @@ const api = vi.hoisted(() => ({
   claudeAuthStatus: vi.fn(),
   claudeLogin: vi.fn(),
   updateSupport: vi.fn(),
+  editorList: vi.fn(),
+  signingGet: vi.fn(),
 }));
 
 vi.mock("@/lib/api", () => ({ api, onProgress: () => Promise.resolve(() => {}) }));
@@ -43,6 +45,7 @@ beforeEach(() => {
   api.claudeDetect.mockResolvedValue({ found: true, path: "/usr/bin/claude", version: "2.1.0", source: "path", terminal: "/usr/bin/xterm" });
   api.openCodeDetect.mockResolvedValue({ found: true, path: "/home/me/.opencode/bin/opencode", version: "1.2.3", source: "known location", terminal: "/usr/bin/xterm" });
   api.claudeAuthStatus.mockResolvedValue({ checked: true, loggedIn: false, method: null, detail: null });
+  api.editorList.mockResolvedValue([{ id: "zed", name: "Zed", path: "/usr/bin/zed" }]);
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
 });
 
@@ -57,6 +60,19 @@ function setup() {
 }
 
 describe("SettingsView", () => {
+  it("picks a code editor and a merge tool", async () => {
+    setup();
+    fireEvent.click(await screen.findByRole("button", { name: "Git" }));
+    const editor = await screen.findByLabelText("Code editor");
+    expect(await screen.findByRole("option", { name: "Automatic (Zed)" })).toBeInTheDocument();
+    fireEvent.change(editor, { target: { value: "custom" } });
+    await waitFor(() => expect(lastSaved()?.tools.editor).toBe("custom"));
+    const tool = screen.getByLabelText("Merge tool");
+    fireEvent.change(tool, { target: { value: " meld " } });
+    fireEvent.blur(tool);
+    await waitFor(() => expect(lastSaved()?.tools.mergeTool).toBe("meld"));
+  });
+
   it("turns off the GitHub sign-in for git over HTTPS", async () => {
     setup();
     fireEvent.click(await screen.findByRole("button", { name: "GitHub" }));
