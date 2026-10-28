@@ -1100,6 +1100,15 @@ impl Repo<'_> {
                 "You can't delete the branch you're on. Switch to another branch first.",
             ));
         }
+        if force {
+            // -D can drop commits no other branch has, so keep the tip under Branches → Backups.
+            self.backup_at(
+                &format!("deleted branch {name}"),
+                &format!("refs/heads/{name}"),
+                false,
+            )
+            .await?;
+        }
         self.write(["branch", if force { "-D" } else { "-d" }, name])
             .await?;
         Ok(())

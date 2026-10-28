@@ -328,6 +328,14 @@ async fn branches_are_managed_safely() {
     std::fs::remove_file(root.join("b.txt")).unwrap();
 
     r.branch_rename("feature/x", "feature/y").await.unwrap();
+    let tip = r
+        .branches()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|b| b.name == "feature/y")
+        .unwrap()
+        .tip;
     r.branch_delete("feature/y", true).await.unwrap();
     assert!(!r
         .branches()
@@ -335,6 +343,10 @@ async fn branches_are_managed_safely() {
         .unwrap()
         .iter()
         .any(|b| b.name.starts_with("feature/")));
+    // A force delete keeps the tip as a backup, so the branch can be recovered.
+    let backups = r.backups().await.unwrap();
+    assert_eq!(backups[0].label, "deleted branch feature/y");
+    assert_eq!(backups[0].hash, tip);
 
     // Stash round trip.
     write(&root, "a.txt", "changed\n");

@@ -241,7 +241,8 @@ export function BranchesView() {
           (pending.b.merged === false ? (
             <p>
               <span className="font-medium text-warning">This branch isn't merged into {current ?? "HEAD"}.</span> Deleting it removes the only local
-              name for its commits{pending.b.upstream && !pending.b.upstreamGone ? ` (they still exist on ${pending.b.upstream})` : ""}.
+              name for its commits{pending.b.upstream && !pending.b.upstreamGone ? ` (they still exist on ${pending.b.upstream})` : ""}. GitPilot keeps a
+              backup of its last commit under Backups, so you can create the branch again from there.
             </p>
           ) : (
             <p>The branch is fully merged into {current ?? "HEAD"}, so no commits are lost. The remote branch, if any, isn't touched.</p>

@@ -503,7 +503,17 @@ impl Repo<'_> {
 
     /// Saves HEAD (and, with `with_wip`, uncommitted tracked changes) under refs/gitpilot/backups.
     pub async fn make_backup(&self, label: &str, with_wip: bool) -> AppResult<Backup> {
-        let head = self.ro(&["rev-parse", "HEAD"]).await?.trim().to_string();
+        self.backup_at(label, "HEAD", with_wip).await
+    }
+
+    /// Saves the commit `rev` points to under refs/gitpilot/backups (see `make_backup`).
+    pub async fn backup_at(&self, label: &str, rev: &str, with_wip: bool) -> AppResult<Backup> {
+        let commit = format!("{rev}^{{commit}}");
+        let head = self
+            .ro(&["rev-parse", "--verify", "--end-of-options", &commit])
+            .await?
+            .trim()
+            .to_string();
         let stamp = chrono_stamp();
         let name = format!("{BACKUP_NS}{stamp}");
         let msg = format!("GitPilot backup: {label}");
