@@ -243,7 +243,7 @@ pub fn split_upstream<'a>(upstream: &'a str, remotes: &[String]) -> Option<(&'a 
 
 // ---------- HTTP ----------
 
-fn client() -> AppResult<reqwest::Client> {
+pub(crate) fn client() -> AppResult<reqwest::Client> {
     reqwest::Client::builder()
         .user_agent(concat!("GitPilot/", env!("CARGO_PKG_VERSION")))
         .timeout(Duration::from_secs(30))
@@ -253,7 +253,7 @@ fn client() -> AppResult<reqwest::Client> {
         })
 }
 
-fn api_req(
+pub(crate) fn api_req(
     c: &reqwest::Client,
     method: reqwest::Method,
     path: &str,
@@ -323,7 +323,7 @@ pub fn api_error(status: u16, body: &str, rate_limited: bool) -> AppError {
     AppError::new(kind, message).with_detail(detail)
 }
 
-async fn send(req: reqwest::RequestBuilder) -> AppResult<Value> {
+pub(crate) async fn send(req: reqwest::RequestBuilder) -> AppResult<Value> {
     let resp = req.send().await.map_err(network_err)?;
     let status = resp.status();
     let rate_limited = resp
@@ -347,7 +347,7 @@ async fn send(req: reqwest::RequestBuilder) -> AppResult<Value> {
     })
 }
 
-async fn get(token: &str, path: &str) -> AppResult<Value> {
+pub(crate) async fn get(token: &str, path: &str) -> AppResult<Value> {
     send(api_req(&client()?, reqwest::Method::GET, path, token)).await
 }
 

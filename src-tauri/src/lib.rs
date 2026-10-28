@@ -9,6 +9,7 @@ pub mod editors;
 pub mod error;
 pub mod git;
 pub mod github;
+pub mod github_pr;
 pub mod opencode;
 pub mod secrets;
 pub mod settings;
@@ -157,6 +158,14 @@ pub fn run() {
             commands::github::github_pulls,
             commands::github::github_pull_create,
             commands::github::github_pull_checkout,
+            commands::github::github_pull_detail,
+            commands::github::github_pull_files,
+            commands::github::github_pull_conversation,
+            commands::github::github_pull_checks,
+            commands::github::github_pull_comment,
+            commands::github::github_pull_review,
+            commands::github::github_pull_merge,
+            commands::github::github_pull_delete_branch,
             commands::assist::ai_suggest_commit,
             commands::assist::ai_explain,
             commands::assist::ai_pr_description,
