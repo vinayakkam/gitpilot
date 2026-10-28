@@ -23,7 +23,7 @@ import { Group, PaneHeader, TextSetting, type PaneProps } from "./parts";
 
 /** Sections, in order, with words people might search for. */
 const TABS: { id: SettingsTab; label: string; icon: ReactNode; keywords: string }[] = [
-  { id: "general", label: "General", icon: <Settings2 size={15} />, keywords: "startup reopen last repository notifications success toast repositories auto refresh watch files changes fetch background remote new commits interval" },
+  { id: "general", label: "General", icon: <Settings2 size={15} />, keywords: "startup reopen last repository notifications success toast repositories auto refresh watch files changes fetch background remote new commits interval tips beginner help explain" },
   { id: "appearance", label: "Appearance", icon: <Palette size={15} />, keywords: "theme dark light system accent colour color blue custom density compact diff layout side by side unified syntax highlighting" },
   { id: "git", label: "Git", icon: <GitBranch size={15} />, keywords: "git executable path identity name email initial branch main pull strategy fast-forward merge rebase commit message conventional line endings crlf lf gitattributes windows github pull request context signing sign gpg ssh key verified signature editor vscode code zed sublime jetbrains merge tool mergetool meld kdiff3 terminal" },
   { id: "github", label: "GitHub", icon: <GitPullRequest size={15} />, keywords: "github account sign in login token personal access oauth device pull requests clone repositories client id" },
@@ -107,6 +107,15 @@ function GeneralPane({ settings, set }: PaneProps) {
             </Select>
           )}
         </Field>
+      </Group>
+      <Group title="Tips">
+        <Switch label="Show tips for beginners" description="Short explanations the first time you stage, commit, publish, hit a conflict or open a pull request. Close one and it doesn't come back." checked={settings.tips} onChange={(tips) => void set({ tips })} />
+        {settings.dismissedTips.length > 0 && (
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-base text-muted">{settings.dismissedTips.length === 1 ? "1 tip closed." : `${settings.dismissedTips.length} tips closed.`}</p>
+            <Button size="sm" onClick={() => void set({ dismissedTips: [] })}>Show closed tips again</Button>
+          </div>
+        )}
       </Group>
       <Group title="Notifications">
         <Switch label="Show a notification when an operation succeeds" description="Errors are always shown." checked={settings.successNotifications} onChange={(successNotifications) => void set({ successNotifications })} />
