@@ -2289,3 +2289,30 @@ async fn history_search_by_content_and_date() {
     .await
     .is_err());
 }
+
+/// Large-repository speed: status for 50 000 changed files. Timing depends on the machine, so
+/// it's opt-in: `cargo test --release -- --ignored large_repo_status`.
+#[tokio::test]
+#[ignore]
+async fn large_repo_status_is_fast() {
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    for i in 0..50_000 {
+        write(&root, &format!("d{}/f{i}.txt", i % 100), "x\n");
+    }
+    r.stage_all().await.unwrap();
+    r.commit("many files").await.unwrap();
+    for i in 0..50_000 {
+        write(&root, &format!("d{}/f{i}.txt", i % 100), "y\n");
+    }
+    let t = std::time::Instant::now();
+    let st = r.status().await.unwrap();
+    let took = t.elapsed();
+    assert_eq!(st.files.len(), 50_000);
+    println!("status of 50 000 changed files: {took:?}");
+    assert!(took < std::time::Duration::from_secs(1), "took {took:?}");
+}
