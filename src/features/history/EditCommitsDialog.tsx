@@ -80,7 +80,7 @@ export function EditCommitsDialog({ target, onClose }: { target: { base: string 
       action: i.action,
       message: i.action === "reword" || (i.action === "squash" && i.newMessage.trim()) ? i.newMessage : null,
     }));
-    const ok = await integrate("Edit commits", async () => void (await api.rebaseInteractive(id, target.base, steps, pushed)), `Rewrote ${plural(items.length, "commit")}. A backup was saved under Branches → Backups.`);
+    const ok = await integrate("Edit commits", async () => void (await api.rebaseInteractive(id, target.base, steps, pushed)), `Rewrote ${plural(items.length, "commit")}. A backup was saved under Branches → Recover.`);
     setBusy(false);
     if (ok) onClose();
   };

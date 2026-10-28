@@ -1160,7 +1160,7 @@ impl Repo<'_> {
             ));
         }
         if force {
-            // -D can drop commits no other branch has, so keep the tip under Branches → Backups.
+            // -D can drop commits no other branch has, so keep the tip as a backup (Branches → Recover).
             self.backup_at(
                 &format!("deleted branch {name}"),
                 &format!("refs/heads/{name}"),
