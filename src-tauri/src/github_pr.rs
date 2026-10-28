@@ -65,6 +65,10 @@ pub struct PullComment {
     /// Review comments: the file and line they're on.
     pub path: Option<String>,
     pub line: Option<u32>,
+    /// Review comments: "LEFT" (a removed line, old numbering) or "RIGHT" (new numbering).
+    pub side: Option<String>,
+    /// Review comments whose line is no longer in the diff (newer commits changed it).
+    pub outdated: bool,
     pub url: String,
 }
 
@@ -227,6 +231,8 @@ pub fn parse_conversation(
             review_state: None,
             path: None,
             line: None,
+            side: None,
+            outdated: false,
             url: s(&c["html_url"]),
         });
     }
@@ -244,6 +250,8 @@ pub fn parse_conversation(
             review_state: Some(state),
             path: None,
             line: None,
+            side: None,
+            outdated: false,
             url: s(&r["html_url"]),
         });
     }
@@ -259,6 +267,11 @@ pub fn parse_conversation(
                 .as_u64()
                 .or_else(|| c["original_line"].as_u64())
                 .map(|l| l as u32),
+            side: c["side"]
+                .as_str()
+                .or_else(|| c["original_side"].as_str())
+                .map(str::to_string),
+            outdated: c["line"].is_null(),
             url: s(&c["html_url"]),
         });
     }
@@ -321,22 +334,29 @@ pub async fn detail(token: &str, owner: &str, name: &str, number: u32) -> AppRes
 /// Changed files (GitHub returns at most 3000), 100 per page.
 pub async fn files(token: &str, owner: &str, name: &str, number: u32) -> AppResult<Vec<PullFile>> {
     let path = base(owner, name, number)?;
+    let all = get_all(token, &format!("{path}/files"), 30).await?;
+    Ok(all
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(parse_file)
+        .collect())
+}
+
+/// Every item of a list endpoint, 100 per page, up to `max_pages` pages, as one JSON array.
+async fn get_all(token: &str, path: &str, max_pages: u32) -> AppResult<Value> {
+    let sep = if path.contains('?') { '&' } else { '?' };
     let mut out = Vec::new();
-    for page in 1..=30 {
-        let v = get(token, &format!("{path}/files?per_page=100&page={page}")).await?;
-        let batch: Vec<PullFile> = v
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(parse_file)
-            .collect();
+    for page in 1..=max_pages {
+        let v = get(token, &format!("{path}{sep}per_page=100&page={page}")).await?;
+        let batch = v.as_array().cloned().unwrap_or_default();
         let done = batch.len() < 100;
         out.extend(batch);
         if done {
             break;
         }
     }
-    Ok(out)
+    Ok(Value::Array(out))
 }
 
 pub async fn conversation(
@@ -348,11 +368,16 @@ pub async fn conversation(
     let (o, r) = (valid_name(owner)?, valid_name(name)?);
     let path = base(owner, name, number)?;
     let (cp, rp, lp) = (
-        format!("/repos/{o}/{r}/issues/{number}/comments?per_page=100"),
-        format!("{path}/reviews?per_page=100"),
-        format!("{path}/comments?per_page=100"),
+        format!("/repos/{o}/{r}/issues/{number}/comments"),
+        format!("{path}/reviews"),
+        format!("{path}/comments"),
     );
-    let (c, rv, lc) = tokio::join!(get(token, &cp), get(token, &rp), get(token, &lp));
+    // Up to 1000 of each; very long discussions are cut there (Open on GitHub shows the rest).
+    let (c, rv, lc) = tokio::join!(
+        get_all(token, &cp, 10),
+        get_all(token, &rp, 10),
+        get_all(token, &lp, 10)
+    );
     Ok(parse_conversation(&c?, &rv?, &lc?))
 }
 
@@ -517,6 +542,20 @@ mod tests {
             ["u1", "u2", "u3"]
         );
         assert_eq!(all[0].line, Some(4));
+        assert!(all[0].outdated, "line null = no longer in the diff");
+        let on_diff = parse_conversation(
+            &json!([]),
+            &json!([]),
+            &json!([{"user": {"login": "a"}, "body": "x", "created_at": "t", "path": "a.rs", "line": 9, "side": "LEFT", "html_url": "u"}]),
+        );
+        assert_eq!(
+            (
+                on_diff[0].line,
+                on_diff[0].side.as_deref(),
+                on_diff[0].outdated
+            ),
+            (Some(9), Some("LEFT"), false)
+        );
         assert_eq!(all[2].review_state.as_deref(), Some("APPROVED"));
     }
 

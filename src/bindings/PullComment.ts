@@ -20,4 +20,12 @@ reviewState: string | null,
 /**
  * Review comments: the file and line they're on.
  */
-path: string | null, line: number | null, url: string, };
+path: string | null, line: number | null, 
+/**
+ * Review comments: "LEFT" (a removed line, old numbering) or "RIGHT" (new numbering).
+ */
+side: string | null, 
+/**
+ * Review comments whose line is no longer in the diff (newer commits changed it).
+ */
+outdated: boolean, url: string, };
