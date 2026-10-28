@@ -166,6 +166,8 @@ pub fn run() {
             commands::github::github_pull_review,
             commands::github::github_pull_merge,
             commands::github::github_pull_delete_branch,
+            commands::github::github_issues,
+            commands::github::github_issue_create,
             commands::assist::ai_suggest_commit,
             commands::assist::ai_explain,
             commands::assist::ai_pr_description,

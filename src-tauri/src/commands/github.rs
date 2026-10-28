@@ -348,3 +348,18 @@ pub async fn github_pull_delete_branch(
     super::changes::require_confirmation(confirmed)?;
     github_pr::delete_branch(&token()?, &owner, &name, &branch).await
 }
+
+#[tauri::command]
+pub async fn github_issues(owner: String, name: String) -> AppResult<Vec<github_pr::Issue>> {
+    github_pr::issues(&token()?, &owner, &name).await
+}
+
+#[tauri::command]
+pub async fn github_issue_create(
+    owner: String,
+    name: String,
+    title: String,
+    body: String,
+) -> AppResult<github_pr::Issue> {
+    github_pr::create_issue(&token()?, &owner, &name, &title, &body).await
+}
