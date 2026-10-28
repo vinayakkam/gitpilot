@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.5.0 — 2026-10-28
+
+### Updates on Arch and CachyOS
+- **GitPilot installed with pacman now updates itself**, like on Windows: **Update now** downloads the signed Arch package of the new release, checks its signature and installs it with pacman. You're asked for your password once (polkit). Updating from 0.4.5 to 0.5.0 is the last time you need `pacman -U` by hand.
+
+### Pull requests and issues
+- **Review pull requests in GitPilot.** **Review** on a pull request shows its changed files with diffs, the conversation (description, comments, reviews and line comments) and its checks with links to their logs. **Comment**, **Approve** or **Request changes** from there.
+- **Merge on GitHub.** Choose merge, squash or rebase and confirm. GitPilot merges only the commits you looked at: if someone pushed since, GitHub refuses. After merging, **Delete branch** removes the pull request's branch on GitHub.
+- **Explain a pull request with AI.** **Explain** in the review window describes the whole pull request in plain language.
+- **Issues.** Pull requests has an **Issues** tab: search open issues, open a new one, and **Start work** creates a branch like `123-short-title` from the default branch. A pull request from that branch starts with “Fixes #123”.
+- **Git over HTTPS with your GitHub sign-in.** Cloning, fetching, pulling and pushing `https://github.com` repositories now use your GitHub sign-in, so private repositories work without a credential manager. Turn it off in Settings → GitHub → Git over HTTPS. SSH addresses and other hosts are unchanged.
+
+### Getting work back
+- **Recover.** Branches → **Recover** lists everywhere your repository has been recently (commits, resets, rebases, branch switches) in plain language and marks commits that are no longer on any branch. **Create branch here** brings lost work back; **Reset current branch here** backs up first. History's commit menu has **Show earlier states…**.
+- **Force-deleted branches are backed up.** Deleting a branch that isn't merged keeps its last commit under Backups, where **Create branch from this backup** restores it.
+
+### Finding things
+- **Search history by content.** The sliders button next to History's search finds commits that added or removed a piece of text (or match a regular expression), within a date range. Matching lines are marked in the diff.
+
+### Staying up to date
+- **Fetch in the background.** GitPilot fetches the open repository every 15 minutes and tells you when your branch has new commits to pull. It never asks for a password: if a remote needs one, it's skipped. Settings → General → Fetch in the background (off, 5, 15 or 30 minutes).
+
+### Your other tools
+- **Open in editor.** The toolbar's code button, the command palette and the file menus in Changes and History open the repository or a file in your editor (VS Code, VSCodium, Cursor, Zed, Sublime Text, JetBrains IDEs, Kate, gedit, or any editor you choose). In Blame, click a line number to open that line.
+- **Open a terminal here.** From the toolbar's code button or the command palette.
+- **Open in merge tool.** Conflicted files can be resolved in meld, kdiff3, VS Code or any tool `git mergetool` supports; the file is marked resolved when you save. Settings → Git → External tools.
+
+### For beginners
+- **Tips.** Short explanations appear the first time you stage, commit, publish a branch, hit a conflict, end up on a detached HEAD or open pull requests. Close a tip and it doesn't come back; Settings → General → Tips turns them off or shows closed ones again.
+
+### Faster and easier to use
+- **Large repositories.** The changed-file list stays fast with thousands of files, and status checks ask Git about less: reading the status of 50,000 changed files took under half a second in our test.
+- **The sidebar collapses on its own** in narrow windows.
+- **Tooltips** everywhere now use GitPilot's own style instead of the system's.
+- **Accessibility.** The changed-file list is announced correctly by screen readers, and running operations are announced.
+
 ## 0.4.5 — 2026-10-25
 
 ### Work on more at once
