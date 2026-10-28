@@ -2,7 +2,7 @@
 # Repackages the GitPilot .deb for Arch Linux / CachyOS / Manjaro / EndeavourOS.
 # Build: put GitPilot_<version>_amd64.deb next to this file (LICENSE is included here), then run `makepkg -si`.
 pkgname=gitpilot-bin
-pkgver=0.5.0
+pkgver=0.5.1
 pkgrel=1
 pkgdesc="Desktop Git manager: changes, diffs, hunk staging, history, branches, remotes"
 arch=('x86_64')
