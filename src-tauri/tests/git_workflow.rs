@@ -2422,3 +2422,44 @@ async fn merge_tool_resolves_and_stages_a_conflict() {
         "no backup file left behind"
     );
 }
+
+#[tokio::test]
+async fn history_limited_to_a_folder() {
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    for (file, msg) in [
+        ("app/a.rs", "app one"),
+        ("docs/x.md", "docs"),
+        ("app/b.rs", "app two"),
+    ] {
+        write(&root, file, &format!("{msg} answer\n"));
+        r.stage_all().await.unwrap();
+        r.commit(msg).await.unwrap();
+    }
+    let subjects = |path: &'static str, content: Option<&'static str>| {
+        let r = &r;
+        async move {
+            r.log(&LogQuery {
+                limit: 50,
+                path: Some(path.into()),
+                content: content.map(Into::into),
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .commits
+            .into_iter()
+            .map(|c| c.subject)
+            .collect::<Vec<_>>()
+        }
+    };
+    assert_eq!(subjects("app", None).await, ["app two", "app one"]);
+    assert_eq!(subjects("app/", None).await, ["app two", "app one"]);
+    assert_eq!(subjects("docs", Some("answer")).await, ["docs"]);
+    // A single file still follows renames as before.
+    assert_eq!(subjects("app/a.rs", None).await, ["app one"]);
+}
