@@ -2130,3 +2130,43 @@ async fn worktrees_are_added_listed_and_removed_safely() {
     r.worktree_prune().await.unwrap();
     assert_eq!(r.worktrees().await.unwrap().len(), 1);
 }
+
+#[tokio::test]
+async fn github_token_reaches_git_for_github_com_only() {
+    use gitpilot_lib::git::runner::RunOpts;
+    let g = git().with_github_token("tok123");
+    let dir = tempfile::tempdir().unwrap();
+    let get = |url: &'static str| {
+        let g = g.clone();
+        let path = dir.path().to_path_buf();
+        async move {
+            let opts = RunOpts {
+                ok_codes: &[1],
+                ..RunOpts::read()
+            };
+            g.run(
+                &path,
+                ["config", "--get-urlmatch", "http.extraheader", url],
+                opts,
+            )
+            .await
+            .unwrap()
+            .text()
+        }
+    };
+    // base64("x-access-token:tok123")
+    assert_eq!(
+        get("https://github.com/o/r.git").await.trim(),
+        "Authorization: Basic eC1hY2Nlc3MtdG9rZW46dG9rMTIz"
+    );
+    assert_eq!(get("https://gitlab.com/o/r.git").await.trim(), "");
+    assert_eq!(
+        get("https://github.com.evil.example/o/r.git").await.trim(),
+        ""
+    );
+    assert_eq!(get("http://github.com/o/r.git").await.trim(), "");
+    assert!(
+        !format!("{g:?}").contains("eC1h"),
+        "Debug must not show the token"
+    );
+}
