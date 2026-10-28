@@ -4,7 +4,7 @@ A desktop Git manager for Windows and Linux. GitPilot shows exactly what changed
 
 Built with Tauri 2 (Rust) and React. It runs your installed `git` executable; nothing is simulated.
 
-> Status: v0.5.0. Linux is built and tested; Windows installers are built by the GitHub Actions workflow and have been used on Windows. See [Known limitations](#known-limitations).
+> Status: v0.5.1. Linux is built and tested; Windows installers are built by the GitHub Actions workflow and have been used on Windows. See [Known limitations](#known-limitations).
 
 ## Features
 
@@ -25,9 +25,9 @@ Available now:
 - **Fix and reshape history safely** — amend or undo the last commit, edit commits (reorder, combine, reword, remove), reset a branch to any commit, and restore from automatic backups.
 - **Conflict resolver** — Keep mine / Keep theirs / Keep both per conflict or per file.
 - **Understand code** — blame, a commit graph, file-by-file compare of any two branches/tags/commits, and before/after image previews.
-- **Tags, stash selected files, discard single hunks or lines, and auto-refresh** when files change, plus **background fetch** that tells you when there's something to pull.
-- **Recover lost work** — Branches → Recover shows where the repository has been (resets, rebases, switches) and marks commits no branch keeps; create a branch at any point. Force-deleted branches are backed up.
-- **Search history by content** — find commits that added or removed some text or match a regular expression, within a date range.
+- **Tags, stash selected files, discard single hunks or lines, and auto-refresh** when files change, plus **background fetch** (as often as every 15 seconds) that tells you when there's something to pull and when your pull request's checks or reviews change.
+- **Recover lost work** — Branches → Recover shows where the repository has been (resets, rebases, switches) and GitPilot's backups in one list, and marks commits no branch keeps; create a branch at any point or restore a backup. Force-deleted branches are backed up.
+- **Search history by content** — find commits that added or removed some text or match a regular expression, within a date range and a file or folder.
 - **Your editor, terminal and merge tool** — open the repository, a file or a Blame line in VS Code, Zed, JetBrains IDEs and others; open a terminal there; resolve conflicts in meld, kdiff3 or any `git mergetool`.
 - **Tips for beginners** — a short explanation the first time you stage, commit, publish, hit a conflict or open pull requests.
 - **.gitignore made easy** — right-click a file to ignore it, its extension or its folder; files committed before they were ignored are flagged with a one-click Stop tracking.
