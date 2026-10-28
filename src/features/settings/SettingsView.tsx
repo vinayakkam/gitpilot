@@ -23,7 +23,7 @@ import { Group, PaneHeader, TextSetting, type PaneProps } from "./parts";
 
 /** Sections, in order, with words people might search for. */
 const TABS: { id: SettingsTab; label: string; icon: ReactNode; keywords: string }[] = [
-  { id: "general", label: "General", icon: <Settings2 size={15} />, keywords: "startup reopen last repository notifications success toast repositories auto refresh watch files changes" },
+  { id: "general", label: "General", icon: <Settings2 size={15} />, keywords: "startup reopen last repository notifications success toast repositories auto refresh watch files changes fetch background remote new commits interval" },
   { id: "appearance", label: "Appearance", icon: <Palette size={15} />, keywords: "theme dark light system accent colour color blue custom density compact diff layout side by side unified syntax highlighting" },
   { id: "git", label: "Git", icon: <GitBranch size={15} />, keywords: "git executable path identity name email initial branch main pull strategy fast-forward merge rebase commit message conventional line endings crlf lf gitattributes windows github pull request context signing sign gpg ssh key verified signature" },
   { id: "github", label: "GitHub", icon: <GitPullRequest size={15} />, keywords: "github account sign in login token personal access oauth device pull requests clone repositories client id" },
@@ -97,6 +97,16 @@ function GeneralPane({ settings, set }: PaneProps) {
       </Group>
       <Group title="Refreshing">
         <Switch label="Refresh automatically when files change" description="The file list updates as soon as you save in your editor. Files ignored by .gitignore (like node_modules) are skipped. When off, GitPilot refreshes when you switch back to it." checked={settings.autoRefresh} onChange={(autoRefresh) => void set({ autoRefresh })} />
+        <Field label="Fetch in the background" hint="Checks the remote for new commits and tells you when your branch can pull. It never asks for a password: if the remote needs one, fetch once yourself.">
+          {(p) => (
+            <Select {...p} value={settings.autoFetchMinutes} onChange={(e) => void set({ autoFetchMinutes: Number(e.target.value) })}>
+              <option value={0}>Off</option>
+              <option value={5}>Every 5 minutes</option>
+              <option value={15}>Every 15 minutes</option>
+              <option value={30}>Every 30 minutes</option>
+            </Select>
+          )}
+        </Field>
       </Group>
       <Group title="Notifications">
         <Switch label="Show a notification when an operation succeeds" description="Errors are always shown." checked={settings.successNotifications} onChange={(successNotifications) => void set({ successNotifications })} />
