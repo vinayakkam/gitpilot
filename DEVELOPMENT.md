@@ -232,6 +232,21 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 12. CI: run the full test suite on Windows and Linux (done as a gate in the installer build; per-push runs dropped at the user's request).
 13. Assistant: choose between Claude Code and OpenCode (`opencode` CLI) — detect it, launch it in a terminal in the repository with the selected prompt, and switch in Settings (added at the user's request, 2026-10-25).
 
+**0.5.0** (plan agreed 2026-10-25, extended 2026-10-28; branch `release/0.5.0`)
+- Arch/CachyOS in-app updates: signed `.pkg.tar.zst` in `latest.json` (`linux-x86_64-pacman`), installed with `pkexec pacman -U` (added 2026-10-28). Done.
+- A1. Windows tests pass (needs a Windows CI run; the user starts it and shares failures).
+- A2. Large repo speed: virtualized changed-file list, status caching, perf test.
+- B3. GitHub sign-in for Git over HTTPS (github.com only, header via `GIT_CONFIG_*`, on by default when signed in, header redacted). Done.
+- B4. Review pull requests in the app (files, conversation, checks, comment/approve/request changes, merge, delete branch, AI explain).
+- B5. Issues (list, search, create, Start work → branch, "Fixes #n" in the PR).
+- C6. Recover lost work (reflog in plain language, lost commits marked, force-deleted branches backed up, Branches → Recover, History → Show earlier states). Done.
+- C7. Auto-fetch (`autoFetchMinutes`) with "new commits" toasts.
+- C8. Open in editor / terminal; external merge tool for conflicts.
+- C9. Search history by content (`-S`/`-G`), date range, path.
+- D10. Beginner tips (`settings.tips`, `dismissedTips`).
+- D11. Accessibility pass (axe in tests, keyboard walkthrough, aria-live), sidebar auto-collapse at narrow widths, custom tooltips instead of native `title`.
+- E. Release: version bump, docs, changelog, release notes.
+
 ## Next-session handoff
 
 **Continue with:** branch `release/0.4.5` is complete and committed but not pushed. Before releasing:
