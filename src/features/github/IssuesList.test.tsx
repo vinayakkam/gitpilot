@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { expectNoAxeViolations } from "@/test/axe";
 import { Toaster } from "@/components/layout/Toaster";
 import { AppStoreProvider } from "@/store/AppStore";
 import { repo, settings, status } from "@/test/fixtures";
@@ -46,6 +47,12 @@ describe("filterIssues", () => {
 });
 
 describe("IssuesList", () => {
+  it("has no accessibility violations", async () => {
+    setup();
+    await screen.findByText("Crash on start");
+    await expectNoAxeViolations();
+  });
+
   it("starts work on an issue from the remote's default branch", async () => {
     setup();
     const row = (await screen.findByText("Crash on start")).closest("div.flex.items-start") as HTMLElement;

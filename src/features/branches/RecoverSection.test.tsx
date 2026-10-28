@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { expectNoAxeViolations } from "@/test/axe";
 import { AppStoreProvider } from "@/store/AppStore";
 import { repo, settings, status } from "@/test/fixtures";
 import { describeReflog, RecoverSection } from "./RecoverSection";
@@ -48,6 +49,12 @@ describe("describeReflog", () => {
 });
 
 describe("RecoverSection", () => {
+  it("has no accessibility violations", async () => {
+    setup();
+    await screen.findByRole("region", { name: "Recover" });
+    await expectNoAxeViolations();
+  });
+
   it("lists earlier states, marks lost commits and filters to them", async () => {
     setup();
     const section = await screen.findByRole("region", { name: "Recover" });

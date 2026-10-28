@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { expectNoAxeViolations } from "@/test/axe";
 import { AppStoreProvider } from "@/store/AppStore";
 import { repo, settings, status } from "@/test/fixtures";
 import { ChangesTip, tipFor } from "./ChangesTip";
@@ -31,6 +32,12 @@ describe("tipFor", () => {
 });
 
 describe("ChangesTip", () => {
+  it("has no accessibility violations", async () => {
+    render(<AppStoreProvider><ChangesTip status={status([file("unstaged")])} /></AppStoreProvider>);
+    await screen.findByText("Choose what goes into your next commit");
+    await expectNoAxeViolations();
+  });
+
   it("shows a tip once and remembers when it's closed", async () => {
     render(<AppStoreProvider><ChangesTip status={status([file("unstaged")])} /></AppStoreProvider>);
     expect(await screen.findByText("Choose what goes into your next commit")).toBeInTheDocument();

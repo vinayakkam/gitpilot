@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { expectNoAxeViolations } from "@/test/axe";
 import { Toaster } from "@/components/layout/Toaster";
 import { AppStoreProvider } from "@/store/AppStore";
 import { repo, settings, status } from "@/test/fixtures";
@@ -59,6 +60,15 @@ const setup = () =>
   );
 
 describe("PullReviewDialog", () => {
+  it("has no accessibility violations", async () => {
+    setup();
+    await screen.findByRole("option", { name: /a.ts/ });
+    await expectNoAxeViolations();
+    fireEvent.click(screen.getByRole("radio", { name: "Conversation" }));
+    await screen.findByText("Looks good");
+    await expectNoAxeViolations();
+  });
+
   it("shows files, the conversation and checks", async () => {
     setup();
     expect(await screen.findByText("Add login #7")).toBeInTheDocument();

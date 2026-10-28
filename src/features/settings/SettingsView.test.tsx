@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { expectNoAxeViolations } from "@/test/axe";
 import { AppStoreProvider } from "@/store/AppStore";
 import { repo, settings } from "@/test/fixtures";
 import { SettingsView } from "./SettingsView";
@@ -60,6 +61,15 @@ function setup() {
 }
 
 describe("SettingsView", () => {
+  it("has no accessibility violations", async () => {
+    setup();
+    for (const pane of ["General", "Git", "GitHub"]) {
+      fireEvent.click(await screen.findByRole("button", { name: pane }));
+      await screen.findByRole("heading", { name: pane });
+      await expectNoAxeViolations();
+    }
+  });
+
   it("picks a code editor and a merge tool", async () => {
     setup();
     fireEvent.click(await screen.findByRole("button", { name: "Git" }));
