@@ -537,3 +537,116 @@ mod tests {
         assert_eq!(c[2].url.as_deref(), Some("d"));
     }
 }
+
+// ---------- issues ----------
+
+#[derive(Debug, Clone, Serialize, TS, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Issue {
+    pub number: u32,
+    pub title: String,
+    pub url: String,
+    pub author: Option<String>,
+    pub labels: Vec<String>,
+    pub assignees: Vec<String>,
+    pub comments: u32,
+    /// ISO 8601.
+    pub updated_at: String,
+}
+
+/// Issues from `/repos/{o}/{r}/issues`, which also lists pull requests: those are left out.
+pub fn parse_issues(v: &Value) -> Vec<Issue> {
+    v.as_array()
+        .into_iter()
+        .flatten()
+        .filter(|i| i.get("pull_request").is_none())
+        .filter_map(|i| {
+            Some(Issue {
+                number: i["number"].as_u64()? as u32,
+                title: s(&i["title"]),
+                url: s(&i["html_url"]),
+                author: login(&i["user"]),
+                labels: i["labels"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|l| l["name"].as_str().map(str::to_string))
+                    .collect(),
+                assignees: i["assignees"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(login)
+                    .collect(),
+                comments: n(&i["comments"]),
+                updated_at: s(&i["updated_at"]),
+            })
+        })
+        .collect()
+}
+
+/// Open issues, most recently updated first (up to 300).
+pub async fn issues(token: &str, owner: &str, name: &str) -> AppResult<Vec<Issue>> {
+    let (o, r) = (valid_name(owner)?, valid_name(name)?);
+    let mut out = Vec::new();
+    for page in 1..=3 {
+        let v = get(
+            token,
+            &format!("/repos/{o}/{r}/issues?state=open&sort=updated&per_page=100&page={page}"),
+        )
+        .await?;
+        let full = v.as_array().is_some_and(|a| a.len() == 100);
+        out.extend(parse_issues(&v));
+        if !full {
+            break;
+        }
+    }
+    Ok(out)
+}
+
+pub async fn create_issue(
+    token: &str,
+    owner: &str,
+    name: &str,
+    title: &str,
+    body: &str,
+) -> AppResult<Issue> {
+    let title = title.trim();
+    if title.is_empty() {
+        return Err(AppError::invalid("Enter a title for the issue."));
+    }
+    let path = format!("/repos/{}/{}/issues", valid_name(owner)?, valid_name(name)?);
+    let v = send(
+        api_req(&client()?, reqwest::Method::POST, &path, token)
+            .json(&json!({ "title": title, "body": body })),
+    )
+    .await?;
+    parse_issues(&Value::Array(vec![v.clone()]))
+        .pop()
+        .ok_or_else(|| {
+            AppError::new(
+                ErrorKind::GithubFailed,
+                "GitHub sent an unexpected response.",
+            )
+            .with_detail(v.to_string())
+        })
+}
+
+#[cfg(test)]
+mod issue_tests {
+    use super::*;
+
+    #[test]
+    fn issues_leave_out_pull_requests() {
+        let v = json!([
+            {"number": 3, "title": "Crash on start", "html_url": "u", "user": {"login": "ann"}, "labels": [{"name": "bug"}], "assignees": [{"login": "me"}], "comments": 2, "updated_at": "t"},
+            {"number": 4, "title": "A PR", "pull_request": {"url": "x"}}
+        ]);
+        let i = parse_issues(&v);
+        assert_eq!(i.len(), 1);
+        assert_eq!(i[0].labels, ["bug"]);
+        assert_eq!(i[0].assignees, ["me"]);
+        assert_eq!(i[0].comments, 2);
+    }
+}
