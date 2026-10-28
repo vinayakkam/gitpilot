@@ -152,6 +152,8 @@ pub struct GitHubSettings {
     /// Client ID of a GitHub OAuth app with device flow enabled, used for "Sign in with GitHub".
     /// Empty = the ID built into this version of GitPilot, if any.
     pub client_id: String,
+    /// Use the GitHub sign-in for clone/fetch/pull/push to https://github.com (off by default).
+    pub use_for_https: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

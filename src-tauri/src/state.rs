@@ -23,6 +23,8 @@ pub struct AppState {
     github_device: Mutex<Option<crate::github::PendingDevice>>,
     /// Repositories each window watches, so a closed window's watches can be released.
     window_watches: Mutex<HashMap<String, Vec<i64>>>,
+    /// The GitHub token for git over HTTPS, read from the keychain once (outer `None` = not read yet).
+    github_token: Mutex<Option<Option<String>>>,
 }
 
 impl AppState {
@@ -42,7 +44,22 @@ impl AppState {
             watches: crate::watch::Watches::default(),
             github_device: Mutex::new(None),
             window_watches: Mutex::new(HashMap::new()),
+            github_token: Mutex::new(None),
         })
+    }
+
+    fn github_token(&self) -> Option<String> {
+        let mut cached = self.github_token.lock().ok()?;
+        cached
+            .get_or_insert_with(|| crate::secrets::github_token().map(|(t, _)| t))
+            .clone()
+    }
+
+    /// Call after signing in or out, so git picks up the new GitHub token.
+    pub fn forget_github_token(&self) {
+        if let Ok(mut t) = self.github_token.lock() {
+            *t = None;
+        }
     }
 
     pub fn db<T>(&self, f: impl FnOnce(&Connection) -> AppResult<T>) -> AppResult<T> {
@@ -79,7 +96,15 @@ impl AppState {
     pub fn git(&self) -> AppResult<Git> {
         let s = self.settings();
         let configured = Some(s.git_path.as_str()).filter(|p| !p.trim().is_empty());
-        locate_git(configured).map(Git::new).ok_or_else(|| {
+        let git = locate_git(configured).map(Git::new);
+        let git = match (git, s.github.use_for_https) {
+            (Some(g), true) => Some(match self.github_token() {
+                Some(t) => g.with_github_token(&t),
+                None => g,
+            }),
+            (g, _) => g,
+        };
+        git.ok_or_else(|| {
             if configured.is_some() {
                 AppError::new(
                     ErrorKind::GitNotFound,

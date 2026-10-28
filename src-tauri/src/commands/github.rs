@@ -94,12 +94,13 @@ pub async fn github_device_wait(state: State<'_, AppState>) -> AppResult<GitHubU
     drop(guard);
     let user = github::user(&t).await?;
     secrets::github_set(&t)?;
+    state.forget_github_token();
     Ok(user)
 }
 
 /// Signs in with a personal access token: checked with GitHub first, then kept in the keychain.
 #[tauri::command]
-pub async fn github_token_set(token: String) -> AppResult<GitHubUser> {
+pub async fn github_token_set(state: State<'_, AppState>, token: String) -> AppResult<GitHubUser> {
     let t = token.trim();
     if t.is_empty() {
         return Err(AppError::invalid("Paste a personal access token."));
@@ -121,13 +122,16 @@ pub async fn github_token_set(token: String) -> AppResult<GitHubUser> {
         }
     })?;
     secrets::github_set(t)?;
+    state.forget_github_token();
     Ok(user)
 }
 
 /// Removes the saved GitHub sign-in from the keychain (an environment variable stays in effect).
 #[tauri::command]
-pub fn github_sign_out() -> AppResult<()> {
-    secrets::github_clear()
+pub fn github_sign_out(state: State<'_, AppState>) -> AppResult<()> {
+    secrets::github_clear()?;
+    state.forget_github_token();
+    Ok(())
 }
 
 /// The signed-in user's repositories, for cloning.
