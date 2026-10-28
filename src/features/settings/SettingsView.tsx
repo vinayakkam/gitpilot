@@ -193,7 +193,7 @@ function GitHubPane({ settings, save }: PaneProps) {
       <Group title="Git over HTTPS">
         <Switch
           label="Use this sign-in for clone, fetch, pull and push"
-          description="For https://github.com addresses only, so private repositories work without a credential manager. SSH addresses and other hosts keep using your own Git credentials. When this is off, GitPilot uses the sign-in for GitHub's website features only."
+          description="For https://github.com addresses only, so private repositories work without a credential manager. SSH addresses and other hosts keep using your own Git credentials. When this is off, GitPilot uses the sign-in for GitHub's website features only. On by default."
           checked={settings.github.useForHttps}
           onChange={(useForHttps) => void save((s) => ({ ...s, github: { ...s.github, useForHttps } }))}
         />

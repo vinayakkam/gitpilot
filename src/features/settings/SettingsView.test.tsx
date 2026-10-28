@@ -57,11 +57,11 @@ function setup() {
 }
 
 describe("SettingsView", () => {
-  it("turns on the GitHub sign-in for git over HTTPS", async () => {
+  it("turns off the GitHub sign-in for git over HTTPS", async () => {
     setup();
     fireEvent.click(await screen.findByRole("button", { name: "GitHub" }));
     fireEvent.click(screen.getByRole("switch", { name: /Use this sign-in for clone/ }));
-    await waitFor(() => expect(lastSaved()?.github).toEqual({ clientId: "", useForHttps: true }));
+    await waitFor(() => expect(lastSaved()?.github).toEqual({ clientId: "", useForHttps: false }));
   });
 
   it("search narrows the sections", async () => {

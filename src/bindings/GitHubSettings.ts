@@ -7,6 +7,6 @@ export type GitHubSettings = {
  */
 clientId: string, 
 /**
- * Use the GitHub sign-in for clone/fetch/pull/push to https://github.com (off by default).
+ * Use the GitHub sign-in (when signed in) for clone/fetch/pull/push to https://github.com.
  */
 useForHttps: boolean, };

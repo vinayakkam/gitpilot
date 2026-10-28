@@ -145,15 +145,24 @@ pub struct OpenCodeSettings {
     pub path: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 #[ts(export)]
 pub struct GitHubSettings {
     /// Client ID of a GitHub OAuth app with device flow enabled, used for "Sign in with GitHub".
     /// Empty = the ID built into this version of GitPilot, if any.
     pub client_id: String,
-    /// Use the GitHub sign-in for clone/fetch/pull/push to https://github.com (off by default).
+    /// Use the GitHub sign-in (when signed in) for clone/fetch/pull/push to https://github.com.
     pub use_for_https: bool,
+}
+
+impl Default for GitHubSettings {
+    fn default() -> Self {
+        Self {
+            client_id: String::new(),
+            use_for_https: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -373,6 +382,15 @@ mod tests {
         s.ai.model = "claude-haiku-5-5".into();
         save(&p, &s).unwrap();
         assert_eq!(load(&p).ai.provider, AiProviderKind::Anthropic);
+    }
+
+    #[test]
+    fn github_https_defaults_on_for_old_settings_files() {
+        let s: Settings = serde_json::from_str(r#"{"github":{"clientId":"Ov23abc"}}"#).unwrap();
+        assert!(s.github.use_for_https);
+        assert_eq!(s.github.client_id, "Ov23abc");
+        let s: Settings = serde_json::from_str(r#"{"github":{"useForHttps":false}}"#).unwrap();
+        assert!(!s.github.use_for_https);
     }
 
     #[test]
