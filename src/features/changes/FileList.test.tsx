@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { expectNoAxeViolations } from "@/test/axe";
 import type { FileEntry } from "@/bindings/FileEntry";
 import { FileList, keyOf, VIRTUAL_THRESHOLD, type FileListActions } from "./FileList";
 
@@ -15,9 +16,14 @@ function actions(): FileListActions {
 }
 
 describe("FileList", () => {
+  it("has no accessibility violations", async () => {
+    render(<FileList files={files} selected={new Set([keyOf(files[1]!)])} focusKey={keyOf(files[1]!)} onSelect={() => {}} actions={actions()} />);
+    await expectNoAxeViolations();
+  });
+
   it("groups files by Git area, conflicts first", () => {
     render(<FileList files={files} selected={new Set()} focusKey={null} onSelect={() => {}} actions={actions()} />);
-    const groups = screen.getAllByRole("group").map((g) => g.getAttribute("aria-label"));
+    const groups = screen.getAllByRole("rowgroup").map((g) => g.getAttribute("aria-label"));
     expect(groups).toEqual(["Conflicts", "Staged", "Changes", "New files"]);
     expect(screen.getByText("both modified")).toBeInTheDocument();
   });
@@ -32,10 +38,10 @@ describe("FileList", () => {
   it("stages and unstages from row buttons", () => {
     const a = actions();
     render(<FileList files={files} selected={new Set()} focusKey={null} onSelect={() => {}} actions={a} />);
-    const staged = screen.getByRole("group", { name: "Staged" });
+    const staged = screen.getByRole("rowgroup", { name: "Staged" });
     fireEvent.click(within(staged).getByRole("button", { name: "Unstage" }));
     expect(a.unstage).toHaveBeenCalledWith([files[0]]);
-    const changes = screen.getByRole("group", { name: "Changes" });
+    const changes = screen.getByRole("rowgroup", { name: "Changes" });
     fireEvent.click(within(changes).getAllByRole("button", { name: "Stage" })[0]!);
     expect(a.stage).toHaveBeenCalledWith([files[1]]);
   });
@@ -53,14 +59,14 @@ describe("FileList", () => {
   it("asks for discard confirmation via Delete key instead of discarding directly", () => {
     const a = actions();
     render(<FileList files={files} selected={new Set([keyOf(files[1]!)])} focusKey={keyOf(files[1]!)} onSelect={() => {}} actions={a} />);
-    fireEvent.keyDown(screen.getByRole("listbox"), { key: "Delete" });
+    fireEvent.keyDown(screen.getByRole("grid"), { key: "Delete" });
     expect(a.discard).toHaveBeenCalledWith([files[1]]);
   });
 
   it("does not offer discard for staged files", () => {
     const a = actions();
     render(<FileList files={files} selected={new Set([keyOf(files[0]!)])} focusKey={keyOf(files[0]!)} onSelect={() => {}} actions={a} />);
-    fireEvent.keyDown(screen.getByRole("listbox"), { key: "Delete" });
+    fireEvent.keyDown(screen.getByRole("grid"), { key: "Delete" });
     expect(a.discard).not.toHaveBeenCalled();
   });
 
@@ -90,11 +96,11 @@ describe("FileList", () => {
     vi.spyOn(Element.prototype, "clientHeight", "get").mockReturnValue(600);
     vi.spyOn(Element.prototype, "clientWidth", "get").mockReturnValue(300);
     render(<FileList files={many} selected={new Set()} focusKey={keyOf(many[0]!)} onSelect={onSelect} actions={actions()} />);
-    const shown = (await screen.findAllByRole("option")).length;
+    const shown = (await screen.findAllByRole("row", { selected: false })).length;
     expect(shown).toBeGreaterThan(0);
     expect(shown).toBeLessThan(200);
     expect(screen.getByText("New files")).toBeInTheDocument();
-    fireEvent.keyDown(screen.getByRole("listbox"), { key: "ArrowDown" });
+    fireEvent.keyDown(screen.getByRole("grid"), { key: "ArrowDown" });
     expect(onSelect).toHaveBeenCalledWith(new Set([keyOf(many[1]!)]), keyOf(many[1]!));
     vi.restoreAllMocks();
   });

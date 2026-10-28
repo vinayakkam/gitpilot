@@ -173,33 +173,35 @@ export function FileList({ files, selected, focusKey, onSelect, actions, disable
   const groupHeader = (g: (typeof groups)[number], style?: CSSProperties) => {
     const isCollapsed = collapsed.has(g.area);
     return (
-      <div key={`h-${g.area}`} style={style} className={cx("flex h-8 items-center gap-1 bg-surface pl-1.5 pr-2", !style && "sticky top-0 z-[1]")}>
-        <button
-          type="button"
-          aria-expanded={!isCollapsed}
-          onClick={() =>
-            setCollapsed((c) => {
-              const n = new Set(c);
-              if (n.has(g.area)) n.delete(g.area);
-              else n.add(g.area);
-              return n;
-            })
-          }
-          className="flex flex-1 items-center gap-1 text-sm font-semibold text-muted hover:text-text"
-        >
-          <ChevronRight size={13} className={cx("transition-transform", !isCollapsed && "rotate-90")} />
-          <span className={g.area === "conflicted" ? "text-conflict" : undefined}>{g.title}</span>
-          <span className="font-normal tabular-nums text-faint">{g.files.length}</span>
-        </button>
-        {g.area === "staged" ? (
-          <Button size="sm" variant="ghost" disabled={disabled} onClick={actions.unstageAll}>
-            Unstage all
-          </Button>
-        ) : g.area !== "conflicted" ? (
-          <Button size="sm" variant="ghost" disabled={disabled} onClick={() => actions.stage(g.files)}>
-            Stage all
-          </Button>
-        ) : null}
+      <div key={`h-${g.area}`} role="row" style={style} className={cx("flex h-8 items-center bg-surface pl-1.5 pr-2", !style && "sticky top-0 z-[1]")}>
+        <div role="gridcell" className="flex flex-1 items-center gap-1">
+          <button
+            type="button"
+            aria-expanded={!isCollapsed}
+            onClick={() =>
+              setCollapsed((c) => {
+                const n = new Set(c);
+                if (n.has(g.area)) n.delete(g.area);
+                else n.add(g.area);
+                return n;
+              })
+            }
+            className="flex flex-1 items-center gap-1 text-sm font-semibold text-muted hover:text-text"
+          >
+            <ChevronRight size={13} className={cx("transition-transform", !isCollapsed && "rotate-90")} />
+            <span className={g.area === "conflicted" ? "text-conflict" : undefined}>{g.title}</span>
+            <span className="font-normal tabular-nums text-faint">{g.files.length}</span>
+          </button>
+          {g.area === "staged" ? (
+            <Button size="sm" variant="ghost" disabled={disabled} onClick={actions.unstageAll}>
+              Unstage all
+            </Button>
+          ) : g.area !== "conflicted" ? (
+            <Button size="sm" variant="ghost" disabled={disabled} onClick={() => actions.stage(g.files)}>
+              Stage all
+            </Button>
+          ) : null}
+        </div>
       </div>
     );
   };
@@ -212,7 +214,7 @@ export function FileList({ files, selected, focusKey, onSelect, actions, disable
       <div
         key={k}
         id={`file-${k}`}
-        role="option"
+        role="row"
         aria-selected={isSel}
         onClick={(e) => click(e, f)}
         onContextMenu={(e) => contextMenu(e, f)}
@@ -224,18 +226,20 @@ export function FileList({ files, selected, focusKey, onSelect, actions, disable
         style={{ height: "var(--row-h)", ...style }}
         title={f.origPath ? `${f.origPath} → ${f.path}` : undefined}
       >
-        <StatusGlyph change={f.change} />
-        <span className="min-w-0 flex-1 truncate">
-          <span className="text-base">{name}</span>
-          {f.conflict && <span className="ml-1.5 text-xs text-conflict">{f.conflict}</span>}
-          {f.ignored && (
-            <span className="ml-1.5 rounded bg-warning-bg px-1 text-xs text-warning" title="Matches .gitignore, but Git still tracks it because it was committed before the rule was added.">
-              ignored
-            </span>
-          )}
-          {dir && <span className="ml-1.5 text-sm text-faint">{dir}</span>}
+        <span role="gridcell" className="flex min-w-0 flex-1 items-center gap-2">
+          <StatusGlyph change={f.change} />
+          <span className="min-w-0 flex-1 truncate">
+            <span className="text-base">{name}</span>
+            {f.conflict && <span className="ml-1.5 text-xs text-conflict">{f.conflict}</span>}
+            {f.ignored && (
+              <span className="ml-1.5 rounded bg-warning-bg px-1 text-xs text-warning" title="Matches .gitignore, but Git still tracks it because it was committed before the rule was added.">
+                ignored
+              </span>
+            )}
+            {dir && <span className="ml-1.5 text-sm text-faint">{dir}</span>}
+          </span>
         </span>
-        <span className={cx("flex shrink-0 items-center", !isSel && "opacity-0 group-hover:opacity-100")}>
+        <span role="gridcell" className={cx("flex shrink-0 items-center", !isSel && "opacity-0 group-hover:opacity-100")}>
           {f.area === "unstaged" && (
             <IconButton size="sm" tone="danger" label="Discard changes…" icon={<Undo2 size={13} />} disabled={disabled} onClick={(e) => { e.stopPropagation(); actions.discard(selectedFiles(f)); }} />
           )}
@@ -257,7 +261,7 @@ export function FileList({ files, selected, focusKey, onSelect, actions, disable
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div
-        role="listbox"
+        role="grid"
         aria-label="Changed files"
         aria-multiselectable
         tabIndex={0}
@@ -275,7 +279,7 @@ export function FileList({ files, selected, focusKey, onSelect, actions, disable
           </div>
         ) : (
           groups.map((g) => (
-            <div key={g.area} role="group" aria-label={g.title}>
+            <div key={g.area} role="rowgroup" aria-label={g.title}>
               {groupHeader(g)}
               {!collapsed.has(g.area) && g.files.map((f) => fileRow(f))}
             </div>
