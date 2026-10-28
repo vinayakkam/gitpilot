@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Copy, FileClock, GitCommitHorizontal, GitCompare, GitFork, GitMerge, History, LifeBuoy, ListOrdered, RotateCcw, ScanSearch, Sparkles, Tag as TagIcon, Undo2, X } from "lucide-react";
+import { Copy, FileClock, GitCommitHorizontal, GitCompare, GitFork, GitMerge, History, LifeBuoy, ListOrdered, RotateCcw, ScanSearch, SlidersHorizontal, Sparkles, Tag as TagIcon, Undo2, X } from "lucide-react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import type { AppError } from "@/bindings/AppError";
 import type { CommitDetail } from "@/bindings/CommitDetail";
@@ -7,6 +7,7 @@ import type { CommitFile } from "@/bindings/CommitFile";
 import type { CommitSummary } from "@/bindings/CommitSummary";
 import type { FileDiff } from "@/bindings/FileDiff";
 import { Button } from "@/components/ui/Button";
+import { Checkbox, Input } from "@/components/ui/Field";
 import { ConfirmDialog } from "@/components/ui/Dialog";
 import { cx } from "@/components/ui/cx";
 import { IconButton } from "@/components/ui/IconButton";
@@ -107,6 +108,18 @@ function Person({ label, name, email, time }: { label: string; name: string; ema
   );
 }
 
+/** Matches diff lines against a content search the way git did (-S: the text, -G: a regex). */
+export function contentMatcher(content: string, regex: boolean): ((line: string) => boolean) | undefined {
+  if (!content) return undefined;
+  if (!regex) return (line) => line.includes(content);
+  try {
+    const re = new RegExp(content);
+    return (line) => re.test(line);
+  } catch {
+    return undefined;
+  }
+}
+
 export function HistoryView() {
   const { activeRepo, revision, settings, saveSettings, notify, historyPath, setHistoryPath, historyJump, setHistoryJump, status, run, setSection } = useStore();
   const id = activeRepo?.id;
@@ -120,9 +133,18 @@ export function HistoryView() {
     }
   });
   const q = useDebounced(query, 250);
+  const [advanced, setAdvanced] = useState(false);
+  const [contentInput, setContentInput] = useState("");
+  const content = useDebounced(advanced ? contentInput : "", 400);
+  const [regex, setRegex] = useState(false);
+  const [since, setSince] = useState("");
+  const [until, setUntil] = useState("");
+  const dates = advanced ? { since: since || null, until: until || null } : { since: null, until: null };
+  const filtered = !!(q.trim() || historyPath || content || dates.since || dates.until);
+  const match = useMemo(() => contentMatcher(content, regex), [content, regex]);
   const [commits, setCommits] = useState<CommitSummary[]>([]);
   // The graph only makes sense for the full, unfiltered history.
-  const graph = useMemo(() => (showGraph && !q.trim() && !historyPath ? layoutGraph(commits) : null), [showGraph, q, historyPath, commits]);
+  const graph = useMemo(() => (showGraph && !filtered ? layoutGraph(commits) : null), [showGraph, filtered, commits]);
   const graphLanes = useMemo(() => (graph ? Math.max(1, ...graph.map((r) => r.width)) : 0), [graph]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -170,7 +192,7 @@ export function HistoryView() {
       const s = ++seq.current;
       setLoading(true);
       try {
-        const page = await api.log(id, { rev: null, skip, limit: PAGE, search: q.trim() || null, path: historyPath });
+        const page = await api.log(id, { rev: null, skip, limit: PAGE, search: q.trim() || null, path: historyPath, content: content || null, regex, ...dates });
         if (s !== seq.current) return;
         setCommits((prev) => (skip === 0 ? page.commits : [...prev, ...page.commits]));
         setHasMore(page.hasMore);
@@ -181,7 +203,8 @@ export function HistoryView() {
         if (s === seq.current) setLoading(false);
       }
     },
-    [id, q, historyPath],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `dates` is rebuilt every render; its parts are listed.
+    [id, q, historyPath, content, regex, dates.since, dates.until],
   );
 
   // Reload when the query/filter changes, after operations, or when HEAD moves.
@@ -194,7 +217,7 @@ export function HistoryView() {
   }, [commits, sel]);
   useEffect(() => {
     setSel(null);
-  }, [id, q, historyPath]);
+  }, [id, q, historyPath, content, regex, dates.since, dates.until]);
   // When HEAD moves (commit, reset, edited commits), the selected commit may no longer be on
   // the branch: start again from the newest one.
   const lastHead = useRef(headOid);
@@ -266,6 +289,13 @@ export function HistoryView() {
               <SearchField label="Search commits" placeholder="Search messages, author:name, or a hash" value={query} onChange={setQuery} />
             </div>
             <IconButton
+              label={advanced ? "Hide advanced search" : "Advanced search"}
+              icon={<SlidersHorizontal size={14} />}
+              className={advanced ? "text-accent-text" : undefined}
+              aria-pressed={advanced}
+              onClick={() => setAdvanced((v) => !v)}
+            />
+            <IconButton
               label={showGraph ? "Hide commit graph" : "Show commit graph"}
               icon={<GitFork size={14} />}
               className={showGraph ? "text-accent-text" : undefined}
@@ -281,6 +311,20 @@ export function HistoryView() {
               }
             />
           </div>
+          {advanced && (
+            <div className="flex flex-col gap-1.5 rounded border border-border p-2" role="group" aria-label="Advanced search">
+              <Input aria-label="Text in changes" placeholder="Text added or removed by the commit" className="font-mono" value={contentInput} onChange={(e) => setContentInput(e.target.value)} />
+              <Checkbox checked={regex} onChange={setRegex} label="Regular expression (matches changed lines)" />
+              <div className="flex items-center gap-1.5 text-sm text-muted">
+                <label className="flex items-center gap-1.5">
+                  From <Input type="date" aria-label="From date" value={since} max={until || undefined} onChange={(e) => setSince(e.target.value)} />
+                </label>
+                <label className="flex items-center gap-1.5">
+                  to <Input type="date" aria-label="To date" value={until} min={since || undefined} onChange={(e) => setUntil(e.target.value)} />
+                </label>
+              </div>
+            </div>
+          )}
           {historyPath && (
             <div className="flex items-center gap-1.5 rounded bg-accent-soft py-0.5 pl-2 pr-0.5 text-sm text-accent-text">
               <FileClock size={13} className="shrink-0" />
@@ -311,8 +355,8 @@ export function HistoryView() {
         >
           {error && <ErrorNotice className="m-2" error={error} />}
           {!error && commits.length === 0 && !loading && (
-            <EmptyState icon={<GitCommitHorizontal size={22} />} title={q || historyPath ? "No matching commits" : "No commits yet"}>
-              {q ? `Nothing matches “${q}”.` : historyPath ? "This file has no committed history." : "Commits you make will be listed here."}
+            <EmptyState icon={<GitCommitHorizontal size={22} />} title={filtered ? "No matching commits" : "No commits yet"}>
+              {q ? `Nothing matches “${q}”.` : content ? `No commit changes “${content}”.` : dates.since || dates.until ? "No commits in that date range." : historyPath ? "This file has no committed history." : "Commits you make will be listed here."}
             </EmptyState>
           )}
           {commits.map((c, i) => (
@@ -462,6 +506,7 @@ export function HistoryView() {
                   mode={settings?.diffMode ?? "unified"}
                   onModeChange={(m) => void saveSettings({ diffMode: m })}
                   highlight={settings?.syntaxHighlighting ?? true}
+                  match={match}
                   emptyTitle={detail.files.length ? "Select a file" : "This commit has no file changes"}
                 />
               </div>
