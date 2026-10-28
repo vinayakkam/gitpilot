@@ -16,6 +16,7 @@ import { useStore } from "@/store/AppStore";
 import { CreatePullRequestDialog } from "./CreatePullRequestDialog";
 import { PullReviewDialog } from "./PullReviewDialog";
 import { IssuesList } from "./IssuesList";
+import { Tip } from "@/components/ui/Tip";
 import { GitHubAccountCard } from "./GitHubAccountCard";
 import { defaultTarget, pullForBranch } from "./pulls";
 import { useGitHubAccount } from "./useGitHubAccount";
@@ -189,6 +190,9 @@ export function PullRequestsView() {
         {tab === "issues" && <IssuesList target={target} />}
         {tab === "pulls" && (
           <>
+            <Tip id="pullRequest" title="Ask for a review before merging">
+              A pull request asks others to look at your branch&apos;s commits before they go into {target.defaultBranch}. Reviewers can comment on lines, and checks run on your changes. Push new commits to the same branch to update it.
+            </Tip>
             <section aria-label="Current branch" className="rounded-md border border-border px-4 py-3">
               {!canCreate ? (
                 <p className="text-base text-muted">

@@ -24,6 +24,7 @@ import { BlameView } from "@/features/history/BlameView";
 import { ConflictHelpDialog } from "./ConflictHelpDialog";
 import { LfsMissingNotice } from "./LfsMissingNotice";
 import { OperationBanner } from "./OperationBanner";
+import { ChangesTip } from "./ChangesTip";
 import { useExternalTools } from "@/features/tools/useExternalTools";
 
 export function ChangesView() {
@@ -164,6 +165,7 @@ export function ChangesView() {
     <div className="flex h-full min-h-0 flex-col">
       {status && <OperationBanner status={status} />}
       {id != null && <LfsMissingNotice repoId={id} />}
+      {status && <ChangesTip status={status} />}
       <div className="flex min-h-0 flex-1">
         <div className="flex min-h-0 shrink-0 flex-col bg-surface" style={{ width }}>
           {files.length > 0 && (
