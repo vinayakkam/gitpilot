@@ -57,6 +57,14 @@ autoFetchMinutes: number,
  */
 successNotifications: boolean, 
 /**
+ * Short explanations shown the first time something happens (staging, conflicts, …).
+ */
+tips: boolean, 
+/**
+ * Tips the user closed (ids like "stage", "conflict").
+ */
+dismissedTips: Array<string>, 
+/**
  * Look for a new version on startup (at most once a day).
  */
 checkForUpdates: boolean, lastRepoId: number | null, };

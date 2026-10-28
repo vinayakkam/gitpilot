@@ -213,6 +213,10 @@ pub struct Settings {
     pub auto_fetch_minutes: u32,
     /// Show a notification when operations succeed (errors are always shown).
     pub success_notifications: bool,
+    /// Short explanations shown the first time something happens (staging, conflicts, …).
+    pub tips: bool,
+    /// Tips the user closed (ids like "stage", "conflict").
+    pub dismissed_tips: Vec<String>,
     /// Look for a new version on startup (at most once a day).
     pub check_for_updates: bool,
     #[ts(type = "number | null")]
@@ -244,6 +248,8 @@ impl Default for Settings {
             auto_refresh: true,
             auto_fetch_minutes: 15,
             success_notifications: true,
+            tips: true,
+            dismissed_tips: Vec::new(),
             check_for_updates: true,
             last_repo_id: None,
         }
@@ -288,6 +294,14 @@ impl Settings {
             return Err(AppError::invalid(
                 "Choose how often to fetch: off, 5, 15 or 30 minutes.",
             ));
+        }
+        if self.dismissed_tips.len() > 100
+            || self
+                .dismissed_tips
+                .iter()
+                .any(|t| !is_valid_tool_name(t) || t.is_empty())
+        {
+            return Err(AppError::invalid("The list of dismissed tips isn't valid."));
         }
         if !is_valid_tool_name(&self.tools.merge_tool) {
             return Err(AppError::invalid(

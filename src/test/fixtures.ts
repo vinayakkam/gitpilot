@@ -22,6 +22,8 @@ export const settings: Settings = {
   reopenLastRepo: true,
   autoRefresh: true,
   autoFetchMinutes: 0,
+  tips: false,
+  dismissedTips: [],
   successNotifications: true,
   checkForUpdates: true,
   lastRepoId: 1,
