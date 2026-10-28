@@ -74,7 +74,7 @@ pub const ACCENT_PRESETS: &[&str] = &[
     "blue", "indigo", "violet", "pink", "red", "orange", "amber", "green", "teal", "cyan", "slate",
 ];
 
-pub const SETTINGS_VERSION: u32 = 2;
+pub const SETTINGS_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
@@ -209,8 +209,12 @@ pub struct Settings {
     pub reopen_last_repo: bool,
     /// Refresh the file list as soon as files change on disk.
     pub auto_refresh: bool,
-    /// Fetch the open repository in the background every this many minutes (0 = off).
-    pub auto_fetch_minutes: u32,
+    /// Fetch the open repository in the background every this many seconds (0 = off).
+    pub auto_fetch_seconds: u32,
+    /// 0.5.0 stored the interval in minutes; read once by `migrate`, never written.
+    #[serde(skip_serializing)]
+    #[ts(skip)]
+    pub auto_fetch_minutes: Option<u32>,
     /// Show a notification when operations succeed (errors are always shown).
     pub success_notifications: bool,
     /// Short explanations shown the first time something happens (staging, conflicts, …).
@@ -246,7 +250,8 @@ impl Default for Settings {
             tools: ToolsSettings::default(),
             reopen_last_repo: true,
             auto_refresh: true,
-            auto_fetch_minutes: 15,
+            auto_fetch_seconds: 60,
+            auto_fetch_minutes: None,
             success_notifications: true,
             tips: true,
             dismissed_tips: Vec::new(),
@@ -278,6 +283,14 @@ impl Settings {
                 self.ai.model = DEFAULT_OPENROUTER_MODEL.into();
             }
         }
+        if self.settings_version < 3 {
+            // 0.5.1 counts the background fetch interval in seconds and fetches every minute
+            // by default. Someone who turned it off in 0.5.0 keeps it off.
+            if self.auto_fetch_minutes == Some(0) {
+                self.auto_fetch_seconds = 0;
+            }
+        }
+        self.auto_fetch_minutes = None;
         if !is_valid_accent(&self.accent) {
             self.accent = "blue".into();
         }
@@ -290,9 +303,9 @@ impl Settings {
                 "Choose one of the accent colours or enter a colour like #3550c8.",
             ));
         }
-        if !AUTO_FETCH_MINUTES.contains(&self.auto_fetch_minutes) {
+        if !AUTO_FETCH_SECONDS.contains(&self.auto_fetch_seconds) {
             return Err(AppError::invalid(
-                "Choose how often to fetch: off, 5, 15 or 30 minutes.",
+                "Choose how often to fetch: off, every 15 or 30 seconds, or every 1, 5, 15 or 30 minutes.",
             ));
         }
         if self.dismissed_tips.len() > 100
@@ -341,8 +354,8 @@ pub fn is_valid_tool_name(t: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
-/// The choices offered for `auto_fetch_minutes`.
-pub const AUTO_FETCH_MINUTES: [u32; 4] = [0, 5, 15, 30];
+/// The choices offered for `auto_fetch_seconds`.
+pub const AUTO_FETCH_SECONDS: [u32; 7] = [0, 15, 30, 60, 300, 900, 1800];
 
 pub fn load(path: &Path) -> Settings {
     let mut s = load_raw(path);
@@ -448,12 +461,41 @@ mod tests {
     #[test]
     fn auto_fetch_interval_is_one_of_the_choices() {
         let mut s = Settings::default();
-        assert_eq!(s.auto_fetch_minutes, 15);
+        assert_eq!(s.auto_fetch_seconds, 60);
         assert!(s.validate().is_ok());
-        s.auto_fetch_minutes = 7;
+        s.auto_fetch_seconds = 7;
         assert!(s.validate().is_err());
-        s.auto_fetch_minutes = 0;
-        assert!(s.validate().is_ok());
+        for ok in [0, 15, 30, 1800] {
+            s.auto_fetch_seconds = ok;
+            assert!(s.validate().is_ok());
+        }
+    }
+
+    #[test]
+    fn migrates_the_minutes_interval_from_0_5_0() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("settings.json");
+        std::fs::write(&p, r#"{"settingsVersion":2,"autoFetchMinutes":0}"#).unwrap();
+        assert_eq!(load(&p).auto_fetch_seconds, 0, "off stays off");
+        std::fs::write(&p, r#"{"settingsVersion":2,"autoFetchMinutes":15}"#).unwrap();
+        let s = load(&p);
+        assert_eq!(
+            s.auto_fetch_seconds, 60,
+            "moves to the new 1-minute default"
+        );
+        assert_eq!(s.settings_version, SETTINGS_VERSION);
+        let json = serde_json::to_string(&s).unwrap();
+        assert!(
+            !json.contains("autoFetchMinutes"),
+            "the old field isn't written back"
+        );
+        // A 0.5.1 file isn't migrated again.
+        std::fs::write(
+            &p,
+            r#"{"settingsVersion":3,"autoFetchSeconds":900,"autoFetchMinutes":0}"#,
+        )
+        .unwrap();
+        assert_eq!(load(&p).auto_fetch_seconds, 900);
     }
 
     #[test]
