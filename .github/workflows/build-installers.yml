@@ -101,10 +101,23 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          # Bumped after a cached crates.io index crashed cargo ("Bus error"); bump again if it recurs.
+          prefix-key: v1-rust
       - run: npm ci
       - run: npm run typecheck && npm run lint && npm test
-      - working-directory: src-tauri
-        run: cargo test
+      # A damaged crates.io index (e.g. restored from the cache) makes cargo die with SIGBUS
+      # before compiling anything. Fetch first; on failure, drop the index and fetch again.
+      - name: Download Rust dependencies
+        working-directory: src-tauri
+        run: |
+          cargo fetch --locked || {
+            echo "::warning::cargo fetch failed; retrying with a fresh crates.io index."
+            rm -rf ~/.cargo/registry/index ~/.cargo/.package-cache
+            cargo fetch --locked
+          }
+      - name: Rust tests
+        working-directory: src-tauri
+        run: cargo test --locked
       - name: Build deb and AppImage
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
