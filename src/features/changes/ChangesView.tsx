@@ -24,9 +24,11 @@ import { BlameView } from "@/features/history/BlameView";
 import { ConflictHelpDialog } from "./ConflictHelpDialog";
 import { LfsMissingNotice } from "./LfsMissingNotice";
 import { OperationBanner } from "./OperationBanner";
+import { useExternalTools } from "@/features/tools/useExternalTools";
 
 export function ChangesView() {
   const { activeRepo, status, statusError, settings, saveSettings, run, busy, notify, revision, setSection, setHistoryPath, info } = useStore();
+  const tools = useExternalTools();
   const id = activeRepo?.id;
   const [width, setWidth] = usePanelWidth("changes", 340, 260, 620);
   const [filter, setFilter] = useState("");
@@ -121,6 +123,7 @@ export function ChangesView() {
     ignore: (fs) => setIgnoreFiles(fs),
     stash: (fs) => setStashFiles(fs),
     blame: (p) => setBlame({ path: p, rev: null }),
+    openInEditor: (p) => tools.editor(p),
     updateSubmodules: (paths) => void run("Update submodule", () => api.submoduleUpdate(id, paths), { success: "Submodule updated" }),
   };
 
@@ -223,6 +226,7 @@ export function ChangesView() {
                     takeSide: (current) => void run(current ? "Use current version" : "Use incoming version", () => api.conflictTakeSide(id, focused.path, current)),
                     markResolved: () => void run("Mark resolved", () => api.stagePaths(id, [focused.path]), { success: `${focused.path} marked as resolved` }),
                     help: diff.binary ? undefined : () => setConflictHelp(focused.path),
+                    mergeTool: () => void run("Merge tool", () => api.conflictMergetool(id, focused.path), { success: `${focused.path} resolved and staged` }),
                   }
                 : undefined
             }

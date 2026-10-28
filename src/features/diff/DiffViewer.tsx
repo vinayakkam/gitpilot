@@ -51,6 +51,8 @@ interface Props {
     markResolved: () => void;
     /** Ask the AI for suggested resolutions. */
     help?: () => void;
+    /** Resolve in the external merge tool (git mergetool). */
+    mergeTool?: () => void;
   };
   /** Throw away a hunk / the selected lines (unstaged changes only). */
   discardHunk?: HunkAction;
@@ -501,6 +503,11 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
               {conflict.help && (
                 <Button size="sm" icon={<Sparkles size={12} />} disabled={busy} onClick={conflict.help}>
                   Ask AI
+                </Button>
+              )}
+              {conflict.mergeTool && (
+                <Button size="sm" disabled={busy} onClick={conflict.mergeTool}>
+                  Open in merge tool
                 </Button>
               )}
               <Button size="sm" disabled={busy} onClick={() => conflict.takeSide(true)}>

@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Archive, Check, ChevronRight, Copy, EyeOff, History, Minus, Plus, RefreshCw, ScanSearch, Trash2, Undo2 } from "lucide-react";
+import { Archive, Check, ChevronRight, Code, Copy, EyeOff, History, Minus, Plus, RefreshCw, ScanSearch, Trash2, Undo2 } from "lucide-react";
 import type { Area } from "@/bindings/Area";
 import type { FileEntry } from "@/bindings/FileEntry";
 import { Button } from "@/components/ui/Button";
@@ -33,6 +33,7 @@ export interface FileListActions {
   ignore: (files: FileEntry[]) => void;
   stash: (files: FileEntry[]) => void;
   blame: (path: string) => void;
+  openInEditor: (path: string) => void;
   /** Check out the commit this repository records for these submodules. */
   updateSubmodules: (paths: string[]) => void;
 }
@@ -128,6 +129,7 @@ export function FileList({ files, selected, focusKey, onSelect, actions, disable
     if (subs.length) items.push({ label: subs.length > 1 ? `Update ${subs.length} submodules` : "Update submodule", icon: <RefreshCw size={14} />, onSelect: () => actions.updateSubmodules(subs) });
     if (f.area !== "conflicted") items.push({ label: n > 1 ? `Stash ${n} files…` : "Stash this file…", icon: <Archive size={14} />, onSelect: () => actions.stash(targets) });
     if (f.area !== "conflicted") items.push({ label: "Add to .gitignore…", icon: <EyeOff size={14} />, onSelect: () => actions.ignore(targets) });
+    if (f.change !== "deleted") items.push({ label: "Open in editor", icon: <Code size={14} />, onSelect: () => actions.openInEditor(f.path) });
     items.push({ label: "Copy path", icon: <Copy size={14} />, onSelect: () => actions.copyPath(f.path) });
     if (f.area !== "untracked") items.push({ label: "Show file history", icon: <History size={14} />, onSelect: () => actions.showHistory(f.path) });
     if (f.area !== "untracked" && f.change !== "deleted") items.push({ label: "Blame (who changed each line)", icon: <ScanSearch size={14} />, onSelect: () => actions.blame(f.path) });

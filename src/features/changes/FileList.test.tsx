@@ -11,7 +11,7 @@ const files: FileEntry[] = [
 ];
 
 function actions(): FileListActions {
-  return { stage: vi.fn(), unstage: vi.fn(), discard: vi.fn(), stageAll: vi.fn(), unstageAll: vi.fn(), copyPath: vi.fn(), showHistory: vi.fn(), ignore: vi.fn(), stash: vi.fn(), blame: vi.fn(), updateSubmodules: vi.fn() };
+  return { stage: vi.fn(), unstage: vi.fn(), discard: vi.fn(), stageAll: vi.fn(), unstageAll: vi.fn(), copyPath: vi.fn(), showHistory: vi.fn(), ignore: vi.fn(), stash: vi.fn(), blame: vi.fn(), openInEditor: vi.fn(), updateSubmodules: vi.fn() };
 }
 
 describe("FileList", () => {
@@ -71,6 +71,16 @@ describe("FileList", () => {
     fireEvent.contextMenu(screen.getByText("lib"));
     fireEvent.click(screen.getByRole("menuitem", { name: "Update submodule" }));
     expect(a.updateSubmodules).toHaveBeenCalledWith(["deps/lib"]);
+  });
+
+  it("opens a file in the editor, except deleted ones", () => {
+    const a = actions();
+    render(<FileList files={files} selected={new Set()} focusKey={null} onSelect={() => {}} actions={a} />);
+    fireEvent.contextMenu(screen.getByText("b.ts"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open in editor" }));
+    expect(a.openInEditor).toHaveBeenCalledWith("src/b.ts");
+    fireEvent.contextMenu(screen.getByText("c.ts"));
+    expect(screen.queryByRole("menuitem", { name: "Open in editor" })).not.toBeInTheDocument();
   });
 
   it("renders only the rows on screen for very large change sets", async () => {
