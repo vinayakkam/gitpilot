@@ -59,6 +59,7 @@ import type { Stash } from "@/bindings/Stash";
 import type { Submodule } from "@/bindings/Submodule";
 import type { CheckRun } from "@/bindings/CheckRun";
 import type { EditorInfo } from "@/bindings/EditorInfo";
+import type { Issue } from "@/bindings/Issue";
 import type { MergeMethod } from "@/bindings/MergeMethod";
 import type { PullComment } from "@/bindings/PullComment";
 import type { PullDetail } from "@/bindings/PullDetail";
@@ -259,6 +260,8 @@ export const api = {
   githubPullMerge: (owner: string, name: string, number: number, method: MergeMethod, sha: string) =>
     invoke<void>("github_pull_merge", { owner, name, number, method, sha, confirmed: true }),
   githubPullDeleteBranch: (owner: string, name: string, branch: string) => invoke<void>("github_pull_delete_branch", { owner, name, branch, confirmed: true }),
+  githubIssues: (owner: string, name: string) => invoke<Issue[]>("github_issues", { owner, name }),
+  githubIssueCreate: (owner: string, name: string, title: string, body: string) => invoke<Issue>("github_issue_create", { owner, name, title, body }),
 
   submoduleList: (id: number) => invoke<Submodule[]>("submodule_list", { id }),
   /** Downloads and checks out submodules (`paths` empty = all). Cancellable with opCancel("repo:<id>"). */

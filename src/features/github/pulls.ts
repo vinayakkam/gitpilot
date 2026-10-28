@@ -36,3 +36,23 @@ export function baseRef(target: GitHubRepoRef, link: GitHubLink, base: string): 
   // A fork's own default branch usually mirrors the original's.
   return link.repo.remote ? `${link.repo.remote}/${link.repo.defaultBranch}` : null;
 }
+
+/** Branch name for working on an issue: "123-short-title" (lowercase, at most 6 words). */
+export function issueBranchName(number: number, title: string): string {
+  const words = title
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 6);
+  return [String(number), ...words].join("-");
+}
+
+/** The issue a branch made with Start work is for, from its "123-…" name. */
+export function issueFromBranch(branch: string | null | undefined): number | null {
+  const m = /^(\d+)-/.exec(branch ?? "");
+  return m ? Number(m[1]) : null;
+}
