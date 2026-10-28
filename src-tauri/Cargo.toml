@@ -1,6 +1,6 @@
 [package]
 name = "gitpilot"
-version = "0.4.5"
+version = "0.5.0"
 description = "GitPilot — a desktop Git manager"
 authors = ["OLIT Technologies"]
 license = "MIT"
