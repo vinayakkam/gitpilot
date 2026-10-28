@@ -57,6 +57,7 @@ import type { SigningScope } from "@/bindings/SigningScope";
 import type { SequenceAction } from "@/bindings/SequenceAction";
 import type { Stash } from "@/bindings/Stash";
 import type { Submodule } from "@/bindings/Submodule";
+import type { ReflogEntry } from "@/bindings/ReflogEntry";
 import type { UpdateProgress } from "@/bindings/UpdateProgress";
 import type { UpdateSupport } from "@/bindings/UpdateSupport";
 import type { Worktree } from "@/bindings/Worktree";
@@ -125,6 +126,7 @@ export const api = {
     invoke<Backup>("rebase_interactive", { id, base, steps, confirmedPushed }),
   branchReset: (id: number, target: string, mode: ResetMode) => invoke<Backup>("branch_reset", { id, target, mode, confirmed: mode === "hard" }),
   backupList: (id: number) => invoke<Backup[]>("backup_list", { id }),
+  reflogList: (id: number, limit: number) => invoke<ReflogEntry[]>("reflog_list", { id, limit }),
   backupRestore: (id: number, name: string) => invoke<void>("backup_restore", { id, name, confirmed: true }),
   backupDelete: (id: number, name: string) => invoke<void>("backup_delete", { id, name, confirmed: true }),
   tagList: (id: number) => invoke<Tag[]>("tag_list", { id }),
