@@ -2375,3 +2375,50 @@ async fn background_fetch_is_non_interactive_and_sees_new_commits() {
     rb.fetch(None, None, |_| {}).await.unwrap();
     assert_eq!(rb.status().await.unwrap().branch.behind, Some(1));
 }
+
+#[tokio::test]
+async fn merge_tool_resolves_and_stages_a_conflict() {
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    write(&root, "a.txt", "base\n");
+    r.stage_all().await.unwrap();
+    r.commit("base").await.unwrap();
+    r.branch_create("x", None, true).await.unwrap();
+    write(&root, "a.txt", "theirs\n");
+    r.stage_all().await.unwrap();
+    r.commit("theirs").await.unwrap();
+    r.branch_switch("main").await.unwrap();
+    write(&root, "a.txt", "ours\n");
+    r.stage_all().await.unwrap();
+    r.commit("ours").await.unwrap();
+    assert!(r.merge("x").await.is_err(), "conflict expected");
+
+    // A stub tool that takes the incoming side, defined only in this repository.
+    for (k, val) in [
+        ("mergetool.stub.cmd", r#"cp "$REMOTE" "$MERGED""#),
+        ("mergetool.stub.trustExitCode", "true"),
+    ] {
+        g.run(&root, ["config", k, val], Default::default())
+            .await
+            .unwrap();
+    }
+    assert!(r.conflict_mergetool("a.txt", "bad name").await.is_err());
+    r.conflict_mergetool("a.txt", "stub").await.unwrap();
+    assert_eq!(
+        std::fs::read_to_string(root.join("a.txt")).unwrap(),
+        "theirs\n"
+    );
+    let st = r.status().await.unwrap();
+    assert!(
+        st.files.iter().all(|f| f.area != Area::Conflicted),
+        "staged as resolved"
+    );
+    assert!(
+        !root.join("a.txt.orig").exists(),
+        "no backup file left behind"
+    );
+}
