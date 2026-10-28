@@ -120,7 +120,7 @@ export function SignInDialog({ open, onClose, deviceFlow }: { open: boolean; onC
       busy={checking}
       width={480}
       title="Sign in to GitHub"
-      description="GitPilot uses your GitHub account to list your repositories and work with pull requests. Cloning, pulling and pushing keep using your usual Git credentials."
+      description="GitPilot uses your GitHub account to list your repositories and work with pull requests. Cloning, pulling and pushing keep using your usual Git credentials, unless you turn on Settings → GitHub → Git over HTTPS."
       onSubmit={mode === "token" ? submitToken : undefined}
       footer={
         <>

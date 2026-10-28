@@ -50,7 +50,7 @@ export function GitHubRepoPicker({ onPick }: { onPick: (repo: GitHubRepo, url: s
           value={protocol}
           onChange={setProtocol}
           options={[
-            { value: "https", label: "HTTPS", title: "Uses your Git credential manager" },
+            { value: "https", label: "HTTPS", title: "Uses your Git credential manager, or your GitHub sign-in if Settings → GitHub → Git over HTTPS is on" },
             { value: "ssh", label: "SSH", title: "Uses your SSH keys" },
           ]}
         />

@@ -189,7 +189,14 @@ function GitHubPane({ settings, save }: PaneProps) {
       <PaneHeader title="GitHub" description="List your repositories when cloning, see open pull requests with their checks, open new ones, and check them out locally." />
       <Group title="Account">
         <GitHubAccountCard />
-        <p className="text-sm text-muted">The sign-in is used for GitHub's website features only. Cloning, fetching and pushing keep using your Git credentials (credential manager or SSH keys), as before.</p>
+      </Group>
+      <Group title="Git over HTTPS">
+        <Switch
+          label="Use this sign-in for clone, fetch, pull and push"
+          description="For https://github.com addresses only, so private repositories work without a credential manager. SSH addresses and other hosts keep using your own Git credentials. When this is off, GitPilot uses the sign-in for GitHub's website features only."
+          checked={settings.github.useForHttps}
+          onChange={(useForHttps) => void save((s) => ({ ...s, github: { ...s.github, useForHttps } }))}
+        />
       </Group>
       <Group title="Sign-in app" description="Signing in through the browser needs a GitHub OAuth app with device flow enabled. Leave this empty to use the one built into GitPilot, if your version has one.">
         <TextSetting

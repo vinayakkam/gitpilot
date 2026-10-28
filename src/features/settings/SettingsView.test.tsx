@@ -23,6 +23,7 @@ const api = vi.hoisted(() => ({
 vi.mock("@/lib/api", () => ({ api, onProgress: () => Promise.resolve(() => {}) }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
 vi.mock("@/features/updates/UpdateSettings", () => ({ UpdateSettings: () => <p>update settings</p> }));
+vi.mock("@/features/github/GitHubAccountCard", () => ({ GitHubAccountCard: () => <p>account</p> }));
 
 beforeEach(() => {
   Object.values(api).forEach((f) => f.mockReset());
@@ -56,6 +57,13 @@ function setup() {
 }
 
 describe("SettingsView", () => {
+  it("turns on the GitHub sign-in for git over HTTPS", async () => {
+    setup();
+    fireEvent.click(await screen.findByRole("button", { name: "GitHub" }));
+    fireEvent.click(screen.getByRole("switch", { name: /Use this sign-in for clone/ }));
+    await waitFor(() => expect(lastSaved()?.github).toEqual({ clientId: "", useForHttps: true }));
+  });
+
   it("search narrows the sections", async () => {
     setup();
     const search = await screen.findByLabelText("Search settings");

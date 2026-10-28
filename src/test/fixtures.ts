@@ -17,7 +17,7 @@ export const settings: Settings = {
   claudeCode: { path: "", terminal: "", sendPromptOnLaunch: true },
   assistantTool: "claudeCode",
   opencode: { path: "" },
-  github: { clientId: "" },
+  github: { clientId: "", useForHttps: false },
   reopenLastRepo: true,
   autoRefresh: true,
   successNotifications: true,
