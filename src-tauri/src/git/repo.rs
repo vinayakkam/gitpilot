@@ -323,13 +323,24 @@ impl Repo<'_> {
             )
             .await?;
         let mut parsed = status::parse(&out.stdout);
-        let ignored = self.tracked_ignored().await;
+        let tracked: Vec<&str> = parsed
+            .files
+            .iter()
+            .filter(|f| f.area != Area::Untracked)
+            .map(|f| f.path.as_str())
+            .collect();
+        // Independent queries run at the same time.
+        let (ignored, dirs, stashes) = tokio::join!(
+            self.tracked_ignored(&tracked),
+            self.dirs(),
+            self.stash_list()
+        );
         if !ignored.is_empty() {
             for f in &mut parsed.files {
                 f.ignored = f.area != Area::Untracked && ignored.contains(&f.path);
             }
         }
-        let (git_dir, common) = self.dirs().await?;
+        let (git_dir, common) = dirs?;
         let state =
             if git_dir.join("rebase-merge").exists() || git_dir.join("rebase-apply").exists() {
                 RepoState::Rebasing
@@ -344,7 +355,7 @@ impl Repo<'_> {
             } else {
                 RepoState::Normal
             };
-        let stash_count = self.stash_list().await.map(|s| s.len() as u32).unwrap_or(0);
+        let stash_count = stashes.map(|s| s.len() as u32).unwrap_or(0);
         let remote_twin = match (
             &parsed.branch.head,
             &parsed.branch.upstream,
@@ -363,23 +374,26 @@ impl Repo<'_> {
         })
     }
 
-    /// Tracked files that .gitignore says should be ignored.
-    async fn tracked_ignored(&self) -> std::collections::HashSet<String> {
-        let Ok(out) = self
-            .git
-            .run(
-                self.path,
-                [
-                    "ls-files",
-                    "-z",
-                    "--cached",
-                    "--ignored",
-                    "--exclude-standard",
-                ],
-                RunOpts::read(),
-            )
-            .await
-        else {
+    /// Which of the changed tracked files .gitignore says should be ignored.
+    async fn tracked_ignored(&self, changed: &[&str]) -> std::collections::HashSet<String> {
+        if changed.is_empty() {
+            return Default::default();
+        }
+        let mut args = vec![
+            "ls-files",
+            "-z",
+            "--cached",
+            "--ignored",
+            "--exclude-standard",
+        ];
+        // Few changed files: ask about just those instead of the whole index (big repositories).
+        // Paths are literal (GIT_LITERAL_PATHSPECS=1). The budget keeps well under Windows'
+        // 32 767-character command line.
+        if changed.iter().map(|p| p.len() + 3).sum::<usize>() <= 16_000 {
+            args.push("--");
+            args.extend_from_slice(changed);
+        }
+        let Ok(out) = self.git.run(self.path, &args, RunOpts::read()).await else {
             return Default::default();
         };
         out.stdout
