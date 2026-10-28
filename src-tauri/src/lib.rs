@@ -5,6 +5,7 @@ pub mod claude_code;
 pub mod cli;
 mod commands;
 pub mod db;
+pub mod editors;
 pub mod error;
 pub mod git;
 pub mod github;
@@ -112,6 +113,10 @@ pub fn run() {
             commands::history::rebase_interactive,
             commands::history::branch_reset,
             commands::history::reflog_list,
+            commands::tools::editor_list,
+            commands::tools::editor_open,
+            commands::tools::terminal_open,
+            commands::tools::conflict_mergetool,
             commands::history::backup_list,
             commands::history::backup_restore,
             commands::history::backup_delete,
