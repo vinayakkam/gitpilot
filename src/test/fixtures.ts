@@ -18,6 +18,7 @@ export const settings: Settings = {
   assistantTool: "claudeCode",
   opencode: { path: "" },
   github: { clientId: "", useForHttps: true },
+  tools: { editor: "", editorPath: "", mergeTool: "" },
   reopenLastRepo: true,
   autoRefresh: true,
   autoFetchMinutes: 0,
