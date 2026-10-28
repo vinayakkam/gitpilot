@@ -21,7 +21,7 @@ export const settings: Settings = {
   tools: { editor: "", editorPath: "", mergeTool: "" },
   reopenLastRepo: true,
   autoRefresh: true,
-  autoFetchMinutes: 0,
+  autoFetchSeconds: 0,
   tips: false,
   dismissedTips: [],
   successNotifications: true,

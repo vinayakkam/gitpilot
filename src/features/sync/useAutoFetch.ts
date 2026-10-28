@@ -3,22 +3,22 @@ import { api } from "@/lib/api";
 import { plural } from "@/lib/format";
 import { useStore } from "@/store/AppStore";
 
-const MAX_BACKOFF_MINUTES = 120;
+const MAX_BACKOFF_SECONDS = 2 * 60 * 60;
 
-/** Minutes until the next background fetch: the setting, doubled for each failure in a row. */
-export function nextDelayMinutes(every: number, failures: number): number {
-  return Math.min(MAX_BACKOFF_MINUTES, every * 2 ** Math.min(failures, 8));
+/** Seconds until the next background fetch: the setting, doubled for each failure in a row (at most 2 hours). */
+export function nextDelaySeconds(every: number, failures: number): number {
+  return Math.min(MAX_BACKOFF_SECONDS, every * 2 ** Math.min(failures, 12));
 }
 
 /**
- * Fetches the open repository in the background every `settings.autoFetchMinutes` minutes, and
+ * Fetches the open repository in the background every `settings.autoFetchSeconds` seconds, and
  * offers Pull when the current branch fell further behind. Skipped while an operation runs or
  * when offline; never asks for credentials (the backend fetch is non-interactive).
  */
 export function useAutoFetch(pull: () => void) {
   const { activeRepo, settings, status, busy, notify, refreshStatus } = useStore();
   const id = activeRepo?.id;
-  const every = settings?.autoFetchMinutes ?? 0;
+  const every = settings?.autoFetchSeconds ?? 0;
   const hasRemote = !!status?.branch.upstream;
   // Read the latest values inside the timer without restarting it.
   const live = useRef({ status, busy, pull });
@@ -30,7 +30,7 @@ export function useAutoFetch(pull: () => void) {
     let timer: number | undefined;
     let stopped = false;
     const schedule = () => {
-      timer = window.setTimeout(() => void tick(), nextDelayMinutes(every, failures) * 60_000);
+      timer = window.setTimeout(() => void tick(), nextDelaySeconds(every, failures) * 1000);
     };
     const tick = async () => {
       if (stopped) return;
