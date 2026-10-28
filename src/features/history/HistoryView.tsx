@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Copy, FileClock, GitCommitHorizontal, GitCompare, GitFork, GitMerge, History, LifeBuoy, ListOrdered, RotateCcw, ScanSearch, SlidersHorizontal, Sparkles, Tag as TagIcon, Undo2, X } from "lucide-react";
+import { Code, Copy, FileClock, GitCommitHorizontal, GitCompare, GitFork, GitMerge, History, LifeBuoy, ListOrdered, RotateCcw, ScanSearch, SlidersHorizontal, Sparkles, Tag as TagIcon, Undo2, X } from "lucide-react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import type { AppError } from "@/bindings/AppError";
 import type { CommitDetail } from "@/bindings/CommitDetail";
@@ -20,6 +20,7 @@ import { StatusGlyph } from "@/components/ui/StatusGlyph";
 import { DiffViewer } from "@/features/diff/DiffViewer";
 import { TagDialog } from "@/features/branches/TagDialog";
 import { focusRecoverSection } from "@/features/branches/RecoverSection";
+import { useExternalTools } from "@/features/tools/useExternalTools";
 import { CompareFilesDialog, type CompareTarget } from "@/features/compare/CompareFilesDialog";
 import { ExplainDialog, type ExplainRequest } from "@/features/assistant/ExplainDialog";
 import { BlameView } from "./BlameView";
@@ -124,6 +125,7 @@ export function HistoryView() {
   const { activeRepo, revision, settings, saveSettings, notify, historyPath, setHistoryPath, historyJump, setHistoryJump, status, run, setSection } = useStore();
   const id = activeRepo?.id;
   const [listW, setListW] = usePanelWidth("history", 380, 280, 640);
+  const tools = useExternalTools();
   const [query, setQuery] = useState("");
   const [showGraph, setShowGraph] = useState(() => {
     try {
@@ -474,6 +476,7 @@ export function HistoryView() {
                           items: [
                             { label: "Blame (who changed each line)", icon: <ScanSearch size={14} />, disabled: f.change === "deleted" || f.binary, onSelect: () => setBlame({ path: f.path, rev: detail.summary.hash }) },
                             { label: "Show file history", icon: <FileClock size={14} />, onSelect: () => setHistoryPath(f.path) },
+                            { label: "Open in editor", icon: <Code size={14} />, disabled: f.change === "deleted", onSelect: () => tools.editor(f.path) },
                             { label: "Copy path", icon: <Copy size={14} />, onSelect: () => copy(f.path, "Path") },
                           ],
                         });
