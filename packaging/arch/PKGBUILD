@@ -8,7 +8,7 @@ pkgdesc="Desktop Git manager: changes, diffs, hunk staging, history, branches, r
 arch=('x86_64')
 url="https://olittechnologies.co.in"
 license=('MIT')
-depends=('git' 'webkit2gtk-4.1' 'gtk3' 'libsoup3' 'dbus' 'hicolor-icon-theme')
+depends=('git' 'webkit2gtk-4.1' 'gtk3' 'libsoup3' 'dbus' 'hicolor-icon-theme' 'polkit')
 optdepends=(
   'gnome-keyring: store AI API keys and the GitHub sign-in securely (or kwallet / any Secret Service provider)'
   'kwallet: store AI API keys and the GitHub sign-in securely on KDE'
@@ -25,7 +25,7 @@ package() {
   install -Dm644 "${srcdir}/LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
   bsdtar -xf "${srcdir}/data.tar.gz" -C "${pkgdir}"
   chmod 755 "${pkgdir}/usr/bin/gitpilot"
-  # Tells GitPilot it is managed by pacman, so it points to pacman instead of updating itself.
+  # Tells GitPilot it is managed by pacman, so in-app updates install the signed package with pacman.
   install -Dm644 /dev/null "${pkgdir}/usr/share/gitpilot/package-manager"
   echo pacman > "${pkgdir}/usr/share/gitpilot/package-manager"
   # Tauri names this icon size "256x256@2"; hicolor expects "256x256@2x".
