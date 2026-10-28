@@ -57,7 +57,13 @@ import type { SigningScope } from "@/bindings/SigningScope";
 import type { SequenceAction } from "@/bindings/SequenceAction";
 import type { Stash } from "@/bindings/Stash";
 import type { Submodule } from "@/bindings/Submodule";
+import type { CheckRun } from "@/bindings/CheckRun";
 import type { EditorInfo } from "@/bindings/EditorInfo";
+import type { MergeMethod } from "@/bindings/MergeMethod";
+import type { PullComment } from "@/bindings/PullComment";
+import type { PullDetail } from "@/bindings/PullDetail";
+import type { PullFile } from "@/bindings/PullFile";
+import type { ReviewEvent } from "@/bindings/ReviewEvent";
 import type { ReflogEntry } from "@/bindings/ReflogEntry";
 import type { UpdateProgress } from "@/bindings/UpdateProgress";
 import type { UpdateSupport } from "@/bindings/UpdateSupport";
@@ -244,6 +250,15 @@ export const api = {
     invoke<CreatedPull>("github_pull_create", { id, owner, name, base, title, body, draft }),
   githubPullCheckout: (id: number, owner: string, name: string, number: number) =>
     invoke<PrCheckout>("github_pull_checkout", { id, owner, name, number }),
+  githubPullDetail: (owner: string, name: string, number: number) => invoke<PullDetail>("github_pull_detail", { owner, name, number }),
+  githubPullFiles: (owner: string, name: string, number: number) => invoke<PullFile[]>("github_pull_files", { owner, name, number }),
+  githubPullConversation: (owner: string, name: string, number: number) => invoke<PullComment[]>("github_pull_conversation", { owner, name, number }),
+  githubPullChecks: (owner: string, name: string, sha: string) => invoke<CheckRun[]>("github_pull_checks", { owner, name, sha }),
+  githubPullComment: (owner: string, name: string, number: number, body: string) => invoke<void>("github_pull_comment", { owner, name, number, body }),
+  githubPullReview: (owner: string, name: string, number: number, event: ReviewEvent, body: string) => invoke<void>("github_pull_review", { owner, name, number, event, body }),
+  githubPullMerge: (owner: string, name: string, number: number, method: MergeMethod, sha: string) =>
+    invoke<void>("github_pull_merge", { owner, name, number, method, sha, confirmed: true }),
+  githubPullDeleteBranch: (owner: string, name: string, branch: string) => invoke<void>("github_pull_delete_branch", { owner, name, branch, confirmed: true }),
 
   submoduleList: (id: number) => invoke<Submodule[]>("submodule_list", { id }),
   /** Downloads and checks out submodules (`paths` empty = all). Cancellable with opCancel("repo:<id>"). */
