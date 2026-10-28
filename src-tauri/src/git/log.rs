@@ -52,7 +52,7 @@ pub struct CommitDetail {
     pub compared_to_first_parent: bool,
 }
 
-#[derive(Debug, Clone, Deserialize, TS)]
+#[derive(Debug, Clone, Default, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct LogQuery {
@@ -64,6 +64,18 @@ pub struct LogQuery {
     pub search: Option<String>,
     /// Limit history to one file (follows renames).
     pub path: Option<String>,
+    /// Only commits whose changes add or remove this text (`git log -S`), or with `regex`,
+    /// whose changed lines match this regular expression (`-G`).
+    #[serde(default)]
+    pub content: Option<String>,
+    #[serde(default)]
+    pub regex: bool,
+    /// Only commits made on or after this day (YYYY-MM-DD).
+    #[serde(default)]
+    pub since: Option<String>,
+    /// Only commits made on or before this day (YYYY-MM-DD).
+    #[serde(default)]
+    pub until: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, TS)]

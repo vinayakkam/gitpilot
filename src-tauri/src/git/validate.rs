@@ -88,6 +88,25 @@ pub fn commit_hash(h: &str) -> AppResult<&str> {
     Ok(h)
 }
 
+/// A calendar day as YYYY-MM-DD (what `<input type="date">` sends).
+pub fn date(d: &str) -> AppResult<&str> {
+    let d = d.trim();
+    let ok = d.len() == 10
+        && d.char_indices().all(|(i, c)| {
+            if i == 4 || i == 7 {
+                c == '-'
+            } else {
+                c.is_ascii_digit()
+            }
+        })
+        && (1..=12).contains(&d[5..7].parse::<u8>().unwrap_or(0))
+        && (1..=31).contains(&d[8..10].parse::<u8>().unwrap_or(0));
+    if !ok {
+        return Err(AppError::invalid("Enter the date as YYYY-MM-DD."));
+    }
+    Ok(d)
+}
+
 pub fn remote_name(name: &str) -> AppResult<&str> {
     let n = name.trim();
     if n.is_empty()
@@ -128,6 +147,21 @@ pub fn remote_url(url: &str) -> AppResult<&str> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn dates() {
+        assert_eq!(super::date(" 2026-10-28 ").unwrap(), "2026-10-28");
+        for bad in [
+            "2026-13-01",
+            "2026-1-01",
+            "26-10-28",
+            "2026/10/28",
+            "2026-10-00",
+            "--since",
+        ] {
+            assert!(super::date(bad).is_err(), "{bad}");
+        }
+    }
+
     use super::*;
 
     #[test]

@@ -880,13 +880,34 @@ impl Repo<'_> {
                 }
             }
         }
+        let content = q.content.as_deref().filter(|c| !c.is_empty());
+        if let Some(c) = content {
+            if c.len() > 1000 || c.contains(['\0', '\n']) {
+                return Err(AppError::invalid(
+                    "Search for one line of text, up to 1000 characters.",
+                ));
+            }
+            args.push(if q.regex {
+                format!("-G{c}")
+            } else {
+                format!("-S{c}")
+            });
+        }
+        if let Some(d) = q.since.as_deref().filter(|d| !d.is_empty()) {
+            args.push(format!("--since={} 00:00:00", v::date(d)?));
+        }
+        if let Some(d) = q.until.as_deref().filter(|d| !d.is_empty()) {
+            args.push(format!("--until={} 23:59:59", v::date(d)?));
+        }
+        let filtered =
+            search.is_some() || content.is_some() || q.since.is_some() || q.until.is_some();
         let rev = match &q.rev {
             Some(r) => v::revision(r)?.to_string(),
             None => "HEAD".into(),
         };
         if q.path.is_some() {
             args.push("--follow".into());
-        } else if search.is_none() {
+        } else if !filtered {
             // Children before parents, so the commit graph can be drawn.
             args.push("--date-order".into());
         }
@@ -895,7 +916,15 @@ impl Repo<'_> {
         if let Some(p) = &q.path {
             args.push(v::rel_path(p)?.into());
         }
-        let mut commits = log::parse_log(&self.read(&args).await?);
+        let raw = self.read(&args).await.map_err(|e| {
+            if q.regex && e.detail.as_deref().is_some_and(|d| d.contains("regex")) {
+                AppError::invalid("That isn't a valid regular expression.")
+                    .with_detail(e.detail.unwrap_or_default())
+            } else {
+                e
+            }
+        })?;
+        let mut commits = log::parse_log(&raw);
         let has_more = commits.len() as u32 > limit;
         commits.truncate(limit as usize);
         if let Some(h) = hash_hit {

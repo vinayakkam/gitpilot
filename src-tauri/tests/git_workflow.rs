@@ -69,7 +69,8 @@ async fn end_to_end_stage_commit_history() {
             skip: 0,
             limit: 50,
             search: None,
-            path: None
+            path: None,
+            ..Default::default()
         })
         .await
         .unwrap()
@@ -147,6 +148,7 @@ async fn end_to_end_stage_commit_history() {
             limit: 10,
             search: Some("NOTES".into()),
             path: None,
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -158,6 +160,7 @@ async fn end_to_end_stage_commit_history() {
             limit: 10,
             search: Some(hash[..8].into()),
             path: None,
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -537,6 +540,7 @@ async fn merge_conflicts_are_reported() {
             limit: 1,
             search: None,
             path: None,
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -697,6 +701,7 @@ async fn revert_cherry_pick_merge() {
             limit: 1,
             search: None,
             path: None,
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -768,6 +773,7 @@ async fn rebase_conflict_then_abort_or_continue() {
             limit: 3,
             search: None,
             path: None,
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -2210,4 +2216,76 @@ async fn reflog_marks_commits_only_the_reflog_keeps() {
     // reset_to keeps a backup ref, which isn't a branch, so the commit still counts as lost.
     assert!(gone.lost);
     assert_eq!(r.reflog(1).await.unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn history_search_by_content_and_date() {
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    write(&root, "a.rs", "fn main() {}\n");
+    r.stage_all().await.unwrap();
+    r.commit("start").await.unwrap();
+    write(&root, "a.rs", "fn main() { let answer = 42; }\n");
+    r.stage_all().await.unwrap();
+    r.commit("add answer").await.unwrap();
+    write(&root, "b.txt", "unrelated\n");
+    r.stage_all().await.unwrap();
+    r.commit("other").await.unwrap();
+
+    let subjects = |q: LogQuery| {
+        let r = &r;
+        async move {
+            r.log(&q)
+                .await
+                .map(|p| p.commits.into_iter().map(|c| c.subject).collect::<Vec<_>>())
+        }
+    };
+    let q = |content: &str, regex: bool| LogQuery {
+        limit: 50,
+        content: Some(content.into()),
+        regex,
+        ..Default::default()
+    };
+    assert_eq!(subjects(q("answer", false)).await.unwrap(), ["add answer"]);
+    assert_eq!(
+        subjects(q("answer = [0-9]+", true)).await.unwrap(),
+        ["add answer"]
+    );
+    assert!(
+        subjects(q("Answer", false)).await.unwrap().is_empty(),
+        "-S is case-sensitive"
+    );
+    assert_eq!(
+        subjects(q("a(", true)).await.unwrap_err().message,
+        "That isn't a valid regular expression."
+    );
+    assert!(subjects(q("a\nb", false)).await.is_err());
+
+    let all = subjects(LogQuery {
+        limit: 50,
+        since: Some("2000-01-01".into()),
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+    assert_eq!(all.len(), 3);
+    let none = subjects(LogQuery {
+        limit: 50,
+        until: Some("2000-01-01".into()),
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+    assert!(none.is_empty());
+    assert!(subjects(LogQuery {
+        limit: 50,
+        since: Some("yesterday".into()),
+        ..Default::default()
+    })
+    .await
+    .is_err());
 }

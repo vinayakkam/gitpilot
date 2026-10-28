@@ -159,7 +159,8 @@ export const api = {
     invoke<void>("lines_apply", { id, path, header, lines, unstage }),
 
   // history
-  log: (id: number, query: LogQuery) => invoke<LogPage>("log_get", { id, query }),
+  // The content and date filters are optional; the backend defaults them.
+  log: (id: number, query: Omit<LogQuery, "content" | "regex" | "since" | "until"> & Partial<LogQuery>) => invoke<LogPage>("log_get", { id, query }),
   commitGet: (id: number, hash: string) => invoke<CommitDetail>("commit_get", { id, hash }),
   commitDiffFile: (id: number, hash: string, path: string, origPath: string | null) =>
     invoke<FileDiff>("commit_diff_file", { id, hash, path, origPath }),
