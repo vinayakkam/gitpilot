@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CircleCheck, CircleDot, CircleMinus, CircleX, ExternalLink, MessageSquare, Sparkles } from "lucide-react";
 import type { CheckRun } from "@/bindings/CheckRun";
 import type { GitHubRepoRef } from "@/bindings/GitHubRepoRef";
@@ -15,7 +15,7 @@ import { ReleaseNotes } from "@/components/ui/ReleaseNotes";
 import { Segmented } from "@/components/ui/Segmented";
 import { Spinner } from "@/components/ui/Spinner";
 import { StatusGlyph } from "@/components/ui/StatusGlyph";
-import { DiffViewer } from "@/features/diff/DiffViewer";
+import { DiffViewer, type DiffNote } from "@/features/diff/DiffViewer";
 import { ExplainDialog, type ExplainRequest } from "@/features/assistant/ExplainDialog";
 import { api } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
@@ -77,6 +77,14 @@ function Comment({ c }: { c: PullComment }) {
   );
 }
 
+/** Line comments on `path` that still point at a line in the diff, for showing under that line. */
+export function lineNotes(comments: PullComment[], path: string | undefined): DiffNote[] {
+  if (!path) return [];
+  return comments
+    .filter((c) => c.kind === "reviewComment" && c.path === path && !c.outdated && c.line != null)
+    .map((c) => ({ side: c.side === "LEFT" ? "old" : "new", line: c.line!, author: c.author, body: c.body }));
+}
+
 /** Review a pull request without leaving GitPilot: files, conversation, checks, review and merge. */
 export function PullReviewDialog({ target, number, onClose, onChanged }: { target: GitHubRepoRef; number: number | null; onClose: () => void; onChanged: () => void }) {
   const { settings, saveSettings, notify, activeRepo } = useStore();
@@ -87,7 +95,8 @@ export function PullReviewDialog({ target, number, onClose, onChanged }: { targe
   const d = detail.data;
   const [tab, setTab] = useState<Tab>("files");
   const files = useAsync(() => api.githubPullFiles(target.owner, target.name, n), [target.fullName, n], open && tab === "files");
-  const talk = useAsync(() => api.githubPullConversation(target.owner, target.name, n), [target.fullName, n], open && tab === "conversation");
+  // The Files tab needs it too: line comments are shown under their lines.
+  const talk = useAsync(() => api.githubPullConversation(target.owner, target.name, n), [target.fullName, n], open && (tab === "conversation" || tab === "files"));
   const checks = useAsync<CheckRun[]>(() => api.githubPullChecks(target.owner, target.name, d!.headSha), [target.fullName, d?.headSha], open && tab === "checks" && !!d);
   const [file, setFile] = useState<string | null>(null);
   const [text, setText] = useState("");
@@ -106,6 +115,7 @@ export function PullReviewDialog({ target, number, onClose, onChanged }: { targe
     if (!file && files.data?.[0]) setFile(files.data[0].path);
   }, [files.data, file]);
   const selected = files.data?.find((f) => f.path === file) ?? null;
+  const notes = useMemo(() => lineNotes(talk.data ?? [], selected?.path), [talk.data, selected?.path]);
 
   const send = async (event: ReviewEvent | "plain") => {
     setSending(event === "plain" ? "comment" : event);
@@ -247,6 +257,7 @@ export function PullReviewDialog({ target, number, onClose, onChanged }: { targe
                     mode={settings?.diffMode ?? "unified"}
                     onModeChange={(m) => void saveSettings({ diffMode: m })}
                     highlight={settings?.syntaxHighlighting ?? true}
+                    notes={notes}
                     emptyTitle="Select a file"
                   />
                 )}

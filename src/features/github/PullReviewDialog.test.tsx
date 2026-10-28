@@ -3,7 +3,7 @@ import { expectNoAxeViolations } from "@/test/axe";
 import { Toaster } from "@/components/layout/Toaster";
 import { AppStoreProvider } from "@/store/AppStore";
 import { repo, settings, status } from "@/test/fixtures";
-import { PullReviewDialog } from "./PullReviewDialog";
+import { lineNotes, PullReviewDialog } from "./PullReviewDialog";
 
 const api = vi.hoisted(() => ({
   settingsGet: vi.fn(),
@@ -26,7 +26,12 @@ vi.mock("@/lib/api", () => ({ api, onProgress: () => Promise.resolve(() => {}) }
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn(() => Promise.resolve()) }));
 // The real viewer needs layout (ResizeObserver); show the changed lines as text instead.
 vi.mock("@/features/diff/DiffViewer", () => ({
-  DiffViewer: ({ diff }: { diff: { hunks: { lines: { content: string }[] }[] } | null }) => <pre>{diff?.hunks.flatMap((h) => h.lines.map((l) => l.content)).join("\n")}</pre>,
+  DiffViewer: ({ diff, notes }: { diff: { hunks: { lines: { content: string }[] }[] } | null; notes?: { line: number; body: string }[] }) => (
+    <>
+      <pre>{diff?.hunks.flatMap((h) => h.lines.map((l) => l.content)).join("\n")}</pre>
+      {notes?.map((n) => <p key={n.body}>{`line ${n.line}: ${n.body}`}</p>)}
+    </>
+  ),
 }));
 
 const target = { owner: "me", name: "app", fullName: "me/app", htmlUrl: "https://github.com/me/app", defaultBranch: "main", remote: "origin" };
@@ -82,6 +87,16 @@ describe("PullReviewDialog", () => {
     expect(api.githubPullChecks).toHaveBeenCalledWith("me", "app", "abc1234");
   });
 
+  it("shows line comments under their lines in the Files tab", async () => {
+    api.githubPullConversation.mockResolvedValue([
+      { kind: "reviewComment", author: "bob", body: "Use a const", createdAt: "t", reviewState: null, path: "a.ts", line: 1, side: "RIGHT", outdated: false, url: "u" },
+      { kind: "reviewComment", author: "bob", body: "Old note", createdAt: "t", reviewState: null, path: "a.ts", line: 3, side: "RIGHT", outdated: true, url: "u" },
+    ]);
+    setup();
+    expect(await screen.findByText("line 1: Use a const")).toBeInTheDocument();
+    expect(screen.queryByText(/Old note/)).not.toBeInTheDocument();
+  });
+
   it("requests changes and needs a comment for it", async () => {
     setup();
     const reqBtn = await screen.findByRole("button", { name: "Request changes" });
@@ -114,5 +129,13 @@ describe("PullReviewDialog", () => {
     setup();
     expect(await screen.findByText(/has conflicts with its base branch/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Merge" })).toBeDisabled();
+  });
+});
+
+describe("lineNotes", () => {
+  it("keeps current line comments on the file, with the side mapped", () => {
+    const c = (path: string, side: string, outdated = false) => ({ kind: "reviewComment", author: "a", body: "b", createdAt: "", reviewState: null, path, line: 4, side, outdated, url: "" });
+    expect(lineNotes([c("a.ts", "LEFT"), c("b.ts", "RIGHT"), c("a.ts", "RIGHT", true)], "a.ts")).toEqual([{ side: "old", line: 4, author: "a", body: "b" }]);
+    expect(lineNotes([c("a.ts", "RIGHT")], undefined)).toEqual([]);
   });
 });
