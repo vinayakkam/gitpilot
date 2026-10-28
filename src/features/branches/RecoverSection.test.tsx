@@ -65,6 +65,20 @@ describe("recoverRows", () => {
 });
 
 describe("RecoverSection", () => {
+  it("reaches each row's actions with Tab", async () => {
+    const user = (await import("@testing-library/user-event")).default.setup();
+    setup();
+    const section = await screen.findByRole("region", { name: "Recover" });
+    await within(section).findByText("Backup (deleted branch topic)");
+    const reached = new Set<string>();
+    for (let i = 0; i < 25; i++) {
+      await user.tab();
+      const el = document.activeElement;
+      if (el && section.contains(el)) reached.add(el.getAttribute("aria-label") ?? el.textContent ?? "");
+    }
+    expect([...reached]).toEqual(expect.arrayContaining(["Create branch here…", "Restore", "Create branch from this backup…", "Delete backup…"]));
+  });
+
   it("restores a backup after confirming", async () => {
     setup();
     const section = await screen.findByRole("region", { name: "Recover" });
