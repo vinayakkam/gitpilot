@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CircleCheck, CircleDot, CircleMinus, CircleX, ExternalLink, MessageSquare } from "lucide-react";
+import { CircleCheck, CircleDot, CircleMinus, CircleX, ExternalLink, MessageSquare, Sparkles } from "lucide-react";
 import type { CheckRun } from "@/bindings/CheckRun";
 import type { GitHubRepoRef } from "@/bindings/GitHubRepoRef";
 import type { MergeMethod } from "@/bindings/MergeMethod";
@@ -16,6 +16,7 @@ import { Segmented } from "@/components/ui/Segmented";
 import { Spinner } from "@/components/ui/Spinner";
 import { StatusGlyph } from "@/components/ui/StatusGlyph";
 import { DiffViewer } from "@/features/diff/DiffViewer";
+import { ExplainDialog, type ExplainRequest } from "@/features/assistant/ExplainDialog";
 import { api } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
 import { relativeTime, splitPath } from "@/lib/format";
@@ -78,7 +79,8 @@ function Comment({ c }: { c: PullComment }) {
 
 /** Review a pull request without leaving GitPilot: files, conversation, checks, review and merge. */
 export function PullReviewDialog({ target, number, onClose, onChanged }: { target: GitHubRepoRef; number: number | null; onClose: () => void; onChanged: () => void }) {
-  const { settings, saveSettings, notify } = useStore();
+  const { settings, saveSettings, notify, activeRepo } = useStore();
+  const [explain, setExplain] = useState<ExplainRequest | null>(null);
   const open = number !== null;
   const n = number ?? 0;
   const detail = useAsync(() => api.githubPullDetail(target.owner, target.name, n), [target.fullName, n], open);
@@ -185,6 +187,15 @@ export function PullReviewDialog({ target, number, onClose, onChanged }: { targe
             {d.draft && <Badge>draft</Badge>}
             {d.crossRepository && <Badge title="The changes come from another repository">from a fork</Badge>}
             <span className="flex-1" />
+            {activeRepo && (
+              <Button
+                size="sm"
+                icon={<Sparkles size={12} />}
+                onClick={() => setExplain({ title: `Explain pull request #${n}`, load: () => api.aiExplain(activeRepo.id, { kind: "pullRequest", owner: target.owner, name: target.name, number: n }) })}
+              >
+                Explain
+              </Button>
+            )}
             <Segmented
               size="sm"
               label="Show"
@@ -286,6 +297,7 @@ export function PullReviewDialog({ target, number, onClose, onChanged }: { targe
         </div>
       ) : null}
 
+      <ExplainDialog request={explain} onClose={() => setExplain(null)} />
       <ConfirmDialog
         open={confirm === "merge"}
         onClose={() => setConfirm(null)}

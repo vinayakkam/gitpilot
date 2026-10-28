@@ -18,7 +18,9 @@ const api = vi.hoisted(() => ({
   githubPullReview: vi.fn(),
   githubPullMerge: vi.fn(),
   githubPullDeleteBranch: vi.fn(),
+  aiExplain: vi.fn(),
 }));
+vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({ writeText: vi.fn(() => Promise.resolve()) }));
 vi.mock("@/lib/api", () => ({ api, onProgress: () => Promise.resolve(() => {}) }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn(() => Promise.resolve()) }));
 // The real viewer needs layout (ResizeObserver); show the changed lines as text instead.
@@ -87,6 +89,14 @@ describe("PullReviewDialog", () => {
     expect(api.githubPullMerge).not.toHaveBeenCalled();
     fireEvent.click(within(confirm).getByRole("button", { name: "Merge" }));
     await waitFor(() => expect(api.githubPullMerge).toHaveBeenCalledWith("me", "app", 7, "squash", "abc1234"));
+  });
+
+  it("asks the AI to explain the whole pull request", async () => {
+    api.aiExplain.mockResolvedValue({ text: "It adds a login form.", model: "m", excludedFiles: [], truncated: false });
+    setup();
+    fireEvent.click(await screen.findByRole("button", { name: "Explain" }));
+    expect(await screen.findByText("It adds a login form.")).toBeInTheDocument();
+    expect(api.aiExplain).toHaveBeenCalledWith(1, { kind: "pullRequest", owner: "me", name: "app", number: 7 });
   });
 
   it("won't merge a pull request with conflicts", async () => {
