@@ -226,6 +226,17 @@ pub async fn branch_reset(
     r.reset_to(&target, mode).await
 }
 
+/// Where HEAD pointed recently (newest first), with commits no branch keeps marked as lost.
+#[tauri::command]
+pub async fn reflog_list(
+    state: State<'_, AppState>,
+    id: i64,
+    limit: u32,
+) -> AppResult<Vec<crate::git::reflog::ReflogEntry>> {
+    repo!(state, id, git, root, r);
+    r.reflog(limit).await
+}
+
 #[tauri::command]
 pub async fn backup_list(
     state: State<'_, AppState>,

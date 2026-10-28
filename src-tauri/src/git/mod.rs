@@ -11,6 +11,7 @@ pub mod locate;
 pub mod log;
 pub mod pulls;
 pub mod redact;
+pub mod reflog;
 pub mod refs;
 pub mod repo;
 pub mod rewrite;

@@ -2170,3 +2170,32 @@ async fn github_token_reaches_git_for_github_com_only() {
         "Debug must not show the token"
     );
 }
+
+#[tokio::test]
+async fn reflog_marks_commits_only_the_reflog_keeps() {
+    use gitpilot_lib::git::rewrite::ResetMode;
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    assert!(r.reflog(50).await.unwrap().is_empty(), "no commits yet");
+    for (i, msg) in ["one", "two"].iter().enumerate() {
+        write(&root, "f.txt", &format!("{i}\n"));
+        r.stage_all().await.unwrap();
+        r.commit(msg).await.unwrap();
+    }
+    let two = r.reflog(50).await.unwrap()[0].hash.clone();
+    r.reset_to("HEAD~1", ResetMode::Hard).await.unwrap();
+
+    let log = r.reflog(50).await.unwrap();
+    assert_eq!(log[0].action, "reset");
+    assert!(!log[0].lost, "HEAD's commit is on main");
+    let gone = log.iter().find(|e| e.hash == two).unwrap();
+    assert_eq!(gone.subject, "two");
+    assert_eq!(gone.action, "commit");
+    // reset_to keeps a backup ref, which isn't a branch, so the commit still counts as lost.
+    assert!(gone.lost);
+    assert_eq!(r.reflog(1).await.unwrap().len(), 1);
+}

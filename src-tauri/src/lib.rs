@@ -111,6 +111,7 @@ pub fn run() {
             commands::history::rebase_commits,
             commands::history::rebase_interactive,
             commands::history::branch_reset,
+            commands::history::reflog_list,
             commands::history::backup_list,
             commands::history::backup_restore,
             commands::history::backup_delete,
