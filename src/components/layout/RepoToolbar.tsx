@@ -26,6 +26,7 @@ import { Tooltip } from "@/components/ui/Tooltip";
 import { NewBranchDialog } from "@/features/branches/NewBranchDialog";
 import { useBranchSwitch } from "@/features/branches/useBranchSwitch";
 import { usePull } from "@/features/sync/usePull";
+import { useAutoFetch } from "@/features/sync/useAutoFetch";
 import { api } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
 import { plural, relativeTime } from "@/lib/format";
@@ -197,6 +198,7 @@ function SyncStrip({ fetchError }: { fetchError: AppError | null }) {
 export function RepoToolbar() {
   const { activeRepo, status, busy, progress, run, revision, refreshStatus, statusLoading, notify } = useStore();
   const { pull, dialog: pullDialog } = usePull();
+  useAutoFetch(() => void pull());
   const [picker, setPicker] = useState<DOMRect | null>(null);
   const [newBranch, setNewBranch] = useState(false);
   const [remotes, setRemotes] = useState<Remote[]>([]);

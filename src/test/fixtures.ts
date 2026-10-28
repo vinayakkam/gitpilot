@@ -20,6 +20,7 @@ export const settings: Settings = {
   github: { clientId: "", useForHttps: true },
   reopenLastRepo: true,
   autoRefresh: true,
+  autoFetchMinutes: 0,
   successNotifications: true,
   checkForUpdates: true,
   lastRepoId: 1,

@@ -205,7 +205,8 @@ export const api = {
   remoteAdd: (id: number, name: string, url: string) => invoke<void>("remote_add", { id, name, url }),
   remoteSetUrl: (id: number, name: string, url: string) => invoke<void>("remote_set_url", { id, name, url }),
   remoteRemove: (id: number, name: string) => invoke<void>("remote_remove", { id, name, confirmed: true }),
-  fetch: (id: number, remote: string | null) => invoke<void>("sync_fetch", { id, remote }),
+  /** `quiet`: background fetch (no progress, never asks for credentials, skipped if the repository is busy). */
+  fetch: (id: number, remote: string | null, quiet = false) => invoke<void>("sync_fetch", { id, remote, quiet }),
   pull: (id: number, options: PullOptions | null = null) => invoke<void>("sync_pull", { id, options }),
   push: (id: number, opts: { remote?: string | null; setUpstream?: boolean; forceWithLease?: boolean } = {}) =>
     invoke<void>("sync_push", {
