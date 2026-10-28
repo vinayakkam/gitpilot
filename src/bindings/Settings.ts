@@ -9,6 +9,7 @@ import type { GitHubSettings } from "./GitHubSettings";
 import type { OpenCodeSettings } from "./OpenCodeSettings";
 import type { PullStrategy } from "./PullStrategy";
 import type { Theme } from "./Theme";
+import type { ToolsSettings } from "./ToolsSettings";
 
 export type Settings = { 
 /**
@@ -35,6 +36,10 @@ checkLineEndings: boolean, ai: AiSettings,
  * Claude Code's path, plus the terminal and launch options shared by every assistant.
  */
 claudeCode: ClaudeCodeSettings, assistantTool: AssistantTool, opencode: OpenCodeSettings, github: GitHubSettings, 
+/**
+ * Code editor and merge tool.
+ */
+tools: ToolsSettings, 
 /**
  * Reopen the last repository on startup.
  */

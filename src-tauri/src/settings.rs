@@ -145,6 +145,18 @@ pub struct OpenCodeSettings {
     pub path: String,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export)]
+pub struct ToolsSettings {
+    /// Editor id from `editors::detect` ("vscode", "zed", …, "custom"); empty = first one found.
+    pub editor: String,
+    /// The editor executable used when `editor` is "custom".
+    pub editor_path: String,
+    /// `git mergetool --tool` name (meld, kdiff3, vscode, …); empty = Git's merge.tool setting.
+    pub merge_tool: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 #[ts(export)]
@@ -191,6 +203,8 @@ pub struct Settings {
     pub assistant_tool: AssistantTool,
     pub opencode: OpenCodeSettings,
     pub github: GitHubSettings,
+    /// Code editor and merge tool.
+    pub tools: ToolsSettings,
     /// Reopen the last repository on startup.
     pub reopen_last_repo: bool,
     /// Refresh the file list as soon as files change on disk.
@@ -225,6 +239,7 @@ impl Default for Settings {
             assistant_tool: AssistantTool::default(),
             opencode: OpenCodeSettings::default(),
             github: GitHubSettings::default(),
+            tools: ToolsSettings::default(),
             reopen_last_repo: true,
             auto_refresh: true,
             auto_fetch_minutes: 15,
@@ -274,6 +289,11 @@ impl Settings {
                 "Choose how often to fetch: off, 5, 15 or 30 minutes.",
             ));
         }
+        if !is_valid_tool_name(&self.tools.merge_tool) {
+            return Err(AppError::invalid(
+                "A merge tool name has only letters, digits, - and _ (for example meld or kdiff3).",
+            ));
+        }
         let b = self.default_branch.trim();
         if !b.is_empty() {
             crate::git::validate::ref_name(b)?;
@@ -298,6 +318,13 @@ impl Settings {
         }
         Ok(())
     }
+}
+
+/// `git mergetool --tool` names: empty (use Git's setting) or a plain identifier.
+pub fn is_valid_tool_name(t: &str) -> bool {
+    t.len() <= 40
+        && t.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
 /// The choices offered for `auto_fetch_minutes`.
@@ -413,6 +440,15 @@ mod tests {
         assert!(s.validate().is_err());
         s.auto_fetch_minutes = 0;
         assert!(s.validate().is_ok());
+    }
+
+    #[test]
+    fn merge_tool_names() {
+        assert!(is_valid_tool_name(""));
+        assert!(is_valid_tool_name("kdiff3"));
+        assert!(is_valid_tool_name("tortoise_merge-2"));
+        assert!(!is_valid_tool_name("meld; rm"));
+        assert!(!is_valid_tool_name("--extcmd=x"));
     }
 
     #[test]
