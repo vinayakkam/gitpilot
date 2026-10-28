@@ -4,10 +4,10 @@
 
 - **Phase:** 6 — reliability and refinement (implemented on Linux and Windows; Windows verified by the user)
 - **Overall:** core Git workflow, branches, remotes, sync, AI provider integration, Claude Code integration and settings are implemented and verified on Linux against real repositories. Linux packages (deb, AppImage) build and launch.
-- **Current working area:** 0.4.5 (Batch E) — implemented on branch `release/0.4.5` (session 10), not pushed or released yet
-- **Most recently completed:** v0.4.5 (session 10, not released) — multiple windows, worktrees, submodules, Git LFS, commit signing + Verified, OpenCode in the Assistant; checks gate the installer builds. Before that: v0.4.2 (session 9, released as `v0.4.2`) — GitHub sign-in, clone from your repository list, pull requests (list with checks, create, check out), AI explain, AI pull request descriptions, AI conflict help. Before that: v0.4.0 — Batches A–C: everyday Git (amend, undo, tags, stash selected files, discard hunks/lines, auto-refresh), understanding code (blame, commit graph, compare any refs, image previews), conflicts and history (conflict resolver, edit commits, reset with backups) (session 8). Before that: v0.3.1 — readable update notes, Add to .gitignore (session 7)
+- **Current working area:** 0.5.0 — implemented on branch `release/0.5.0` (session 11), not pushed or released yet
+- **Most recently completed:** v0.5.0 (session 11, not released) — Arch in-app updates through pacman, pull request review + merge, issues, GitHub sign-in for HTTPS git, Recover (reflog), history content search, auto-fetch, editors/terminal/merge tool, beginner tips, large-repo speed, accessibility pass. Before that: v0.4.5 (session 10) — multiple windows, worktrees, submodules, Git LFS, commit signing + Verified, OpenCode in the Assistant; checks gate the installer builds. Before that: v0.4.2 (session 9, released as `v0.4.2`) — GitHub sign-in, clone from your repository list, pull requests (list with checks, create, check out), AI explain, AI pull request descriptions, AI conflict help. Before that: v0.4.0 — Batches A–C: everyday Git (amend, undo, tags, stash selected files, discard hunks/lines, auto-refresh), understanding code (blame, commit graph, compare any refs, image previews), conflicts and history (conflict resolver, edit commits, reset with backups) (session 8). Before that: v0.3.1 — readable update notes, Add to .gitignore (session 7)
 - **Windows:** verified by the user on a real Windows machine (2026-10-21, all features working); this environment still can't build for Windows
-- **Immediate next task:** the user reviews branch `release/0.4.5`, pushes it so the new CI runs on Windows, checks multiple windows in the real app, and decides whether to merge, tag and release. No further batch is planned yet.
+- **Immediate next task:** the user reviews branch `release/0.5.0`, runs "Run workflow" on `build-installers.yml` for that branch so the Windows tests run (A1 of the plan), shares any failures, then merges, tags `v0.5.0` and releases. See "Next-session handoff".
 
 ## Feature tracker
 
@@ -39,7 +39,7 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 - [x] Claude Code integration (detection verified with real CLI 2.1.304; terminal launch verified with xterm + stand-in executable; prompt passed as one argv entry)
 - [x] Application settings (persisted JSON, validated; keychain for keys with env fallback)
 - [x] Error handling and safety (classified errors, plain messages + technical details, confirmations + backend flags)
-- [x] Automated tests (Rust 163 unit + 27 integration on temp repos, plus 1 opt-in live GitHub test; frontend 101 vitest — end of session 10). CI runs them only when installers are built (tags and manual runs); the Windows job stops if its tests fail
+- [x] Automated tests (Rust 189 unit + 32 integration on temp repos, plus 2 opt-in tests: live GitHub and 50 000-file status timing; frontend 138 vitest with axe checks — end of session 11). CI runs them only when installers are built (tags and manual runs); the Windows job stops if its tests fail
 - [~] UI polish and visual QA (all main screens inspected on Linux/Xvfb, light + dark, min size; no screen-reader testing)
 - [x] Windows packaging (MSI + NSIS built by `.github/workflows/build-installers.yml` on windows-latest; installed and used by the user)
 - [x] Linux packaging (deb 5.1 MB and AppImage 80 MB built; AppImage launched; Arch/CachyOS `gitpilot-bin` package built with makepkg from `packaging/arch/PKGBUILD` — not yet installed on a real Arch system)
@@ -50,9 +50,28 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 - [~] Git LFS (0.4.5): detection integration-tested without git-lfs; track/untrack runs only where git-lfs is installed (CI runners), not on this machine
 - [x] Commit signing (0.4.5): SSH signing + Verified integration-tested with a throwaway key; GPG key listing unit-tested, GPG signing not exercised
 - [x] OpenCode in the Assistant (0.4.5): detection and `--prompt` checked against the installed OpenCode 1.18.31; terminal launch not run on the desktop
+- [~] Arch/CachyOS in-app updates (0.5.0): pacman target in `latest.json`, CI signing, `pkexec pacman -U` install; manifest script and UI flow tested; **not run end to end** (needs a signed release and a real Arch install)
+- [~] Pull request review (0.5.0): files, conversation, checks, comment/approve/request changes, confirmed merge at the reviewed head, delete branch, AI explain. Parsers unit-tested, UI tested with a mocked backend; **no live GitHub call made**
+- [~] Issues (0.5.0): list/search/create, Start work → `123-title` branch, "Fixes #n" prefill. Unit/UI-tested only
+- [~] GitHub sign-in for HTTPS git (0.5.0): header via `GIT_CONFIG_*`, github.com only, on by default. Integration-tested with `git config --get-urlmatch` (no network); not tried against a private repository yet
+- [x] Recover (0.5.0): reflog with lost commits marked, Recover section, Show earlier states, force-deleted branches backed up (integration-tested)
+- [x] History content search (0.5.0): `-S`/`-G`, date range, invalid regex message, matching lines marked (integration-tested)
+- [x] Auto-fetch (0.5.0): quiet non-interactive fetch, backoff, Pull notification (integration + UI tested); the PR checks/reviews notification from the plan isn't done
+- [~] Editors, terminal, merge tool (0.5.0): detection + line arguments unit-tested, mergetool integration-tested with a stub tool; launching real editors not run on the desktop
+- [x] Beginner tips (0.5.0)
+- [x] Large repo speed (0.5.0): virtualized file list above 300 files; status of 50 000 changed files 0.44 s (opt-in test)
+- [x] Accessibility pass (0.5.0): axe-core checks in component tests (fixed: file list roles), live region for operations, sidebar auto-collapse, app-styled tooltips for `title`. No screen-reader session
 - [~] Documentation and release preparation (README, CLAUDE.md, INSTALL.md, CHANGELOG, this file; CI builds installers and releases on tags; update packages are signed, installers are not — no code-signing certificate)
 
 ## Work log
+
+### Session 11 — 2026-10-28 (v0.5.0, branch `release/0.5.0`, not pushed)
+- User asked to start 0.5.0 on a new branch, commit a lot, no co-author line, no push, release notes at the end, and to make Arch updates work like Windows (no manual pacman -U). First proposed a fresh plan; the user pointed to the plan from the previous session (`~/.claude/plans/give-me-release-notes-steady-otter.md`), so both were merged (see Roadmap → 0.5.0).
+- Built: Arch updates via pacman; GitHub over HTTPS (first off by default, then on by default as the earlier plan said, plus header redaction); Recover; content search; large-repo speed; auto-fetch; editors/terminal/merge tool; PR review + merge + AI explain; issues; tips; accessibility (axe found nested interactive controls and wrong children in the changed-file listbox → grid roles).
+- Not done from the plan: A1 Windows tests (needs a Windows CI run), the "PR got new checks/reviews" notification in auto-fetch, `--untracked-files=normal` grouping for huge untracked sets, keyboard walkthrough by hand, a path field in advanced history search (file history covers it).
+- Deviation: Recover and Backups stay two sections in Branches (not one merged list); deleted-branch backups are restorable as branches from Backups.
+- Checks at the end: strict check script (tsc, eslint, vitest, cargo fmt, clippy -D warnings, cargo test), release `.deb` build (6.0 MB). `makepkg`/pacman install not run this session.
+- `npx prettier` was run on one file by mistake and reverted; the project isn't Prettier-formatted, so don't run it.
 
 ### Session 10 — 2026-10-25 (v0.4.5, branch `release/0.4.5`, not pushed)
 - User asked for release notes for 0.4.2 (given in chat), added "OpenCode for the Assistant" to the 0.4.5 roadmap (user committed it, 18505df), then asked for a 0.4.5 plan; plan approved with: windows opt-in ("Open in new window", focus if open), OpenCode in a renamed Settings → Coding assistant tab, signing for SSH + GPG with global or repository scope.
@@ -212,6 +231,10 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 9. **Git over HTTPS doesn't use the GitHub sign-in:** cloning a private repository over HTTPS still needs a credential helper (or SSH). Deliberate for now; a possible follow-up is passing the token to git via `GIT_CONFIG_*` environment variables for github.com only.
 10. **Multiple windows not run in the real app yet** (session 10): no desktop session was used; window creation, the `repo-*` capability and watch release on close are unverified by hand.
 11. **GPG signing not exercised:** key listing is unit-tested from `--with-colons` output; signing a commit with GPG and its Verified status were not run.
+12. **Arch in-app update not run end to end** (session 11): needs a signed release with the `linux-x86_64-pacman` entry and an Arch install. Moving from 0.4.5 still needs one manual `pacman -U`. If pacman's database is locked (another pacman running), the update fails with "pacman couldn't install the update" and the technical details.
+13. **GitHub review, issues and HTTPS sign-in not used against GitHub yet** (session 11): request shapes follow the REST docs (`pulls/{n}`, `/files`, `/reviews`, `/comments`, `issues/{n}/comments`, `commits/{sha}/check-runs` + `/status`, `PUT pulls/{n}/merge` with `sha`, `DELETE git/refs/heads/…`, `issues`); parsers unit-tested with sample JSON. Pull request files: GitHub stops at 3000 files and leaves out patches for big/binary files (shown as "No preview from GitHub").
+14. **Merge tool and editor launches not run on the desktop** (session 11): `git mergetool` is integration-tested with a stub tool; GUI tools (meld etc.) and editor windows were not opened.
+15. **Auto-fetch skips remotes that need a password** by design (non-interactive); it doesn't tell the user, apart from backing off.
 
 ## Roadmap (agreed with the user, 2026-10-21)
 
@@ -232,22 +255,30 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 12. CI: run the full test suite on Windows and Linux (done as a gate in the installer build; per-push runs dropped at the user's request).
 13. Assistant: choose between Claude Code and OpenCode (`opencode` CLI) — detect it, launch it in a terminal in the repository with the selected prompt, and switch in Settings (added at the user's request, 2026-10-25).
 
-**0.5.0** (plan agreed 2026-10-25, extended 2026-10-28; branch `release/0.5.0`)
+**0.5.0** (plan agreed 2026-10-25, extended 2026-10-28; branch `release/0.5.0`; implemented in session 11 except where noted)
 - Arch/CachyOS in-app updates: signed `.pkg.tar.zst` in `latest.json` (`linux-x86_64-pacman`), installed with `pkexec pacman -U` (added 2026-10-28). Done.
-- A1. Windows tests pass (needs a Windows CI run; the user starts it and shares failures).
-- A2. Large repo speed: virtualized changed-file list, status caching, perf test.
+- A1. Windows tests pass — **open**: needs a Windows CI run; the user starts it and shares failures.
+- A2. Large repo speed: virtualized changed-file list, narrower `.gitignore` check, perf test. Done (no `--untracked-files=normal` grouping).
 - B3. GitHub sign-in for Git over HTTPS (github.com only, header via `GIT_CONFIG_*`, on by default when signed in, header redacted). Done.
-- B4. Review pull requests in the app (files, conversation, checks, comment/approve/request changes, merge, delete branch, AI explain).
-- B5. Issues (list, search, create, Start work → branch, "Fixes #n" in the PR).
+- B4. Review pull requests in the app (files, conversation, checks, comment/approve/request changes, merge, delete branch, AI explain). Done.
+- B5. Issues (list, search, create, Start work → branch, "Fixes #n" in the PR). Done.
 - C6. Recover lost work (reflog in plain language, lost commits marked, force-deleted branches backed up, Branches → Recover, History → Show earlier states). Done.
-- C7. Auto-fetch (`autoFetchMinutes`) with "new commits" toasts.
-- C8. Open in editor / terminal; external merge tool for conflicts.
-- C9. Search history by content (`-S`/`-G`), date range, path.
-- D10. Beginner tips (`settings.tips`, `dismissedTips`).
-- D11. Accessibility pass (axe in tests, keyboard walkthrough, aria-live), sidebar auto-collapse at narrow widths, custom tooltips instead of native `title`.
-- E. Release: version bump, docs, changelog, release notes.
+- C7. Auto-fetch (`autoFetchMinutes`) with "new commits" toasts. Done (PR checks/review toast not done).
+- C8. Open in editor / terminal; external merge tool for conflicts. Done.
+- C9. Search history by content (`-S`/`-G`), date range. Done (no separate path field).
+- D10. Beginner tips (`settings.tips`, `dismissedTips`). Done.
+- D11. Accessibility pass (axe in tests, aria-live), sidebar auto-collapse at narrow widths, app-styled tooltips for `title`. Done (no manual keyboard walkthrough).
+- E. Release: version bump, docs, changelog, release notes. Done.
 
 ## Next-session handoff
+
+**0.5.0 (session 11):** branch `release/0.5.0` is committed, not pushed. Before releasing:
+1. Push the branch and start "Run workflow" on `build-installers.yml` for it: this runs the Windows tests (plan item A1) and builds every package, including the signed Arch package. Fix whatever Windows reports.
+2. In the real app (`npm run tauri dev`): Pull requests → Review (files, conversation, checks, comment, approve, merge on a test PR), Issues → Start work, clone a private repo over HTTPS with only the GitHub sign-in, Open in editor / terminal / merge tool, Recover after a hard reset, background fetch notification.
+3. Release: merge to main, tag `v0.5.0`, push the tag. Install 0.5.0 on Arch with `sudo pacman -U` once; the next release should then update from the app (check the password prompt and that pacman shows the new version).
+4. `packaging/arch/PKGBUILD` has `pkgver=0.5.0`; CI replaces the checksums with SKIP. Update the pinned checksum from the release .deb if you build it by hand.
+
+**Earlier (0.4.5):**
 
 **Continue with:** branch `release/0.4.5` is complete and committed but not pushed. Before releasing:
 1. Test the features by hand (below). The checks run when you start the installer build (tag `v0.4.5` or "Run workflow"); the Windows job now stops if Windows tests fail, so fix whatever it reports (likely candidates: path separators in tests, `ssh-keygen`/signing on the runner).
