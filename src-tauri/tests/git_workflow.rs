@@ -2316,3 +2316,62 @@ async fn large_repo_status_is_fast() {
     println!("status of 50 000 changed files: {took:?}");
     assert!(took < std::time::Duration::from_secs(1), "took {took:?}");
 }
+
+#[tokio::test]
+async fn background_fetch_is_non_interactive_and_sees_new_commits() {
+    let g = git();
+    let quiet = g.clone().non_interactive();
+    let bare = tempfile::tempdir().unwrap();
+    g.run(
+        bare.path(),
+        ["init", "--bare", "-b", "main"],
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    let url = bare.path().display().to_string();
+    let (_d1, a) = new_repo(&g).await;
+    let ra = Repo { git: &g, path: &a };
+    ra.remote_add("origin", &url).await.unwrap();
+    write(&a, "x.txt", "1\n");
+    ra.stage_all().await.unwrap();
+    ra.commit("one").await.unwrap();
+    ra.push(None, false, false, None, |_| {}).await.unwrap();
+    let parent = tempfile::tempdir().unwrap();
+    let b = repo::clone(&g, &url, &parent.path().join("copy"), None, |_| {})
+        .await
+        .unwrap();
+
+    // The settings that keep credential windows closed reach git.
+    let cfg = |key: &'static str| {
+        let quiet = quiet.clone();
+        let b = b.clone();
+        async move {
+            quiet
+                .run(
+                    &b,
+                    ["config", "--get", key],
+                    gitpilot_lib::git::runner::RunOpts {
+                        ok_codes: &[1],
+                        ..Default::default()
+                    },
+                )
+                .await
+                .unwrap()
+                .text()
+        }
+    };
+    assert_eq!(cfg("credential.interactive").await.trim(), "false");
+    assert_eq!(cfg("core.askpass").await.trim(), "");
+
+    write(&a, "x.txt", "1\n2\n");
+    ra.stage_all().await.unwrap();
+    ra.commit("two").await.unwrap();
+    ra.push(None, false, false, None, |_| {}).await.unwrap();
+    let rb = Repo {
+        git: &quiet,
+        path: &b,
+    };
+    rb.fetch(None, None, |_| {}).await.unwrap();
+    assert_eq!(rb.status().await.unwrap().branch.behind, Some(1));
+}

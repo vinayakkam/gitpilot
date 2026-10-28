@@ -26,6 +26,8 @@ pub struct Git {
     exe: PathBuf,
     /// `Authorization` header for HTTPS requests to github.com (the GitHub sign-in), if enabled.
     github_auth: Option<String>,
+    /// Background work (auto-fetch): no credential or passphrase windows may open.
+    non_interactive: bool,
 }
 
 // Hand-written so the token never ends up in a log line.
@@ -85,7 +87,15 @@ impl Git {
         Self {
             exe,
             github_auth: None,
+            non_interactive: false,
         }
+    }
+
+    /// For background work: credential managers and SSH must fail instead of asking for input.
+    /// (A terminal prompt is already impossible: GIT_TERMINAL_PROMPT=0, stdin is null.)
+    pub fn non_interactive(mut self) -> Self {
+        self.non_interactive = true;
+        self
     }
 
     /// Uses `token` for HTTPS clone/fetch/push to github.com only. It's passed as an
@@ -124,6 +134,13 @@ impl Git {
             .kill_on_drop(true);
         if read_only {
             cmd.env("GIT_OPTIONAL_LOCKS", "0");
+        }
+        if self.non_interactive {
+            cmd.args(["-c", "core.askPass=", "-c", "credential.interactive=false"])
+                .env("GIT_ASKPASS", "")
+                .env("SSH_ASKPASS", "")
+                .env("SSH_ASKPASS_REQUIRE", "never")
+                .env("GCM_INTERACTIVE", "never");
         }
         if let Some(auth) = &self.github_auth {
             // Appended after any GIT_CONFIG_* entries the user already set.
