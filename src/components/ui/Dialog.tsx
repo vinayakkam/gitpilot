@@ -25,10 +25,14 @@ export function Dialog({ open, onClose, title, description, children, footer, wi
   const titleId = useId();
   const descId = useId();
 
+  // Where focus was before opening, so closing puts it back (WebKitGTK doesn't always do this).
+  const opener = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
     if (open && !d.open) {
+      opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       d.showModal();
       // showModal() focuses the first focusable element (the close button). Move focus to the
       // control marked with autoFocus instead, or to the first field, so Enter does the right thing.
@@ -37,7 +41,13 @@ export function Dialog({ open, onClose, title, description, children, footer, wi
         d.querySelector<HTMLElement>("input:not([type=hidden]):not([disabled]):not([readonly]), textarea:not([disabled]), select:not([disabled])");
       target?.focus();
     }
-    if (!open && d.open) d.close();
+    if (!open && d.open) {
+      d.close();
+      const back = opener.current;
+      opener.current = null;
+      const lost = !document.activeElement || document.activeElement === document.body || d.contains(document.activeElement);
+      if (back?.isConnected && lost) back.focus();
+    }
   }, [open]);
 
   const submit = (e: FormEvent) => {
