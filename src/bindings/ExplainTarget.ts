@@ -4,4 +4,4 @@ import type { Area } from "./Area";
 /**
  * What to explain: a commit, or one file's uncommitted changes.
  */
-export type ExplainTarget = { "kind": "commit", hash: string, } | { "kind": "change", path: string, area: Area, origPath: string | null, };
+export type ExplainTarget = { "kind": "commit", hash: string, } | { "kind": "change", path: string, area: Area, origPath: string | null, } | { "kind": "pullRequest", owner: string, name: string, number: number, };

@@ -145,26 +145,56 @@ pub fn parse_detail(v: &Value) -> Option<PullDetail> {
     })
 }
 
+/// GitHub's per-file patch with the git headers around it, so it reads like `git diff` output.
+fn wrap_patch(path: &str, previous: Option<&str>, status: &str, patch: &str) -> String {
+    let old = previous.unwrap_or(path);
+    let (from, to) = match status {
+        "added" => ("/dev/null".to_string(), format!("b/{path}")),
+        "removed" => (format!("a/{old}"), "/dev/null".to_string()),
+        _ => (format!("a/{old}"), format!("b/{path}")),
+    };
+    let mut raw = format!("diff --git a/{old} b/{path}\n");
+    match status {
+        "added" => raw.push_str("new file mode 100644\n"),
+        "removed" => raw.push_str("deleted file mode 100644\n"),
+        "renamed" => raw.push_str(&format!("rename from {old}\nrename to {path}\n")),
+        _ => {}
+    }
+    raw.push_str(&format!("--- {from}\n+++ {to}\n{patch}\n"));
+    raw
+}
+
+/// The whole pull request as one `git diff`-style text (for the AI explanation).
+pub async fn diff_text(token: &str, owner: &str, name: &str, number: u32) -> AppResult<String> {
+    let path = base(owner, name, number)?;
+    let mut out = String::new();
+    for page in 1..=30 {
+        let v = get(token, &format!("{path}/files?per_page=100&page={page}")).await?;
+        let batch = v.as_array().cloned().unwrap_or_default();
+        for f in &batch {
+            if let (Some(p), Some(patch)) = (f["filename"].as_str(), f["patch"].as_str()) {
+                out.push_str(&wrap_patch(
+                    p,
+                    f["previous_filename"].as_str(),
+                    f["status"].as_str().unwrap_or(""),
+                    patch,
+                ));
+            }
+        }
+        if batch.len() < 100 {
+            break;
+        }
+    }
+    Ok(out)
+}
+
 /// A file from `pulls/{n}/files`; its patch is wrapped in git's headers so `diff::parse` reads it.
 pub fn parse_file(v: &Value) -> Option<PullFile> {
     let path = v["filename"].as_str()?.to_string();
     let previous = v["previous_filename"].as_str().map(str::to_string);
     let status = s(&v["status"]);
     let diff = v["patch"].as_str().and_then(|patch| {
-        let old = previous.as_deref().unwrap_or(&path);
-        let (from, to) = match status.as_str() {
-            "added" => ("/dev/null".to_string(), format!("b/{path}")),
-            "removed" => (format!("a/{old}"), "/dev/null".to_string()),
-            _ => (format!("a/{old}"), format!("b/{path}")),
-        };
-        let mut raw = format!("diff --git a/{old} b/{path}\n");
-        match status.as_str() {
-            "added" => raw.push_str("new file mode 100644\n"),
-            "removed" => raw.push_str("deleted file mode 100644\n"),
-            "renamed" => raw.push_str(&format!("rename from {old}\nrename to {path}\n")),
-            _ => {}
-        }
-        raw.push_str(&format!("--- {from}\n+++ {to}\n{patch}\n"));
+        let raw = wrap_patch(&path, previous.as_deref(), &status, patch);
         diff::parse(raw.as_bytes()).into_iter().next().map(|mut d| {
             // Lines can't be staged from GitHub's copy.
             d.hunk_actions = false;
