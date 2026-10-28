@@ -34,7 +34,6 @@ import { toAppError } from "@/lib/errors";
 import { plural, relativeTime } from "@/lib/format";
 import { useAsync } from "@/lib/useAsync";
 import { TagsSection } from "./TagsSection";
-import { BackupsSection } from "./BackupsSection";
 import { RecoverSection } from "./RecoverSection";
 import { WorktreesSection } from "./WorktreesSection";
 import { CompareFilesDialog, type CompareTarget } from "@/features/compare/CompareFilesDialog";
@@ -217,7 +216,6 @@ export function BranchesView() {
             <TagsSection query={q} />
             <WorktreesSection />
             <RecoverSection />
-            <BackupsSection />
           </>
         )}
       </div>
@@ -244,7 +242,7 @@ export function BranchesView() {
             <p>
               <span className="font-medium text-warning">This branch isn't merged into {current ?? "HEAD"}.</span> Deleting it removes the only local
               name for its commits{pending.b.upstream && !pending.b.upstreamGone ? ` (they still exist on ${pending.b.upstream})` : ""}. GitPilot keeps a
-              backup of its last commit under Backups, so you can create the branch again from there.
+              backup of its last commit under Branches → Recover, so you can create the branch again from there.
             </p>
           ) : (
             <p>The branch is fully merged into {current ?? "HEAD"}, so no commits are lost. The remote branch, if any, isn't touched.</p>
