@@ -87,3 +87,30 @@ pub fn secret_clear(provider: AiProviderKind) -> AppResult<KeyStatus> {
 pub fn update_support() -> crate::updates::UpdateSupport {
     crate::updates::support()
 }
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct UpdateProgress {
+    #[ts(type = "number")]
+    pub done: u64,
+    #[ts(type = "number | null")]
+    pub total: Option<u64>,
+}
+
+/// Installs the newest release through pacman (Arch packages only; see `updates::support`).
+#[tauri::command]
+pub async fn update_install_pacman(
+    app: AppHandle,
+    on_progress: tauri::ipc::Channel<UpdateProgress>,
+) -> AppResult<String> {
+    if crate::updates::support().install_kind != "pacman" {
+        return Err(AppError::invalid(
+            "This copy of GitPilot wasn't installed with pacman.",
+        ));
+    }
+    crate::updates::install_pacman(&app, |done, total| {
+        let _ = on_progress.send(UpdateProgress { done, total });
+    })
+    .await
+}

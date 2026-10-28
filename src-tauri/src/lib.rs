@@ -49,6 +49,7 @@ pub fn run() {
             commands::app::secret_set,
             commands::app::secret_clear,
             commands::app::update_support,
+            commands::app::update_install_pacman,
             commands::repos::repo_list,
             commands::repos::repo_inspect_path,
             commands::repos::repo_add,
