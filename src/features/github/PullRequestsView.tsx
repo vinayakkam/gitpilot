@@ -14,6 +14,7 @@ import { openLink } from "@/lib/links";
 import { useAsync } from "@/lib/useAsync";
 import { useStore } from "@/store/AppStore";
 import { CreatePullRequestDialog } from "./CreatePullRequestDialog";
+import { PullReviewDialog } from "./PullReviewDialog";
 import { GitHubAccountCard } from "./GitHubAccountCard";
 import { defaultTarget, pullForBranch } from "./pulls";
 import { useGitHubAccount } from "./useGitHubAccount";
@@ -47,7 +48,7 @@ export function ChecksBadge({ checks }: { checks: PullRequest["checks"] }) {
   return null;
 }
 
-function PullRow({ pr, onCheckout, checkoutDisabled }: { pr: PullRequest; onCheckout: () => void; checkoutDisabled: boolean }) {
+function PullRow({ pr, onCheckout, onReview, checkoutDisabled }: { pr: PullRequest; onCheckout: () => void; onReview: () => void; checkoutDisabled: boolean }) {
   const updated = Date.parse(pr.updatedAt);
   return (
     <div className="flex items-start gap-3 border-b border-border px-4 py-3 last:border-b-0">
@@ -70,6 +71,9 @@ function PullRow({ pr, onCheckout, checkoutDisabled }: { pr: PullRequest; onChec
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1">
+        <Button size="sm" onClick={onReview}>
+          Review
+        </Button>
         <Button size="sm" disabled={checkoutDisabled} onClick={onCheckout}>
           Check out
         </Button>
@@ -87,6 +91,7 @@ export function PullRequestsView() {
   const link = useAsync(() => api.githubLink(id!), [id, account.data?.user?.login], id != null && signedIn);
   const [which, setWhich] = useState<"parent" | "repo">("parent");
   const [creating, setCreating] = useState(false);
+  const [reviewing, setReviewing] = useState<number | null>(null);
 
   const l = link.data;
   const target: GitHubRepoRef | null = useMemo(() => {
@@ -182,6 +187,9 @@ export function PullRequestsView() {
                 <span className="font-mono">{b.head}</span> has a pull request: <span className="font-medium">{mine.title}</span> <span className="text-faint">#{mine.number}</span>
               </p>
               <ChecksBadge checks={mine.checks} />
+              <Button size="sm" onClick={() => setReviewing(mine.number)}>
+                Review
+              </Button>
               <Button size="sm" icon={<ExternalLink size={12} />} onClick={() => void openLink(mine.url)}>
                 Open
               </Button>
@@ -211,10 +219,11 @@ export function PullRequestsView() {
             </EmptyState>
           )}
           {pulls.data?.map((pr) => (
-            <PullRow key={pr.number} pr={pr} onCheckout={() => checkout(pr)} checkoutDisabled={!!busy || status?.state !== "normal"} />
+            <PullRow key={pr.number} pr={pr} onCheckout={() => checkout(pr)} onReview={() => setReviewing(pr.number)} checkoutDisabled={!!busy || status?.state !== "normal"} />
           ))}
         </section>
 
+        <PullReviewDialog target={target} number={reviewing} onClose={() => setReviewing(null)} onChanged={() => void pulls.reload()} />
         <CreatePullRequestDialog
           open={creating}
           onClose={() => setCreating(false)}
