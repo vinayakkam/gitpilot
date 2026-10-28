@@ -30,11 +30,13 @@ React UI ──invoke()──▶ Tauri commands (src-tauri/src/commands/*) ─�
                                                                       ├─ secrets.rs  (OS keychain)
                                                                       ├─ ai.rs       (AI providers + prompts)
                                                                       ├─ github.rs   (GitHub API, device-flow sign-in)
+                                                                      ├─ github_pr.rs (PR review, merge, issues)
+                                                                      ├─ editors.rs  (code editors, terminal here)
                                                                       ├─ cli.rs      (terminal launch, version probe for CLIs)
                                                                       ├─ claude_code.rs / opencode.rs (coding assistants)
                                                                       ├─ signing_keys.rs (SSH/GPG keys that can sign)
                                                                       ├─ watch.rs    (auto-refresh file watcher)
-                                                                      └─ updates.rs  (install kind for the updater)
+                                                                      └─ updates.rs  (install kind; Arch updates through pacman)
 ```
 
 ### Git execution layer (`src-tauri/src/git/`)
@@ -50,6 +52,7 @@ React UI ──invoke()──▶ Tauri commands (src-tauri/src/commands/*) ─�
   tags, partial discard), `explore.rs` (blame, compare, image previews), `rewrite.rs`
   (conflict blocks, interactive rebase, reset, backups), `eol.rs` (line-ending guard),
   `pulls.rs` (checking out GitHub pull requests), `assist.rs` (diffs and commit lists sent to AI),
+  `reflog.rs` (Recover: HEAD reflog with lost commits marked),
   `signing.rs` (signing config, allowed signers, signature status), `lfs.rs` (Git LFS),
   `submodules.rs`, `worktrees.rs`,
   `validate.rs` (input validation), `errors.rs` (stderr → `ErrorKind` classification),
@@ -181,11 +184,12 @@ libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev build-essential file`.
 ## Current implementation state
 
 See `DEVELOPMENT.md` → "Feature tracker", "Current implementation details" and "Known issues" for
-the authoritative status. In short (0.4.5): all core features are implemented and verified on Linux,
+the authoritative status. In short (0.5.0): all core features are implemented and verified on Linux,
 and on Windows by the user (up to 0.4.0); AI: Claude Code provider verified live, the others not.
-0.4.2 (GitHub, AI help) and 0.4.5 (windows, worktrees, submodules, LFS, signing, OpenCode) are
-unit/integration-tested and visually checked with a mocked backend; see DEVELOPMENT.md for what
-still needs a real run.
+0.4.2 (GitHub, AI help), 0.4.5 (windows, worktrees, submodules, LFS, signing, OpenCode) and 0.5.0
+(Arch in-app updates, PR review, issues, GitHub over HTTPS, Recover, content search, auto-fetch,
+editors/merge tool, tips, large-repo speed, accessibility) are unit/integration-tested; see
+DEVELOPMENT.md for what still needs a real run.
 
 Environment notes: `cargo test`/`cargo clippy` rebuild `target/debug/gitpilot` in dev-server mode (it
 loads http://localhost:1420), so for manual runs use `npm run tauri dev` or a `tauri build` output.
@@ -230,6 +234,22 @@ Key decisions:
   `cargo test`; the Windows job's `cargo test` must pass before its installers are built.
 - Lint: `no-restricted-globals` forbids `status`/`name`/`event` (browser globals that look like
   variables).
+- Arch updates (0.5.0): CI signs the `.pkg.tar.zst` and `latest.json` lists it as `linux-x86_64-pacman`.
+  When the package-manager marker says pacman, the frontend checks with that target and calls
+  `update_install_pacman`, which downloads (signature checked by the updater plugin) and runs
+  `pkexec pacman -U --noconfirm --needed`. Never the updater's own installer (it would use dpkg).
+- GitHub over HTTPS (0.5.0): `settings.github.useForHttps` (default on) makes `AppState::git()` attach
+  the token as `http.https://github.com/.extraHeader` via `GIT_CONFIG_COUNT/KEY/VALUE` env vars
+  (`Git::with_github_token`). The token is cached in `AppState` and forgotten on sign-in/out.
+  `redact.rs` strips `Authorization:` values.
+- Background git (auto-fetch): `Git::non_interactive()` clears askpass helpers and sets
+  `GCM_INTERACTIVE=never`, `SSH_ASKPASS_REQUIRE=never`, `credential.interactive=false`;
+  `sync_fetch(quiet: true)` gives up if the repo lock is held.
+- Force-deleting a branch first saves its tip with `backup_at` ("deleted branch <name>").
+- Tooltips: `TitleTooltips` (mounted once in App) shows every `title` attribute in the app's style;
+  prefer plain `title` over wrapping in `Tooltip` for simple hints.
+- The changed-file list is an ARIA grid (rows, rowgroups, gridcells), virtualized above 300 files.
+  Component tests call `expectNoAxeViolations()` (`src/test/axe.ts`) for new views.
 - Update notes: `latest.json` gets plain text (`scripts/notes.mjs`) because older versions display it raw; `ReleaseNotes` renders both plain and Markdown.
 
 ## Session continuity rules
