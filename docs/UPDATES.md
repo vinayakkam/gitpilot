@@ -9,7 +9,7 @@ GitPilot updates itself in place. Nobody needs to uninstall and reinstall.
 | Windows `.exe` (NSIS) or `.msi` | In the app: **Update to x.y.z** appears in the sidebar → **Update now**. The installer runs in the background, replaces the old version and starts GitPilot again. Running a newer installer by hand also upgrades in place. |
 | AppImage | In the app: the AppImage file is replaced with the new one, then **Restart now**. |
 | Debian/Ubuntu `.deb` | In the app; the system asks for your password (installing system packages needs administrator rights). |
-| CachyOS/Arch package | The app tells you a new version exists and links to the release page. Install it with `sudo pacman -U gitpilot-bin-<version>-1-x86_64.pkg.tar.zst`, which upgrades in place. GitPilot doesn't replace files pacman manages. |
+| CachyOS/Arch package | From 0.5.0, **Update now** downloads the signed `gitpilot-bin-<version>-1-x86_64.pkg.tar.zst` (`linux-x86_64-pacman` in `latest.json`), verifies it with the updater's public key, and runs `pkexec pacman -U --noconfirm --needed` on it, so pacman stays in charge of the files. You enter your password once. Without `pkexec`, install the package with `sudo pacman -U`. |
 
 GitPilot checks at most once a day, a few seconds after it starts. You can turn that off or check by hand in **Settings → General → Updates**. Nothing is downloaded or installed until you click **Update now**. Repositories, settings and API keys are kept.
 
