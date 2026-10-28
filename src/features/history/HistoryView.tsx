@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Copy, FileClock, GitCommitHorizontal, GitCompare, GitFork, GitMerge, History, ListOrdered, RotateCcw, ScanSearch, Sparkles, Tag as TagIcon, Undo2, X } from "lucide-react";
+import { Copy, FileClock, GitCommitHorizontal, GitCompare, GitFork, GitMerge, History, LifeBuoy, ListOrdered, RotateCcw, ScanSearch, Sparkles, Tag as TagIcon, Undo2, X } from "lucide-react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import type { AppError } from "@/bindings/AppError";
 import type { CommitDetail } from "@/bindings/CommitDetail";
@@ -18,6 +18,7 @@ import { Splitter, usePanelWidth } from "@/components/ui/Splitter";
 import { StatusGlyph } from "@/components/ui/StatusGlyph";
 import { DiffViewer } from "@/features/diff/DiffViewer";
 import { TagDialog } from "@/features/branches/TagDialog";
+import { focusRecoverSection } from "@/features/branches/RecoverSection";
 import { CompareFilesDialog, type CompareTarget } from "@/features/compare/CompareFilesDialog";
 import { ExplainDialog, type ExplainRequest } from "@/features/assistant/ExplainDialog";
 import { BlameView } from "./BlameView";
@@ -339,6 +340,7 @@ export function HistoryView() {
                     { type: "separator" },
                     { label: "Edit commits from here…", icon: <ListOrdered size={14} />, disabled: status?.state !== "normal" || c.parents.length > 1, onSelect: () => setEditFrom({ base: c.parents[0] ?? null, from: c.hash }) },
                     ...(c.hash !== headOid ? [{ label: "Reset branch to here…", icon: <History size={14} />, disabled: status?.state !== "normal", onSelect: () => setResetTo({ hash: c.hash, label: `${c.shortHash} · ${c.subject}` }) } as MenuItem] : []),
+                    { label: "Show earlier states…", icon: <LifeBuoy size={14} />, onSelect: () => { focusRecoverSection(); setSection("branches"); } },
                   ],
                 });
               }}
