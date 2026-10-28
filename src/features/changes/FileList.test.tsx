@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { FileEntry } from "@/bindings/FileEntry";
-import { FileList, keyOf, type FileListActions } from "./FileList";
+import { FileList, keyOf, VIRTUAL_THRESHOLD, type FileListActions } from "./FileList";
 
 const files: FileEntry[] = [
   { path: "src/a.ts", origPath: null, area: "staged", change: "modified", conflict: null, submodule: false, ignored: false },
@@ -71,5 +71,21 @@ describe("FileList", () => {
     fireEvent.contextMenu(screen.getByText("lib"));
     fireEvent.click(screen.getByRole("menuitem", { name: "Update submodule" }));
     expect(a.updateSubmodules).toHaveBeenCalledWith(["deps/lib"]);
+  });
+
+  it("renders only the rows on screen for very large change sets", async () => {
+    const many: FileEntry[] = Array.from({ length: VIRTUAL_THRESHOLD * 10 }, (_, i) => ({ path: `gen/f${i}.txt`, origPath: null, area: "untracked", change: "untracked", conflict: null, submodule: false, ignored: false }));
+    const onSelect = vi.fn();
+    // jsdom has no layout: give the scroll area a real size so the virtualizer renders rows.
+    vi.spyOn(Element.prototype, "clientHeight", "get").mockReturnValue(600);
+    vi.spyOn(Element.prototype, "clientWidth", "get").mockReturnValue(300);
+    render(<FileList files={many} selected={new Set()} focusKey={keyOf(many[0]!)} onSelect={onSelect} actions={actions()} />);
+    const shown = (await screen.findAllByRole("option")).length;
+    expect(shown).toBeGreaterThan(0);
+    expect(shown).toBeLessThan(200);
+    expect(screen.getByText("New files")).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole("listbox"), { key: "ArrowDown" });
+    expect(onSelect).toHaveBeenCalledWith(new Set([keyOf(many[1]!)]), keyOf(many[1]!));
+    vi.restoreAllMocks();
   });
 });
