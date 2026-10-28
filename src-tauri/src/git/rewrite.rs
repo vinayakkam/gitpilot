@@ -373,6 +373,47 @@ impl Repo<'_> {
         Ok(())
     }
 
+    /// Resolves a conflicted file in an external merge tool (`tool` empty = Git's merge.tool).
+    /// Git stages the file when the tool reports success, or when it saved the file changed.
+    pub async fn conflict_mergetool(&self, path: &str, tool: &str) -> AppResult<()> {
+        let path = v::rel_path(path)?;
+        if !crate::settings::is_valid_tool_name(tool) {
+            return Err(AppError::invalid("That merge tool name isn't valid."));
+        }
+        let mut args = vec![
+            "-c".to_string(),
+            "mergetool.keepBackup=false".into(),
+            "mergetool".into(),
+            "--no-prompt".into(),
+        ];
+        if !tool.is_empty() {
+            args.push(format!("--tool={tool}"));
+        }
+        args.extend(["--".into(), path.into()]);
+        self.git
+            .run(
+                self.path,
+                &args,
+                RunOpts {
+                    // The user is editing in the tool; give them time.
+                    timeout: std::time::Duration::from_secs(4 * 60 * 60),
+                    ..RunOpts::default()
+                },
+            )
+            .await
+            .map_err(|e| {
+                let d = e.detail.clone().unwrap_or_default();
+                if d.contains("seems unchanged") {
+                    AppError::invalid("The merge tool closed without saving a resolution, so the file is still conflicted.").with_detail(d)
+                } else if d.contains("merge.tool") || d.contains("Unknown merge tool") || d.contains("is not available") {
+                    AppError::invalid("No merge tool is set up. Choose one in Settings → Git → External tools (for example meld or kdiff3), or set merge.tool in Git.").with_detail(d)
+                } else {
+                    e
+                }
+            })?;
+        Ok(())
+    }
+
     /// Commits from `base` (exclusive; None = from the first commit) to HEAD, oldest first.
     pub async fn rebase_commits(&self, base: Option<&str>) -> AppResult<Vec<RebaseCommit>> {
         let range = match base {
@@ -503,7 +544,17 @@ impl Repo<'_> {
 
     /// Saves HEAD (and, with `with_wip`, uncommitted tracked changes) under refs/gitpilot/backups.
     pub async fn make_backup(&self, label: &str, with_wip: bool) -> AppResult<Backup> {
-        let head = self.ro(&["rev-parse", "HEAD"]).await?.trim().to_string();
+        self.backup_at(label, "HEAD", with_wip).await
+    }
+
+    /// Saves the commit `rev` points to under refs/gitpilot/backups (see `make_backup`).
+    pub async fn backup_at(&self, label: &str, rev: &str, with_wip: bool) -> AppResult<Backup> {
+        let commit = format!("{rev}^{{commit}}");
+        let head = self
+            .ro(&["rev-parse", "--verify", "--end-of-options", &commit])
+            .await?
+            .trim()
+            .to_string();
         let stamp = chrono_stamp();
         let name = format!("{BACKUP_NS}{stamp}");
         let msg = format!("GitPilot backup: {label}");

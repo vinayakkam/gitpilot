@@ -34,6 +34,7 @@ const nsis = entry(/_x64-setup\.exe$/);
 const msi = entry(/_x64_[\w-]+\.msi$/);
 const appimage = entry(/_amd64\.AppImage$/);
 const deb = entry(/_amd64\.deb$/);
+const pacman = entry(/-x86_64\.pkg\.tar\.zst$/);
 
 const platforms = {};
 if (nsis) platforms["windows-x86_64-nsis"] = nsis;
@@ -41,6 +42,8 @@ if (msi) platforms["windows-x86_64-msi"] = msi;
 if (nsis ?? msi) platforms["windows-x86_64"] = nsis ?? msi;
 if (appimage) platforms["linux-x86_64-appimage"] = appimage;
 if (deb) platforms["linux-x86_64-deb"] = deb;
+// Read by Arch installs (src-tauri/src/updates.rs, PACMAN_TARGET), which install it with pacman.
+if (pacman) platforms["linux-x86_64-pacman"] = pacman;
 if (appimage) platforms["linux-x86_64"] = appimage;
 
 if (Object.keys(platforms).length === 0) {

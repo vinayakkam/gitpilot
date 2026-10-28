@@ -2,7 +2,7 @@
 
 GitPilot needs **Git** installed on your computer. Everything else it needs comes with the installer (Windows) or from your package manager (Linux).
 
-Downloads are on the [Releases page](https://github.com/vinayakkam/gitpilot/releases). In the file names below, replace `<version>` with the version you downloaded (for example `0.4.5`).
+Downloads are on the [Releases page](https://github.com/vinayakkam/gitpilot/releases). In the file names below, replace `<version>` with the version you downloaded (for example `0.5.0`).
 
 ---
 
@@ -81,7 +81,7 @@ GitPilot uses Microsoft Edge WebView2, which is built into Windows 11 and curren
 You never need to uninstall first.
 
 - **Windows, AppImage, Debian/Ubuntu:** when a new version is out, **Update to x.y.z** appears at the bottom of GitPilot's sidebar. Click it, then **Update now**. Your repositories and settings are kept. You can also check by hand in **Settings → General → Updates**. On Windows, running a newer installer over the old one also upgrades in place.
-- **CachyOS / Arch:** GitPilot tells you a new version exists. Download the new `.pkg.tar.zst` and run `sudo pacman -U gitpilot-bin-<version>-1-x86_64.pkg.tar.zst`. pacman replaces the old version.
+- **CachyOS / Arch:** from 0.5.0, **Update now** downloads the signed Arch package, checks its signature and installs it with pacman; you're asked for your password once (polkit's `pkexec`). Moving from 0.4.5 to 0.5.0 still needs `sudo pacman -U gitpilot-bin-0.5.0-1-x86_64.pkg.tar.zst` by hand, because 0.4.5 doesn't know how. If `pkexec` isn't available, install the package with `sudo pacman -U` as before.
 
 ---
 

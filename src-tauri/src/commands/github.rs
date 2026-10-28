@@ -11,6 +11,7 @@ use crate::git::Repo;
 use crate::github::{
     self, CreatedPull, DeviceCode, GitHubAccount, GitHubLink, GitHubRepo, GitHubUser, PullRequest,
 };
+use crate::github_pr;
 use crate::secrets;
 use crate::state::AppState;
 
@@ -94,12 +95,13 @@ pub async fn github_device_wait(state: State<'_, AppState>) -> AppResult<GitHubU
     drop(guard);
     let user = github::user(&t).await?;
     secrets::github_set(&t)?;
+    state.forget_github_token();
     Ok(user)
 }
 
 /// Signs in with a personal access token: checked with GitHub first, then kept in the keychain.
 #[tauri::command]
-pub async fn github_token_set(token: String) -> AppResult<GitHubUser> {
+pub async fn github_token_set(state: State<'_, AppState>, token: String) -> AppResult<GitHubUser> {
     let t = token.trim();
     if t.is_empty() {
         return Err(AppError::invalid("Paste a personal access token."));
@@ -121,13 +123,16 @@ pub async fn github_token_set(token: String) -> AppResult<GitHubUser> {
         }
     })?;
     secrets::github_set(t)?;
+    state.forget_github_token();
     Ok(user)
 }
 
 /// Removes the saved GitHub sign-in from the keychain (an environment variable stays in effect).
 #[tauri::command]
-pub fn github_sign_out() -> AppResult<()> {
-    secrets::github_clear()
+pub fn github_sign_out(state: State<'_, AppState>) -> AppResult<()> {
+    secrets::github_clear()?;
+    state.forget_github_token();
+    Ok(())
 }
 
 /// The signed-in user's repositories, for cloning.
@@ -257,4 +262,104 @@ pub async fn github_pull_checkout(
                 .await
         }
     }
+}
+
+// ---------- reviewing a pull request ----------
+
+#[tauri::command]
+pub async fn github_pull_detail(
+    owner: String,
+    name: String,
+    number: u32,
+) -> AppResult<github_pr::PullDetail> {
+    github_pr::detail(&token()?, &owner, &name, number).await
+}
+
+#[tauri::command]
+pub async fn github_pull_files(
+    owner: String,
+    name: String,
+    number: u32,
+) -> AppResult<Vec<github_pr::PullFile>> {
+    github_pr::files(&token()?, &owner, &name, number).await
+}
+
+#[tauri::command]
+pub async fn github_pull_conversation(
+    owner: String,
+    name: String,
+    number: u32,
+) -> AppResult<Vec<github_pr::PullComment>> {
+    github_pr::conversation(&token()?, &owner, &name, number).await
+}
+
+#[tauri::command]
+pub async fn github_pull_checks(
+    owner: String,
+    name: String,
+    sha: String,
+) -> AppResult<Vec<github_pr::CheckRun>> {
+    github_pr::checks(&token()?, &owner, &name, &sha).await
+}
+
+#[tauri::command]
+pub async fn github_pull_comment(
+    owner: String,
+    name: String,
+    number: u32,
+    body: String,
+) -> AppResult<()> {
+    github_pr::comment(&token()?, &owner, &name, number, &body).await
+}
+
+#[tauri::command]
+pub async fn github_pull_review(
+    owner: String,
+    name: String,
+    number: u32,
+    event: github_pr::ReviewEvent,
+    body: String,
+) -> AppResult<()> {
+    github_pr::review(&token()?, &owner, &name, number, event, &body).await
+}
+
+/// Merges on GitHub; `sha` is the head the user reviewed. Needs `confirmed`.
+#[tauri::command]
+pub async fn github_pull_merge(
+    owner: String,
+    name: String,
+    number: u32,
+    method: github_pr::MergeMethod,
+    sha: String,
+    confirmed: bool,
+) -> AppResult<()> {
+    super::changes::require_confirmation(confirmed)?;
+    github_pr::merge(&token()?, &owner, &name, number, method, &sha).await
+}
+
+/// Deletes a merged pull request's branch on GitHub. Needs `confirmed`.
+#[tauri::command]
+pub async fn github_pull_delete_branch(
+    owner: String,
+    name: String,
+    branch: String,
+    confirmed: bool,
+) -> AppResult<()> {
+    super::changes::require_confirmation(confirmed)?;
+    github_pr::delete_branch(&token()?, &owner, &name, &branch).await
+}
+
+#[tauri::command]
+pub async fn github_issues(owner: String, name: String) -> AppResult<Vec<github_pr::Issue>> {
+    github_pr::issues(&token()?, &owner, &name).await
+}
+
+#[tauri::command]
+pub async fn github_issue_create(
+    owner: String,
+    name: String,
+    title: String,
+    body: String,
+) -> AppResult<github_pr::Issue> {
+    github_pr::create_issue(&token()?, &owner, &name, &title, &body).await
 }

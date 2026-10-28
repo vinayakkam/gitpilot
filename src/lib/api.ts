@@ -1,5 +1,5 @@
 // Typed wrappers around every Tauri command. Components never call invoke() directly.
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { isMainWindow } from "./windows";
 import type { AiProviderKind } from "@/bindings/AiProviderKind";
@@ -57,6 +57,16 @@ import type { SigningScope } from "@/bindings/SigningScope";
 import type { SequenceAction } from "@/bindings/SequenceAction";
 import type { Stash } from "@/bindings/Stash";
 import type { Submodule } from "@/bindings/Submodule";
+import type { CheckRun } from "@/bindings/CheckRun";
+import type { EditorInfo } from "@/bindings/EditorInfo";
+import type { Issue } from "@/bindings/Issue";
+import type { MergeMethod } from "@/bindings/MergeMethod";
+import type { PullComment } from "@/bindings/PullComment";
+import type { PullDetail } from "@/bindings/PullDetail";
+import type { PullFile } from "@/bindings/PullFile";
+import type { ReviewEvent } from "@/bindings/ReviewEvent";
+import type { ReflogEntry } from "@/bindings/ReflogEntry";
+import type { UpdateProgress } from "@/bindings/UpdateProgress";
 import type { UpdateSupport } from "@/bindings/UpdateSupport";
 import type { Worktree } from "@/bindings/Worktree";
 
@@ -69,6 +79,11 @@ export const api = {
   secretSet: (provider: AiProviderKind, key: string) => invoke<KeyStatus>("secret_set", { provider, key }),
   secretClear: (provider: AiProviderKind) => invoke<KeyStatus>("secret_clear", { provider }),
   updateSupport: () => invoke<UpdateSupport>("update_support"),
+  updateInstallPacman: (onProgress: (p: UpdateProgress) => void) => {
+    const ch = new Channel<UpdateProgress>();
+    ch.onmessage = onProgress;
+    return invoke<string>("update_install_pacman", { onProgress: ch });
+  },
 
   // repositories
   repoList: () => invoke<RepoRecord[]>("repo_list"),
@@ -119,6 +134,11 @@ export const api = {
     invoke<Backup>("rebase_interactive", { id, base, steps, confirmedPushed }),
   branchReset: (id: number, target: string, mode: ResetMode) => invoke<Backup>("branch_reset", { id, target, mode, confirmed: mode === "hard" }),
   backupList: (id: number) => invoke<Backup[]>("backup_list", { id }),
+  reflogList: (id: number, limit: number) => invoke<ReflogEntry[]>("reflog_list", { id, limit }),
+  editorList: () => invoke<EditorInfo[]>("editor_list"),
+  editorOpen: (id: number, path: string | null, line: number | null) => invoke<void>("editor_open", { id, path, line }),
+  terminalOpen: (id: number) => invoke<void>("terminal_open", { id }),
+  conflictMergetool: (id: number, path: string) => invoke<void>("conflict_mergetool", { id, path }),
   backupRestore: (id: number, name: string) => invoke<void>("backup_restore", { id, name, confirmed: true }),
   backupDelete: (id: number, name: string) => invoke<void>("backup_delete", { id, name, confirmed: true }),
   tagList: (id: number) => invoke<Tag[]>("tag_list", { id }),
@@ -151,7 +171,8 @@ export const api = {
     invoke<void>("lines_apply", { id, path, header, lines, unstage }),
 
   // history
-  log: (id: number, query: LogQuery) => invoke<LogPage>("log_get", { id, query }),
+  // The content and date filters are optional; the backend defaults them.
+  log: (id: number, query: Omit<LogQuery, "content" | "regex" | "since" | "until"> & Partial<LogQuery>) => invoke<LogPage>("log_get", { id, query }),
   commitGet: (id: number, hash: string) => invoke<CommitDetail>("commit_get", { id, hash }),
   commitDiffFile: (id: number, hash: string, path: string, origPath: string | null) =>
     invoke<FileDiff>("commit_diff_file", { id, hash, path, origPath }),
@@ -196,7 +217,8 @@ export const api = {
   remoteAdd: (id: number, name: string, url: string) => invoke<void>("remote_add", { id, name, url }),
   remoteSetUrl: (id: number, name: string, url: string) => invoke<void>("remote_set_url", { id, name, url }),
   remoteRemove: (id: number, name: string) => invoke<void>("remote_remove", { id, name, confirmed: true }),
-  fetch: (id: number, remote: string | null) => invoke<void>("sync_fetch", { id, remote }),
+  /** `quiet`: background fetch (no progress, never asks for credentials, skipped if the repository is busy). */
+  fetch: (id: number, remote: string | null, quiet = false) => invoke<void>("sync_fetch", { id, remote, quiet }),
   pull: (id: number, options: PullOptions | null = null) => invoke<void>("sync_pull", { id, options }),
   push: (id: number, opts: { remote?: string | null; setUpstream?: boolean; forceWithLease?: boolean } = {}) =>
     invoke<void>("sync_push", {
@@ -229,6 +251,17 @@ export const api = {
     invoke<CreatedPull>("github_pull_create", { id, owner, name, base, title, body, draft }),
   githubPullCheckout: (id: number, owner: string, name: string, number: number) =>
     invoke<PrCheckout>("github_pull_checkout", { id, owner, name, number }),
+  githubPullDetail: (owner: string, name: string, number: number) => invoke<PullDetail>("github_pull_detail", { owner, name, number }),
+  githubPullFiles: (owner: string, name: string, number: number) => invoke<PullFile[]>("github_pull_files", { owner, name, number }),
+  githubPullConversation: (owner: string, name: string, number: number) => invoke<PullComment[]>("github_pull_conversation", { owner, name, number }),
+  githubPullChecks: (owner: string, name: string, sha: string) => invoke<CheckRun[]>("github_pull_checks", { owner, name, sha }),
+  githubPullComment: (owner: string, name: string, number: number, body: string) => invoke<void>("github_pull_comment", { owner, name, number, body }),
+  githubPullReview: (owner: string, name: string, number: number, event: ReviewEvent, body: string) => invoke<void>("github_pull_review", { owner, name, number, event, body }),
+  githubPullMerge: (owner: string, name: string, number: number, method: MergeMethod, sha: string) =>
+    invoke<void>("github_pull_merge", { owner, name, number, method, sha, confirmed: true }),
+  githubPullDeleteBranch: (owner: string, name: string, branch: string) => invoke<void>("github_pull_delete_branch", { owner, name, branch, confirmed: true }),
+  githubIssues: (owner: string, name: string) => invoke<Issue[]>("github_issues", { owner, name }),
+  githubIssueCreate: (owner: string, name: string, title: string, body: string) => invoke<Issue>("github_issue_create", { owner, name, title, body }),
 
   submoduleList: (id: number) => invoke<Submodule[]>("submodule_list", { id }),
   /** Downloads and checks out submodules (`paths` empty = all). Cancellable with opCancel("repo:<id>"). */

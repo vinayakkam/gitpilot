@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ChevronsUpDown,
   FileDiff,
@@ -79,19 +79,40 @@ function NavItem({
   return collapsed ? <Tooltip content={shortcut ? `${label}  ${shortcut}` : label}>{btn}</Tooltip> : btn;
 }
 
+const NARROW = "(max-width: 1000px)";
+
+export function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() => window.matchMedia?.(query).matches ?? false);
+  useEffect(() => {
+    const mq = window.matchMedia?.(query);
+    if (!mq) return;
+    const on = () => setMatches(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, [query]);
+  return matches;
+}
+
 export function Sidebar() {
   const { repos, activeRepo, page, section, setPage, setSection, openRepo, status, setPaletteOpen } = useStore();
   const { addExisting, startClone, createNew } = useRepoActions();
-  const [collapsed, setCollapsed] = useState(() => {
+  const [pinnedCollapsed, setCollapsed] = useState(() => {
     try {
       return localStorage.getItem("gp.sidebar") === "collapsed";
     } catch {
       return false;
     }
   });
+  // Narrow windows collapse the sidebar on their own; expanding it then lasts until the width changes.
+  const narrow = useMediaQuery(NARROW);
+  const [narrowOpen, setNarrowOpen] = useState(false);
+  useEffect(() => setNarrowOpen(false), [narrow]);
+  const collapsed = narrow ? !narrowOpen : pinnedCollapsed;
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
 
   const toggle = () => {
+    if (narrow) return setNarrowOpen((o) => !o);
     setCollapsed((c) => {
       try {
         localStorage.setItem("gp.sidebar", c ? "open" : "collapsed");

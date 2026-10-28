@@ -1,7 +1,7 @@
 import type { GitHubLink } from "@/bindings/GitHubLink";
 import type { PullRequest } from "@/bindings/PullRequest";
 import { status } from "@/test/fixtures";
-import { baseRef, defaultTarget, pullForBranch, pushedAs, remoteBranchName } from "./pulls";
+import { baseRef, defaultTarget, issueBranchName, issueFromBranch, pullForBranch, pushedAs, remoteBranchName } from "./pulls";
 
 const repoRef = (owner: string, remote: string | null, defaultBranch = "main") => ({ owner, name: "app", fullName: `${owner}/app`, htmlUrl: `https://github.com/${owner}/app`, defaultBranch, remote });
 const own: GitHubLink = { repo: repoRef("me", "origin"), parent: null, canPush: true };
@@ -40,5 +40,19 @@ describe("pull request helpers", () => {
     const noUpstream = { ...fork, parent: repoRef("octo", null) };
     expect(baseRef(noUpstream.parent, noUpstream, "main")).toBe("origin/dev");
     expect(baseRef(repoRef("x", null), { ...own, repo: repoRef("me", null) }, "main")).toBeNull();
+  });
+});
+
+describe("issue branches", () => {
+  it("names a branch after the issue", () => {
+    expect(issueBranchName(123, "Crash when opening a repo with spaces!")).toBe("123-crash-when-opening-a-repo-with");
+    expect(issueBranchName(7, "Ünïcode   & symbols…")).toBe("7-unicode-symbols");
+    expect(issueBranchName(9, "!!!")).toBe("9");
+  });
+
+  it("finds the issue from a branch name", () => {
+    expect(issueFromBranch("123-crash")).toBe(123);
+    expect(issueFromBranch("feature/123-crash")).toBeNull();
+    expect(issueFromBranch(null)).toBeNull();
   });
 });

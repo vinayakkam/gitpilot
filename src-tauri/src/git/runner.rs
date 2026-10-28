@@ -18,9 +18,25 @@ use crate::error::{AppError, AppResult, ErrorKind};
 pub const LOCAL_TIMEOUT: Duration = Duration::from_secs(120);
 pub const NETWORK_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 
-#[derive(Debug, Clone)]
+/// The URL-scoped key git reads the GitHub header from: exactly https://github.com, no other host.
+const GITHUB_HEADER_KEY: &str = "http.https://github.com/.extraHeader";
+
+#[derive(Clone)]
 pub struct Git {
     exe: PathBuf,
+    /// `Authorization` header for HTTPS requests to github.com (the GitHub sign-in), if enabled.
+    github_auth: Option<String>,
+    /// Background work (auto-fetch): no credential or passphrase windows may open.
+    non_interactive: bool,
+}
+
+// Hand-written so the token never ends up in a log line.
+impl std::fmt::Debug for Git {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Git")
+            .field("exe", &self.exe)
+            .finish_non_exhaustive()
+    }
 }
 
 #[derive(Debug)]
@@ -68,7 +84,29 @@ impl RunOpts<'_> {
 
 impl Git {
     pub fn new(exe: PathBuf) -> Self {
-        Self { exe }
+        Self {
+            exe,
+            github_auth: None,
+            non_interactive: false,
+        }
+    }
+
+    /// For background work: credential managers and SSH must fail instead of asking for input.
+    /// (A terminal prompt is already impossible: GIT_TERMINAL_PROMPT=0, stdin is null.)
+    pub fn non_interactive(mut self) -> Self {
+        self.non_interactive = true;
+        self
+    }
+
+    /// Uses `token` for HTTPS clone/fetch/push to github.com only. It's passed as an
+    /// `http.https://github.com/.extraHeader` through `GIT_CONFIG_*` environment variables,
+    /// so it never reaches the command line, a config file or a shell credential helper.
+    pub fn with_github_token(mut self, token: &str) -> Self {
+        use base64::Engine;
+        let basic =
+            base64::engine::general_purpose::STANDARD.encode(format!("x-access-token:{token}"));
+        self.github_auth = Some(format!("Authorization: Basic {basic}"));
+        self
     }
 
     pub fn exe(&self) -> &Path {
@@ -96,6 +134,23 @@ impl Git {
             .kill_on_drop(true);
         if read_only {
             cmd.env("GIT_OPTIONAL_LOCKS", "0");
+        }
+        if self.non_interactive {
+            cmd.args(["-c", "core.askPass=", "-c", "credential.interactive=false"])
+                .env("GIT_ASKPASS", "")
+                .env("SSH_ASKPASS", "")
+                .env("SSH_ASKPASS_REQUIRE", "never")
+                .env("GCM_INTERACTIVE", "never");
+        }
+        if let Some(auth) = &self.github_auth {
+            // Appended after any GIT_CONFIG_* entries the user already set.
+            let n: usize = std::env::var("GIT_CONFIG_COUNT")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(0);
+            cmd.env(format!("GIT_CONFIG_KEY_{n}"), GITHUB_HEADER_KEY)
+                .env(format!("GIT_CONFIG_VALUE_{n}"), auth)
+                .env("GIT_CONFIG_COUNT", (n + 1).to_string());
         }
         #[cfg(windows)]
         {

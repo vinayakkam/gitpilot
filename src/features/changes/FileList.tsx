@@ -1,5 +1,6 @@
-import { useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
-import { Archive, Check, ChevronRight, Copy, EyeOff, History, Minus, Plus, RefreshCw, ScanSearch, Trash2, Undo2 } from "lucide-react";
+import { useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { Archive, Check, ChevronRight, Code, Copy, EyeOff, History, Minus, Plus, RefreshCw, ScanSearch, Trash2, Undo2 } from "lucide-react";
 import type { Area } from "@/bindings/Area";
 import type { FileEntry } from "@/bindings/FileEntry";
 import { Button } from "@/components/ui/Button";
@@ -10,6 +11,9 @@ import { StatusGlyph } from "@/components/ui/StatusGlyph";
 import { splitPath } from "@/lib/format";
 
 export const keyOf = (f: { area: Area; path: string }) => `${f.area}:${f.path}`;
+
+/** Above this many files only the rows on screen are rendered (group headers stop being sticky). */
+export const VIRTUAL_THRESHOLD = 300;
 
 const SECTIONS: { area: Area; title: string }[] = [
   { area: "conflicted", title: "Conflicts" },
@@ -29,6 +33,7 @@ export interface FileListActions {
   ignore: (files: FileEntry[]) => void;
   stash: (files: FileEntry[]) => void;
   blame: (path: string) => void;
+  openInEditor: (path: string) => void;
   /** Check out the commit this repository records for these submodules. */
   updateSubmodules: (paths: string[]) => void;
 }
@@ -53,6 +58,24 @@ export function FileList({ files, selected, focusKey, onSelect, actions, disable
   );
   const visible = useMemo(() => groups.flatMap((g) => (collapsed.has(g.area) ? [] : g.files)), [groups, collapsed]);
   const byKey = useMemo(() => new Map(files.map((f) => [keyOf(f), f])), [files]);
+  const virtualize = files.length > VIRTUAL_THRESHOLD;
+  const rows = useMemo(
+    () => (virtualize ? groups.flatMap((g) => [{ t: "header" as const, g }, ...(collapsed.has(g.area) ? [] : g.files.map((f) => ({ t: "file" as const, f })))]) : []),
+    [virtualize, groups, collapsed],
+  );
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const rowH = useRef(0);
+  const virt = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: (i) => {
+      if (rows[i]?.t === "header") return 32;
+      // --row-h follows the density setting.
+      rowH.current ||= parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--row-h")) || 28;
+      return rowH.current;
+    },
+    overscan: 20,
+  });
 
   const selectedFiles = (fallback: FileEntry) => {
     const k = keyOf(fallback);
@@ -106,6 +129,7 @@ export function FileList({ files, selected, focusKey, onSelect, actions, disable
     if (subs.length) items.push({ label: subs.length > 1 ? `Update ${subs.length} submodules` : "Update submodule", icon: <RefreshCw size={14} />, onSelect: () => actions.updateSubmodules(subs) });
     if (f.area !== "conflicted") items.push({ label: n > 1 ? `Stash ${n} files…` : "Stash this file…", icon: <Archive size={14} />, onSelect: () => actions.stash(targets) });
     if (f.area !== "conflicted") items.push({ label: "Add to .gitignore…", icon: <EyeOff size={14} />, onSelect: () => actions.ignore(targets) });
+    if (f.change !== "deleted") items.push({ label: "Open in editor", icon: <Code size={14} />, onSelect: () => actions.openInEditor(f.path) });
     items.push({ label: "Copy path", icon: <Copy size={14} />, onSelect: () => actions.copyPath(f.path) });
     if (f.area !== "untracked") items.push({ label: "Show file history", icon: <History size={14} />, onSelect: () => actions.showHistory(f.path) });
     if (f.area !== "untracked" && f.change !== "deleted") items.push({ label: "Blame (who changed each line)", icon: <ScanSearch size={14} />, onSelect: () => actions.blame(f.path) });
@@ -127,7 +151,8 @@ export function FileList({ files, selected, focusKey, onSelect, actions, disable
         onSelect(new Set([k]), k);
         setAnchor(k);
       }
-      document.getElementById(`file-${k}`)?.scrollIntoView({ block: "nearest" });
+      if (virtualize) virt.scrollToIndex(rows.findIndex((r) => r.t === "file" && keyOf(r.f) === k), { align: "auto" });
+      else document.getElementById(`file-${k}`)?.scrollIntoView({ block: "nearest" });
     };
     const cur = focusKey ? byKey.get(focusKey) : undefined;
     if (e.key === "ArrowDown") {
@@ -145,101 +170,121 @@ export function FileList({ files, selected, focusKey, onSelect, actions, disable
     }
   };
 
+  const groupHeader = (g: (typeof groups)[number], style?: CSSProperties) => {
+    const isCollapsed = collapsed.has(g.area);
+    return (
+      <div key={`h-${g.area}`} role="row" style={style} className={cx("flex h-8 items-center bg-surface pl-1.5 pr-2", !style && "sticky top-0 z-[1]")}>
+        <div role="gridcell" className="flex flex-1 items-center gap-1">
+          <button
+            type="button"
+            aria-expanded={!isCollapsed}
+            onClick={() =>
+              setCollapsed((c) => {
+                const n = new Set(c);
+                if (n.has(g.area)) n.delete(g.area);
+                else n.add(g.area);
+                return n;
+              })
+            }
+            className="flex flex-1 items-center gap-1 text-sm font-semibold text-muted hover:text-text"
+          >
+            <ChevronRight size={13} className={cx("transition-transform", !isCollapsed && "rotate-90")} />
+            <span className={g.area === "conflicted" ? "text-conflict" : undefined}>{g.title}</span>
+            <span className="font-normal tabular-nums text-faint">{g.files.length}</span>
+          </button>
+          {g.area === "staged" ? (
+            <Button size="sm" variant="ghost" disabled={disabled} onClick={actions.unstageAll}>
+              Unstage all
+            </Button>
+          ) : g.area !== "conflicted" ? (
+            <Button size="sm" variant="ghost" disabled={disabled} onClick={() => actions.stage(g.files)}>
+              Stage all
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    );
+  };
+
+  const fileRow = (f: FileEntry, style?: CSSProperties) => {
+    const k = keyOf(f);
+    const { name, dir } = splitPath(f.path);
+    const isSel = selected.has(k);
+    return (
+      <div
+        key={k}
+        id={`file-${k}`}
+        role="row"
+        aria-selected={isSel}
+        onClick={(e) => click(e, f)}
+        onContextMenu={(e) => contextMenu(e, f)}
+        className={cx(
+          "group mx-1 flex items-center gap-2 rounded pl-5 pr-1",
+          isSel ? "bg-selection" : "hover:bg-surface-2",
+          focusKey === k && "group-focus-visible/list:ring-2 group-focus-visible/list:ring-inset group-focus-visible/list:ring-accent/50",
+        )}
+        style={{ height: "var(--row-h)", ...style }}
+        title={f.origPath ? `${f.origPath} → ${f.path}` : undefined}
+      >
+        <span role="gridcell" className="flex min-w-0 flex-1 items-center gap-2">
+          <StatusGlyph change={f.change} />
+          <span className="min-w-0 flex-1 truncate">
+            <span className="text-base">{name}</span>
+            {f.conflict && <span className="ml-1.5 text-xs text-conflict">{f.conflict}</span>}
+            {f.ignored && (
+              <span className="ml-1.5 rounded bg-warning-bg px-1 text-xs text-warning" title="Matches .gitignore, but Git still tracks it because it was committed before the rule was added.">
+                ignored
+              </span>
+            )}
+            {dir && <span className="ml-1.5 text-sm text-faint">{dir}</span>}
+          </span>
+        </span>
+        <span role="gridcell" className={cx("flex shrink-0 items-center", !isSel && "opacity-0 group-hover:opacity-100")}>
+          {f.area === "unstaged" && (
+            <IconButton size="sm" tone="danger" label="Discard changes…" icon={<Undo2 size={13} />} disabled={disabled} onClick={(e) => { e.stopPropagation(); actions.discard(selectedFiles(f)); }} />
+          )}
+          {f.area === "staged" ? (
+            <IconButton size="sm" label="Unstage" icon={<Minus size={14} />} disabled={disabled} onClick={(e) => { e.stopPropagation(); actions.unstage(selectedFiles(f)); }} />
+          ) : f.area === "conflicted" ? (
+            <IconButton size="sm" label="Mark as resolved (stage)" icon={<Check size={14} />} disabled={disabled} onClick={(e) => { e.stopPropagation(); actions.stage(selectedFiles(f)); }} />
+          ) : (
+            <IconButton size="sm" label="Stage" icon={<Plus size={14} />} disabled={disabled} onClick={(e) => { e.stopPropagation(); actions.stage(selectedFiles(f)); }} />
+          )}
+        </span>
+      </div>
+    );
+  };
+
   const hasStaged = files.some((f) => f.area === "staged");
   const hasUnstaged = files.some((f) => f.area !== "staged");
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div
-        role="listbox"
+        role="grid"
         aria-label="Changed files"
         aria-multiselectable
         tabIndex={0}
         onKeyDown={onKey}
+        ref={scrollRef}
         className="group/list min-h-0 flex-1 overflow-y-auto pb-2 outline-none"
       >
-        {groups.map((g) => {
-          const isCollapsed = collapsed.has(g.area);
-          return (
-            <div key={g.area} role="group" aria-label={g.title}>
-              <div className="sticky top-0 z-[1] flex h-8 items-center gap-1 bg-surface pl-1.5 pr-2">
-                <button
-                  type="button"
-                  aria-expanded={!isCollapsed}
-                  onClick={() =>
-                    setCollapsed((c) => {
-                      const n = new Set(c);
-                      if (n.has(g.area)) n.delete(g.area);
-                      else n.add(g.area);
-                      return n;
-                    })
-                  }
-                  className="flex flex-1 items-center gap-1 text-sm font-semibold text-muted hover:text-text"
-                >
-                  <ChevronRight size={13} className={cx("transition-transform", !isCollapsed && "rotate-90")} />
-                  <span className={g.area === "conflicted" ? "text-conflict" : undefined}>{g.title}</span>
-                  <span className="font-normal tabular-nums text-faint">{g.files.length}</span>
-                </button>
-                {g.area === "staged" ? (
-                  <Button size="sm" variant="ghost" disabled={disabled} onClick={actions.unstageAll}>
-                    Unstage all
-                  </Button>
-                ) : g.area !== "conflicted" ? (
-                  <Button size="sm" variant="ghost" disabled={disabled} onClick={() => actions.stage(g.files)}>
-                    Stage all
-                  </Button>
-                ) : null}
-              </div>
-              {!isCollapsed &&
-                g.files.map((f) => {
-                  const k = keyOf(f);
-                  const { name, dir } = splitPath(f.path);
-                  const isSel = selected.has(k);
-                  return (
-                    <div
-                      key={k}
-                      id={`file-${k}`}
-                      role="option"
-                      aria-selected={isSel}
-                      onClick={(e) => click(e, f)}
-                      onContextMenu={(e) => contextMenu(e, f)}
-                      className={cx(
-                        "group mx-1 flex items-center gap-2 rounded pl-5 pr-1",
-                        isSel ? "bg-selection" : "hover:bg-surface-2",
-                        focusKey === k && "group-focus-visible/list:ring-2 group-focus-visible/list:ring-inset group-focus-visible/list:ring-accent/50",
-                      )}
-                      style={{ height: "var(--row-h)" }}
-                      title={f.origPath ? `${f.origPath} → ${f.path}` : undefined}
-                    >
-                      <StatusGlyph change={f.change} />
-                      <span className="min-w-0 flex-1 truncate">
-                        <span className="text-base">{name}</span>
-                        {f.conflict && <span className="ml-1.5 text-xs text-conflict">{f.conflict}</span>}
-                        {f.ignored && (
-                          <span className="ml-1.5 rounded bg-warning-bg px-1 text-xs text-warning" title="Matches .gitignore, but Git still tracks it because it was committed before the rule was added.">
-                            ignored
-                          </span>
-                        )}
-                        {dir && <span className="ml-1.5 text-sm text-faint">{dir}</span>}
-                      </span>
-                      <span className={cx("flex shrink-0 items-center", !isSel && "opacity-0 group-hover:opacity-100")}>
-                        {f.area === "unstaged" && (
-                          <IconButton size="sm" tone="danger" label="Discard changes…" icon={<Undo2 size={13} />} disabled={disabled} onClick={(e) => { e.stopPropagation(); actions.discard(selectedFiles(f)); }} />
-                        )}
-                        {f.area === "staged" ? (
-                          <IconButton size="sm" label="Unstage" icon={<Minus size={14} />} disabled={disabled} onClick={(e) => { e.stopPropagation(); actions.unstage(selectedFiles(f)); }} />
-                        ) : f.area === "conflicted" ? (
-                          <IconButton size="sm" label="Mark as resolved (stage)" icon={<Check size={14} />} disabled={disabled} onClick={(e) => { e.stopPropagation(); actions.stage(selectedFiles(f)); }} />
-                        ) : (
-                          <IconButton size="sm" label="Stage" icon={<Plus size={14} />} disabled={disabled} onClick={(e) => { e.stopPropagation(); actions.stage(selectedFiles(f)); }} />
-                        )}
-                      </span>
-                    </div>
-                  );
-                })}
+        {virtualize ? (
+          <div style={{ height: virt.getTotalSize(), position: "relative" }}>
+            {virt.getVirtualItems().map((v) => {
+              const r = rows[v.index]!;
+              const style: CSSProperties = { position: "absolute", top: 0, left: 0, right: 0, transform: `translateY(${v.start}px)` };
+              return r.t === "header" ? groupHeader(r.g, style) : fileRow(r.f, style);
+            })}
+          </div>
+        ) : (
+          groups.map((g) => (
+            <div key={g.area} role="rowgroup" aria-label={g.title}>
+              {groupHeader(g)}
+              {!collapsed.has(g.area) && g.files.map((f) => fileRow(f))}
             </div>
-          );
-        })}
+          ))
+        )}
       </div>
       {(hasStaged || hasUnstaged) && (
         <div className="flex shrink-0 items-center gap-1 border-t border-border px-2 py-1.5">

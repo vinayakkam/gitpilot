@@ -15,7 +15,7 @@ import { toAppError } from "@/lib/errors";
 import { plural } from "@/lib/format";
 import { useAsync } from "@/lib/useAsync";
 import { useStore } from "@/store/AppStore";
-import { baseRef } from "./pulls";
+import { baseRef, issueFromBranch } from "./pulls";
 
 /** Opens a pull request from the current branch into a branch of `target`. */
 export function CreatePullRequestDialog({
@@ -48,12 +48,14 @@ export function CreatePullRequestDialog({
     if (!open) return;
     setBase(target.defaultBranch);
     setTitle("");
-    setBody("");
+    // A branch from Start work ("123-…") closes its issue when merged.
+    const issue = issueFromBranch(status?.branch.head);
+    setBody(issue ? `Fixes #${issue}` : "");
     setDraft(false);
     setError(null);
     setAi(null);
     setAiError(null);
-  }, [open, target]);
+  }, [open, target, status?.branch.head]);
 
   // Branch names on the target's remote, for suggestions in the "Into" field.
   const baseChoices = useMemo(() => {
@@ -82,7 +84,8 @@ export function CreatePullRequestDialog({
       const d = await api.aiPrDescription(id, ref);
       setAi(d);
       setTitle(d.title);
-      setBody(d.body);
+      const issue = issueFromBranch(status?.branch.head);
+      setBody(issue && !d.body.includes(`#${issue}`) ? `${d.body}\n\nFixes #${issue}` : d.body);
     } catch (e) {
       setAiError(toAppError(e));
     } finally {

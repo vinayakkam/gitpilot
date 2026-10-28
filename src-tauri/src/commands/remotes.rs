@@ -2,7 +2,7 @@ use tauri::{AppHandle, State};
 
 use super::changes::{repo, require_confirmation};
 use super::{ctx, progress};
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult, ErrorKind};
 use crate::git::refs::Remote;
 use crate::git::repo::PullOptions;
 use crate::git::Repo;
@@ -60,17 +60,39 @@ pub async fn sync_fetch(
     state: State<'_, AppState>,
     id: i64,
     remote: Option<String>,
+    quiet: Option<bool>,
 ) -> AppResult<()> {
+    let quiet = quiet.unwrap_or(false);
     let lock = state.repo_lock(id);
-    let _g = lock.lock().await;
-    repo!(state, id, git, root, r);
+    let _g = if quiet {
+        // Auto-fetch never waits behind (or delays) something the user started.
+        lock.try_lock().map_err(|_| {
+            AppError::new(
+                ErrorKind::Locked,
+                "Another operation is running in this repository.",
+            )
+        })?
+    } else {
+        lock.lock().await
+    };
+    let (git, root) = ctx(&state, id)?;
+    let git = if quiet { git.non_interactive() } else { git };
+    let r = Repo {
+        git: &git,
+        path: &root,
+    };
     let guard = state.begin_cancellable(format!("repo:{id}"));
-    r.fetch(
-        remote.as_deref(),
-        Some(&guard.notify),
-        progress(&app, Some(id), "fetch"),
-    )
-    .await
+    if quiet {
+        r.fetch(remote.as_deref(), Some(&guard.notify), |_| {})
+            .await
+    } else {
+        r.fetch(
+            remote.as_deref(),
+            Some(&guard.notify),
+            progress(&app, Some(id), "fetch"),
+        )
+        .await
+    }
 }
 
 #[tauri::command]

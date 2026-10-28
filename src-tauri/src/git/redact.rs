@@ -6,11 +6,19 @@ use regex::Regex;
 static URL_USERINFO: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(?i)\b([a-z][a-z0-9+.\-]*://)([^/\s@]+)@").expect("valid regex"));
 
-/// Redacts `user:password@` / `token@` in any URL contained in `text`.
-/// A bare username without a password (e.g. `ssh://git@host`) is kept because it is not secret.
+/// `Authorization: Basic …` / `Bearer …` values, e.g. the GitHub header in GIT_TRACE output.
+static AUTH_HEADER: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"(?i)\b(authorization:\s*(?:basic|bearer|token)\s+)[A-Za-z0-9+/=._\-]+")
+        .expect("valid regex")
+});
+
+/// Redacts `user:password@` / `token@` in any URL contained in `text`, and authorization
+/// header values. A bare username without a password (e.g. `ssh://git@host`) is kept because
+/// it is not secret.
 pub fn redact_text(text: &str) -> String {
+    let text = AUTH_HEADER.replace_all(text, "${1}***");
     URL_USERINFO
-        .replace_all(text, |caps: &regex::Captures| {
+        .replace_all(&text, |caps: &regex::Captures| {
             let scheme = &caps[1];
             let info = &caps[2];
             if info.contains(':') {
@@ -40,6 +48,18 @@ mod tests {
         assert_eq!(
             redact_text("fatal: https://bob:hunter2@example.com/r.git failed"),
             "fatal: https://bob:***@example.com/r.git failed"
+        );
+    }
+
+    #[test]
+    fn redacts_authorization_headers() {
+        assert_eq!(
+            redact_text("> Authorization: Basic eC1hY2Nlc3M6dG9r=\n< 200"),
+            "> Authorization: Basic ***\n< 200"
+        );
+        assert_eq!(
+            redact_text("authorization: bearer ghp_x.y-z"),
+            "authorization: bearer ***"
         );
     }
 

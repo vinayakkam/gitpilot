@@ -125,6 +125,16 @@ jobs:
           # The .deb was just built, so its pinned checksum can't match; replace the whole list.
           perl -0pi -e "s/sha256sums=\([^)]*\)/sha256sums=('SKIP' 'SKIP')/s" PKGBUILD
           PKGEXT='.pkg.tar.zst' makepkg --nodeps --noconfirm -f
+      - name: Sign the Arch package for in-app updates
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::warning::TAURI_SIGNING_PRIVATE_KEY is not set, so the Arch package can't update itself."
+            exit 0
+          fi
+          for f in arch/*.pkg.tar.zst; do npx tauri signer sign "$f"; done
       - uses: actions/upload-artifact@v4
         with:
           name: gitpilot-linux
@@ -134,6 +144,7 @@ jobs:
             src-tauri/target/release/bundle/appimage/*.AppImage
             src-tauri/target/release/bundle/appimage/*.AppImage.sig
             arch/*.pkg.tar.zst
+            arch/*.pkg.tar.zst.sig
           if-no-files-found: error
 
   update-manifest:

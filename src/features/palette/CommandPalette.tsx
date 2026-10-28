@@ -3,6 +3,7 @@ import {
   AppWindow,
   ArrowDownToLine,
   ArrowUpFromLine,
+  Code,
   DownloadCloud,
   FileClock,
   FolderGit2,
@@ -33,6 +34,7 @@ import { modKey } from "@/lib/platform";
 import { useDebounced } from "@/lib/useAsync";
 import { useOpenWindow } from "@/features/repositories/useOpenWindow";
 import { useStore } from "@/store/AppStore";
+import { useExternalTools } from "@/features/tools/useExternalTools";
 
 interface Item {
   id: string;
@@ -46,6 +48,7 @@ interface Item {
 export function CommandPalette() {
   const store = useStore();
   const openWindow = useOpenWindow();
+  const tools = useExternalTools();
   const toolId = store.settings?.assistantTool ?? "claudeCode";
   const { paletteOpen, setPaletteOpen, activeRepo, status, repos, run } = store;
   const { addExisting, startClone, createNew } = useRepoActions();
@@ -128,6 +131,8 @@ export function CommandPalette() {
         const tool = ASSISTANT_TOOLS[toolId].name;
         out.push({ id: "claude", group: "Actions", label: `Open ${tool} in this repository`, icon: <SquareTerminal size={15} />, run: () => void api.assistantLaunch(id, null).catch((e) => store.notify({ tone: "error", title: `Couldn't open ${tool}`, error: toAppError(e) })) });
       }
+      out.push({ id: "editor", group: "Actions", label: "Open in editor", icon: <Code size={15} />, run: () => tools.editor() });
+      out.push({ id: "terminal", group: "Actions", label: "Open a terminal here", icon: <SquareTerminal size={15} />, run: () => tools.terminal() });
       for (const br of branches.filter((x) => !x.isRemote && !x.isCurrent).slice(0, f ? 50 : 5))
         out.push({ id: `br-${br.name}`, group: "Switch branch", label: br.name, icon: <GitBranch size={15} />, run: () => switchTo({ kind: "local", name: br.name }) });
     }
@@ -149,7 +154,7 @@ export function CommandPalette() {
       filtered.push({ id: `c-${c.hash}`, group: "Commits", label: c.subject, hint: c.shortHash, icon: <GitCommitHorizontal size={15} />, run: () => { store.setHistoryPath(null); store.setHistoryJump(c.hash); store.setSection("history"); } });
     return filtered;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, activeRepo, id, b, remotes, branches, claudeFound, repos, files, commits, status?.remoteTwin, toolId]);
+  }, [q, activeRepo, id, b, remotes, branches, claudeFound, repos, files, commits, status?.remoteTwin, toolId, tools]);
 
   useEffect(() => setActive(0), [q]);
 

@@ -12,4 +12,17 @@ search: string | null,
 /**
  * Limit history to one file (follows renames).
  */
-path: string | null, };
+path: string | null, 
+/**
+ * Only commits whose changes add or remove this text (`git log -S`), or with `regex`,
+ * whose changed lines match this regular expression (`-G`).
+ */
+content: string | null, regex: boolean, 
+/**
+ * Only commits made on or after this day (YYYY-MM-DD).
+ */
+since: string | null, 
+/**
+ * Only commits made on or before this day (YYYY-MM-DD).
+ */
+until: string | null, };

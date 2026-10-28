@@ -51,6 +51,8 @@ interface Props {
     markResolved: () => void;
     /** Ask the AI for suggested resolutions. */
     help?: () => void;
+    /** Resolve in the external merge tool (git mergetool). */
+    mergeTool?: () => void;
   };
   /** Throw away a hunk / the selected lines (unstaged changes only). */
   discardHunk?: HunkAction;
@@ -60,6 +62,8 @@ interface Props {
   actions?: ReactNode;
   emptyTitle?: string;
   emptyBody?: string;
+  /** Marks added/removed lines that match a history content search. */
+  match?: (text: string) => boolean;
 }
 
 type Ref = { line: DiffLine; li: number };
@@ -137,6 +141,7 @@ function LineCells({
   hi = 0,
   li = 0,
   pick,
+  match,
 }: {
   line: DiffLine | null;
   lang: string | null;
@@ -145,6 +150,7 @@ function LineCells({
   hi?: number;
   li?: number;
   pick?: Pick;
+  match?: (text: string) => boolean;
 }) {
   if (!line) return <div className="min-h-5 flex-1 bg-surface-2/50" />;
   const t = tone[line.kind];
@@ -152,8 +158,12 @@ function LineCells({
   const selected = selectable && pick!.isSelected(hi, li);
   const lineNo = line.kind === "del" ? line.oldNo : line.newNo;
   const no = side === "left" ? line.oldNo : side === "right" ? line.newNo : null;
+  const matched = !selected && (line.kind === "add" || line.kind === "del") && !!match?.(line.content);
   return (
-    <div className={cx("flex min-h-5 min-w-0 flex-1", t.row, selected && "shadow-[inset_3px_0_0_var(--accent)]")}>
+    <div
+      className={cx("flex min-h-5 min-w-0 flex-1", t.row, selected && "shadow-[inset_3px_0_0_var(--accent)]", matched && "shadow-[inset_3px_0_0_var(--warning)]")}
+      title={matched ? "Matches your search" : undefined}
+    >
       {side ? (
         <span className={cx("w-12 shrink-0 select-none pr-2 text-right", t.gutter)}>{no ?? ""}</span>
       ) : (
@@ -227,7 +237,7 @@ export function diffKey(d: FileDiff | null): string {
   return [d.oldPath, d.newPath, ...d.hunks.map((h) => `${h.header}\n${h.lines.map((l) => `${l.kind}:${l.content}`).join("\n")}`)].join("\u0000");
 }
 
-export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight, hunkAction, lineAction, discardHunk, discardLines, conflict, busy, actions, emptyTitle, emptyBody }: Props) {
+export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight, hunkAction, lineAction, discardHunk, discardLines, conflict, busy, actions, emptyTitle, emptyBody, match }: Props) {
   const [sel, setSel] = useState<Selection>(null);
   // A different diff (after staging, or another file) invalidates line indices. A refresh that
   // returns the same content (auto-refresh, window focus) keeps the selection.
@@ -413,16 +423,16 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
             if (r.t === "line")
               return (
                 <div key={r.key} style={style} {...measure} className="flex">
-                  <LineCells line={r.line} lang={lang} showEol={mixedEol} hi={r.hi} li={r.li} pick={pick} />
+                  <LineCells line={r.line} lang={lang} showEol={mixedEol} hi={r.hi} li={r.li} pick={pick} match={match} />
                 </div>
               );
             return (
               <div key={r.key} style={style} {...measure} className="flex">
                 <div className="flex w-1/2 min-w-0 border-r border-border">
-                  <LineCells side="left" line={r.left?.line.kind === "add" ? null : (r.left?.line ?? null)} lang={lang} showEol={mixedEol} hi={r.hi} li={r.left?.li} pick={pick} />
+                  <LineCells side="left" line={r.left?.line.kind === "add" ? null : (r.left?.line ?? null)} lang={lang} showEol={mixedEol} hi={r.hi} li={r.left?.li} pick={pick} match={match} />
                 </div>
                 <div className="flex w-1/2 min-w-0">
-                  <LineCells side="right" line={r.right?.line.kind === "del" ? null : (r.right?.line ?? null)} lang={lang} showEol={mixedEol} hi={r.hi} li={r.right?.li} pick={pick} />
+                  <LineCells side="right" line={r.right?.line.kind === "del" ? null : (r.right?.line ?? null)} lang={lang} showEol={mixedEol} hi={r.hi} li={r.right?.li} pick={pick} match={match} />
                 </div>
               </div>
             );
@@ -493,6 +503,11 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
               {conflict.help && (
                 <Button size="sm" icon={<Sparkles size={12} />} disabled={busy} onClick={conflict.help}>
                   Ask AI
+                </Button>
+              )}
+              {conflict.mergeTool && (
+                <Button size="sm" disabled={busy} onClick={conflict.mergeTool}>
+                  Open in merge tool
                 </Button>
               )}
               <Button size="sm" disabled={busy} onClick={() => conflict.takeSide(true)}>

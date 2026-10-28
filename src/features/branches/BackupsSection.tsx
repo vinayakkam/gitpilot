@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LifeBuoy, Trash2 } from "lucide-react";
+import { GitBranchPlus, LifeBuoy, Trash2 } from "lucide-react";
 import type { Backup } from "@/bindings/Backup";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/Dialog";
@@ -8,6 +8,7 @@ import { absoluteTime, relativeTime } from "@/lib/format";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { useStore } from "@/store/AppStore";
+import { NewBranchDialog } from "./NewBranchDialog";
 
 /** Backups GitPilot saved before resets and commit edits. Hidden when there are none. */
 export function BackupsSection() {
@@ -16,6 +17,7 @@ export function BackupsSection() {
   const backups = useAsync(() => api.backupList(id!), [id, revision], id != null);
   const [restore, setRestore] = useState<Backup | null>(null);
   const [del, setDel] = useState<Backup | null>(null);
+  const [branchAt, setBranchAt] = useState<string | null>(null);
   if (id == null || !backups.data?.length) return null;
 
   return (
@@ -35,10 +37,12 @@ export function BackupsSection() {
           <Button size="sm" disabled={!!busy || status?.state !== "normal"} onClick={() => setRestore(b)}>
             Restore
           </Button>
+          <IconButton size="sm" label="Create branch from this backup…" icon={<GitBranchPlus size={13} />} onClick={() => setBranchAt(b.hash)} />
           <IconButton size="sm" tone="danger" label="Delete backup…" icon={<Trash2 size={13} />} onClick={() => setDel(b)} />
         </div>
       ))}
 
+      <NewBranchDialog open={branchAt !== null} onClose={() => setBranchAt(null)} startPoint={branchAt ?? undefined} />
       <ConfirmDialog
         open={restore !== null}
         onClose={() => setRestore(null)}

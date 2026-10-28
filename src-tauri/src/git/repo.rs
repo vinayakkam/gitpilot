@@ -323,13 +323,24 @@ impl Repo<'_> {
             )
             .await?;
         let mut parsed = status::parse(&out.stdout);
-        let ignored = self.tracked_ignored().await;
+        let tracked: Vec<&str> = parsed
+            .files
+            .iter()
+            .filter(|f| f.area != Area::Untracked)
+            .map(|f| f.path.as_str())
+            .collect();
+        // Independent queries run at the same time.
+        let (ignored, dirs, stashes) = tokio::join!(
+            self.tracked_ignored(&tracked),
+            self.dirs(),
+            self.stash_list()
+        );
         if !ignored.is_empty() {
             for f in &mut parsed.files {
                 f.ignored = f.area != Area::Untracked && ignored.contains(&f.path);
             }
         }
-        let (git_dir, common) = self.dirs().await?;
+        let (git_dir, common) = dirs?;
         let state =
             if git_dir.join("rebase-merge").exists() || git_dir.join("rebase-apply").exists() {
                 RepoState::Rebasing
@@ -344,7 +355,7 @@ impl Repo<'_> {
             } else {
                 RepoState::Normal
             };
-        let stash_count = self.stash_list().await.map(|s| s.len() as u32).unwrap_or(0);
+        let stash_count = stashes.map(|s| s.len() as u32).unwrap_or(0);
         let remote_twin = match (
             &parsed.branch.head,
             &parsed.branch.upstream,
@@ -363,23 +374,26 @@ impl Repo<'_> {
         })
     }
 
-    /// Tracked files that .gitignore says should be ignored.
-    async fn tracked_ignored(&self) -> std::collections::HashSet<String> {
-        let Ok(out) = self
-            .git
-            .run(
-                self.path,
-                [
-                    "ls-files",
-                    "-z",
-                    "--cached",
-                    "--ignored",
-                    "--exclude-standard",
-                ],
-                RunOpts::read(),
-            )
-            .await
-        else {
+    /// Which of the changed tracked files .gitignore says should be ignored.
+    async fn tracked_ignored(&self, changed: &[&str]) -> std::collections::HashSet<String> {
+        if changed.is_empty() {
+            return Default::default();
+        }
+        let mut args = vec![
+            "ls-files",
+            "-z",
+            "--cached",
+            "--ignored",
+            "--exclude-standard",
+        ];
+        // Few changed files: ask about just those instead of the whole index (big repositories).
+        // Paths are literal (GIT_LITERAL_PATHSPECS=1). The budget keeps well under Windows'
+        // 32 767-character command line.
+        if changed.iter().map(|p| p.len() + 3).sum::<usize>() <= 16_000 {
+            args.push("--");
+            args.extend_from_slice(changed);
+        }
+        let Ok(out) = self.git.run(self.path, &args, RunOpts::read()).await else {
             return Default::default();
         };
         out.stdout
@@ -880,13 +894,34 @@ impl Repo<'_> {
                 }
             }
         }
+        let content = q.content.as_deref().filter(|c| !c.is_empty());
+        if let Some(c) = content {
+            if c.len() > 1000 || c.contains(['\0', '\n']) {
+                return Err(AppError::invalid(
+                    "Search for one line of text, up to 1000 characters.",
+                ));
+            }
+            args.push(if q.regex {
+                format!("-G{c}")
+            } else {
+                format!("-S{c}")
+            });
+        }
+        if let Some(d) = q.since.as_deref().filter(|d| !d.is_empty()) {
+            args.push(format!("--since={} 00:00:00", v::date(d)?));
+        }
+        if let Some(d) = q.until.as_deref().filter(|d| !d.is_empty()) {
+            args.push(format!("--until={} 23:59:59", v::date(d)?));
+        }
+        let filtered =
+            search.is_some() || content.is_some() || q.since.is_some() || q.until.is_some();
         let rev = match &q.rev {
             Some(r) => v::revision(r)?.to_string(),
             None => "HEAD".into(),
         };
         if q.path.is_some() {
             args.push("--follow".into());
-        } else if search.is_none() {
+        } else if !filtered {
             // Children before parents, so the commit graph can be drawn.
             args.push("--date-order".into());
         }
@@ -895,7 +930,15 @@ impl Repo<'_> {
         if let Some(p) = &q.path {
             args.push(v::rel_path(p)?.into());
         }
-        let mut commits = log::parse_log(&self.read(&args).await?);
+        let raw = self.read(&args).await.map_err(|e| {
+            if q.regex && e.detail.as_deref().is_some_and(|d| d.contains("regex")) {
+                AppError::invalid("That isn't a valid regular expression.")
+                    .with_detail(e.detail.unwrap_or_default())
+            } else {
+                e
+            }
+        })?;
+        let mut commits = log::parse_log(&raw);
         let has_more = commits.len() as u32 > limit;
         commits.truncate(limit as usize);
         if let Some(h) = hash_hit {
@@ -1099,6 +1142,15 @@ impl Repo<'_> {
             return Err(AppError::invalid(
                 "You can't delete the branch you're on. Switch to another branch first.",
             ));
+        }
+        if force {
+            // -D can drop commits no other branch has, so keep the tip under Branches → Backups.
+            self.backup_at(
+                &format!("deleted branch {name}"),
+                &format!("refs/heads/{name}"),
+                false,
+            )
+            .await?;
         }
         self.write(["branch", if force { "-D" } else { "-d" }, name])
             .await?;

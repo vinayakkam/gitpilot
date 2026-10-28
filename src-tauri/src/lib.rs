@@ -5,9 +5,11 @@ pub mod claude_code;
 pub mod cli;
 mod commands;
 pub mod db;
+pub mod editors;
 pub mod error;
 pub mod git;
 pub mod github;
+pub mod github_pr;
 pub mod opencode;
 pub mod secrets;
 pub mod settings;
@@ -49,6 +51,7 @@ pub fn run() {
             commands::app::secret_set,
             commands::app::secret_clear,
             commands::app::update_support,
+            commands::app::update_install_pacman,
             commands::repos::repo_list,
             commands::repos::repo_inspect_path,
             commands::repos::repo_add,
@@ -110,6 +113,11 @@ pub fn run() {
             commands::history::rebase_commits,
             commands::history::rebase_interactive,
             commands::history::branch_reset,
+            commands::history::reflog_list,
+            commands::tools::editor_list,
+            commands::tools::editor_open,
+            commands::tools::terminal_open,
+            commands::tools::conflict_mergetool,
             commands::history::backup_list,
             commands::history::backup_restore,
             commands::history::backup_delete,
@@ -150,6 +158,16 @@ pub fn run() {
             commands::github::github_pulls,
             commands::github::github_pull_create,
             commands::github::github_pull_checkout,
+            commands::github::github_pull_detail,
+            commands::github::github_pull_files,
+            commands::github::github_pull_conversation,
+            commands::github::github_pull_checks,
+            commands::github::github_pull_comment,
+            commands::github::github_pull_review,
+            commands::github::github_pull_merge,
+            commands::github::github_pull_delete_branch,
+            commands::github::github_issues,
+            commands::github::github_issue_create,
             commands::assist::ai_suggest_commit,
             commands::assist::ai_explain,
             commands::assist::ai_pr_description,

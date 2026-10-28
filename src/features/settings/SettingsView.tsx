@@ -23,9 +23,9 @@ import { Group, PaneHeader, TextSetting, type PaneProps } from "./parts";
 
 /** Sections, in order, with words people might search for. */
 const TABS: { id: SettingsTab; label: string; icon: ReactNode; keywords: string }[] = [
-  { id: "general", label: "General", icon: <Settings2 size={15} />, keywords: "startup reopen last repository notifications success toast repositories auto refresh watch files changes" },
+  { id: "general", label: "General", icon: <Settings2 size={15} />, keywords: "startup reopen last repository notifications success toast repositories auto refresh watch files changes fetch background remote new commits interval tips beginner help explain" },
   { id: "appearance", label: "Appearance", icon: <Palette size={15} />, keywords: "theme dark light system accent colour color blue custom density compact diff layout side by side unified syntax highlighting" },
-  { id: "git", label: "Git", icon: <GitBranch size={15} />, keywords: "git executable path identity name email initial branch main pull strategy fast-forward merge rebase commit message conventional line endings crlf lf gitattributes windows github pull request context signing sign gpg ssh key verified signature" },
+  { id: "git", label: "Git", icon: <GitBranch size={15} />, keywords: "git executable path identity name email initial branch main pull strategy fast-forward merge rebase commit message conventional line endings crlf lf gitattributes windows github pull request context signing sign gpg ssh key verified signature editor vscode code zed sublime jetbrains merge tool mergetool meld kdiff3 terminal" },
   { id: "github", label: "GitHub", icon: <GitPullRequest size={15} />, keywords: "github account sign in login token personal access oauth device pull requests clone repositories client id" },
   { id: "ai", label: "AI", icon: <Sparkles size={15} />, keywords: "ai commit message suggestions openrouter model key api anthropic claude openai ollama lm studio privacy provider free" },
   { id: "claude", label: "Coding assistant", icon: <Terminal size={15} />, keywords: "assistant claude code opencode open code account sign in login subscription terminal executable path launch prompt" },
@@ -97,6 +97,25 @@ function GeneralPane({ settings, set }: PaneProps) {
       </Group>
       <Group title="Refreshing">
         <Switch label="Refresh automatically when files change" description="The file list updates as soon as you save in your editor. Files ignored by .gitignore (like node_modules) are skipped. When off, GitPilot refreshes when you switch back to it." checked={settings.autoRefresh} onChange={(autoRefresh) => void set({ autoRefresh })} />
+        <Field label="Fetch in the background" hint="Checks the remote for new commits and tells you when your branch can pull. It never asks for a password: if the remote needs one, fetch once yourself.">
+          {(p) => (
+            <Select {...p} value={settings.autoFetchMinutes} onChange={(e) => void set({ autoFetchMinutes: Number(e.target.value) })}>
+              <option value={0}>Off</option>
+              <option value={5}>Every 5 minutes</option>
+              <option value={15}>Every 15 minutes</option>
+              <option value={30}>Every 30 minutes</option>
+            </Select>
+          )}
+        </Field>
+      </Group>
+      <Group title="Tips">
+        <Switch label="Show tips for beginners" description="Short explanations the first time you stage, commit, publish, hit a conflict or open a pull request. Close one and it doesn't come back." checked={settings.tips} onChange={(tips) => void set({ tips })} />
+        {settings.dismissedTips.length > 0 && (
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-base text-muted">{settings.dismissedTips.length === 1 ? "1 tip closed." : `${settings.dismissedTips.length} tips closed.`}</p>
+            <Button size="sm" onClick={() => void set({ dismissedTips: [] })}>Show closed tips again</Button>
+          </div>
+        )}
       </Group>
       <Group title="Notifications">
         <Switch label="Show a notification when an operation succeeds" description="Errors are always shown." checked={settings.successNotifications} onChange={(successNotifications) => void set({ successNotifications })} />
@@ -176,9 +195,47 @@ function GitPane({ settings, set }: PaneProps) {
           )}
         </Field>
       </Group>
+      <Group title="External tools" description="Used by Open in editor (toolbar, file menus, Blame) and Open in merge tool (conflicts).">
+        <ExternalTools settings={settings} set={set} />
+      </Group>
       <Group title="New repositories">
         <TextSetting label="Initial branch name" hint="Used when GitPilot creates a repository. Leave empty to use Git's default (init.defaultBranch)." value={settings.defaultBranch} placeholder="main" mono onSave={(defaultBranch) => set({ defaultBranch })} />
       </Group>
+    </>
+  );
+}
+
+function ExternalTools({ settings, set }: Pick<PaneProps, "settings" | "set">) {
+  const t = settings.tools;
+  const editors = useAsync(() => api.editorList(), [t.editorPath]);
+  const found = editors.data?.filter((e) => e.id !== "custom") ?? [];
+  const setTools = (patch: Partial<typeof t>) => set({ tools: { ...t, ...patch } });
+  return (
+    <>
+      <Field label="Code editor" hint={found.length || editors.loading ? undefined : "No editor was found on this computer. Choose Other and enter its path."}>
+        {(p) => (
+          <Select {...p} value={t.editor} onChange={(e) => void setTools({ editor: e.target.value })}>
+            <option value="">{found[0] ? `Automatic (${found[0].name})` : "Automatic"}</option>
+            {found.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.name}
+              </option>
+            ))}
+            <option value="custom">Other…</option>
+          </Select>
+        )}
+      </Field>
+      {t.editor === "custom" && (
+        <TextSetting label="Editor executable" hint="Opens the repository or file you choose; jumping to a line works for the editors listed above." value={t.editorPath} mono browse="file" onSave={(editorPath) => setTools({ editorPath })} />
+      )}
+      <TextSetting
+        label="Merge tool"
+        hint="A git mergetool name such as meld, kdiff3, vscode or vimdiff. Leave empty to use Git's merge.tool setting."
+        value={t.mergeTool}
+        placeholder="meld"
+        mono
+        onSave={(mergeTool) => setTools({ mergeTool: mergeTool.trim() })}
+      />
     </>
   );
 }
@@ -189,7 +246,14 @@ function GitHubPane({ settings, save }: PaneProps) {
       <PaneHeader title="GitHub" description="List your repositories when cloning, see open pull requests with their checks, open new ones, and check them out locally." />
       <Group title="Account">
         <GitHubAccountCard />
-        <p className="text-sm text-muted">The sign-in is used for GitHub's website features only. Cloning, fetching and pushing keep using your Git credentials (credential manager or SSH keys), as before.</p>
+      </Group>
+      <Group title="Git over HTTPS">
+        <Switch
+          label="Use this sign-in for clone, fetch, pull and push"
+          description="For https://github.com addresses only, so private repositories work without a credential manager. SSH addresses and other hosts keep using your own Git credentials. When this is off, GitPilot uses the sign-in for GitHub's website features only. On by default."
+          checked={settings.github.useForHttps}
+          onChange={(useForHttps) => void save((s) => ({ ...s, github: { ...s.github, useForHttps } }))}
+        />
       </Group>
       <Group title="Sign-in app" description="Signing in through the browser needs a GitHub OAuth app with device flow enabled. Leave this empty to use the one built into GitPilot, if your version has one.">
         <TextSetting

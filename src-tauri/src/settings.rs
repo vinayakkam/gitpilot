@@ -148,10 +148,33 @@ pub struct OpenCodeSettings {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 #[ts(export)]
+pub struct ToolsSettings {
+    /// Editor id from `editors::detect` ("vscode", "zed", …, "custom"); empty = first one found.
+    pub editor: String,
+    /// The editor executable used when `editor` is "custom".
+    pub editor_path: String,
+    /// `git mergetool --tool` name (meld, kdiff3, vscode, …); empty = Git's merge.tool setting.
+    pub merge_tool: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export)]
 pub struct GitHubSettings {
     /// Client ID of a GitHub OAuth app with device flow enabled, used for "Sign in with GitHub".
     /// Empty = the ID built into this version of GitPilot, if any.
     pub client_id: String,
+    /// Use the GitHub sign-in (when signed in) for clone/fetch/pull/push to https://github.com.
+    pub use_for_https: bool,
+}
+
+impl Default for GitHubSettings {
+    fn default() -> Self {
+        Self {
+            client_id: String::new(),
+            use_for_https: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -180,12 +203,20 @@ pub struct Settings {
     pub assistant_tool: AssistantTool,
     pub opencode: OpenCodeSettings,
     pub github: GitHubSettings,
+    /// Code editor and merge tool.
+    pub tools: ToolsSettings,
     /// Reopen the last repository on startup.
     pub reopen_last_repo: bool,
     /// Refresh the file list as soon as files change on disk.
     pub auto_refresh: bool,
+    /// Fetch the open repository in the background every this many minutes (0 = off).
+    pub auto_fetch_minutes: u32,
     /// Show a notification when operations succeed (errors are always shown).
     pub success_notifications: bool,
+    /// Short explanations shown the first time something happens (staging, conflicts, …).
+    pub tips: bool,
+    /// Tips the user closed (ids like "stage", "conflict").
+    pub dismissed_tips: Vec<String>,
     /// Look for a new version on startup (at most once a day).
     pub check_for_updates: bool,
     #[ts(type = "number | null")]
@@ -212,9 +243,13 @@ impl Default for Settings {
             assistant_tool: AssistantTool::default(),
             opencode: OpenCodeSettings::default(),
             github: GitHubSettings::default(),
+            tools: ToolsSettings::default(),
             reopen_last_repo: true,
             auto_refresh: true,
+            auto_fetch_minutes: 15,
             success_notifications: true,
+            tips: true,
+            dismissed_tips: Vec::new(),
             check_for_updates: true,
             last_repo_id: None,
         }
@@ -255,6 +290,24 @@ impl Settings {
                 "Choose one of the accent colours or enter a colour like #3550c8.",
             ));
         }
+        if !AUTO_FETCH_MINUTES.contains(&self.auto_fetch_minutes) {
+            return Err(AppError::invalid(
+                "Choose how often to fetch: off, 5, 15 or 30 minutes.",
+            ));
+        }
+        if self.dismissed_tips.len() > 100
+            || self
+                .dismissed_tips
+                .iter()
+                .any(|t| !is_valid_tool_name(t) || t.is_empty())
+        {
+            return Err(AppError::invalid("The list of dismissed tips isn't valid."));
+        }
+        if !is_valid_tool_name(&self.tools.merge_tool) {
+            return Err(AppError::invalid(
+                "A merge tool name has only letters, digits, - and _ (for example meld or kdiff3).",
+            ));
+        }
         let b = self.default_branch.trim();
         if !b.is_empty() {
             crate::git::validate::ref_name(b)?;
@@ -280,6 +333,16 @@ impl Settings {
         Ok(())
     }
 }
+
+/// `git mergetool --tool` names: empty (use Git's setting) or a plain identifier.
+pub fn is_valid_tool_name(t: &str) -> bool {
+    t.len() <= 40
+        && t.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+/// The choices offered for `auto_fetch_minutes`.
+pub const AUTO_FETCH_MINUTES: [u32; 4] = [0, 5, 15, 30];
 
 pub fn load(path: &Path) -> Settings {
     let mut s = load_raw(path);
@@ -371,6 +434,35 @@ mod tests {
         s.ai.model = "claude-haiku-5-5".into();
         save(&p, &s).unwrap();
         assert_eq!(load(&p).ai.provider, AiProviderKind::Anthropic);
+    }
+
+    #[test]
+    fn github_https_defaults_on_for_old_settings_files() {
+        let s: Settings = serde_json::from_str(r#"{"github":{"clientId":"Ov23abc"}}"#).unwrap();
+        assert!(s.github.use_for_https);
+        assert_eq!(s.github.client_id, "Ov23abc");
+        let s: Settings = serde_json::from_str(r#"{"github":{"useForHttps":false}}"#).unwrap();
+        assert!(!s.github.use_for_https);
+    }
+
+    #[test]
+    fn auto_fetch_interval_is_one_of_the_choices() {
+        let mut s = Settings::default();
+        assert_eq!(s.auto_fetch_minutes, 15);
+        assert!(s.validate().is_ok());
+        s.auto_fetch_minutes = 7;
+        assert!(s.validate().is_err());
+        s.auto_fetch_minutes = 0;
+        assert!(s.validate().is_ok());
+    }
+
+    #[test]
+    fn merge_tool_names() {
+        assert!(is_valid_tool_name(""));
+        assert!(is_valid_tool_name("kdiff3"));
+        assert!(is_valid_tool_name("tortoise_merge-2"));
+        assert!(!is_valid_tool_name("meld; rm"));
+        assert!(!is_valid_tool_name("--extcmd=x"));
     }
 
     #[test]

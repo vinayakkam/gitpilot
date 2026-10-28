@@ -55,6 +55,12 @@ pub enum ExplainTarget {
         area: Area,
         orig_path: Option<String>,
     },
+    /// A GitHub pull request: its title, description and changed files.
+    PullRequest {
+        owner: String,
+        name: String,
+        number: u32,
+    },
 }
 
 #[tauri::command]
@@ -88,6 +94,22 @@ pub async fn ai_explain(
             ),
             r.change_diff_raw(path, *area, orig_path.as_deref()).await?,
         ),
+        ExplainTarget::PullRequest {
+            owner,
+            name,
+            number,
+        } => {
+            let token = crate::secrets::github_token()
+                .map(|(t, _)| t)
+                .ok_or_else(crate::github::not_signed_in)?;
+            let d = crate::github_pr::detail(&token, owner, name, *number).await?;
+            (
+                format!("Pull request #{number}: {}\n\n{}", d.title, d.body),
+                crate::github_pr::diff_text(&token, owner, name, *number)
+                    .await?
+                    .into_bytes(),
+            )
+        }
     };
     ai::explain(&s.ai, key, claude, &what, &String::from_utf8_lossy(&raw)).await
 }

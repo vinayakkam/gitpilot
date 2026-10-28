@@ -9,6 +9,7 @@ import type { GitHubSettings } from "./GitHubSettings";
 import type { OpenCodeSettings } from "./OpenCodeSettings";
 import type { PullStrategy } from "./PullStrategy";
 import type { Theme } from "./Theme";
+import type { ToolsSettings } from "./ToolsSettings";
 
 export type Settings = { 
 /**
@@ -36,6 +37,10 @@ checkLineEndings: boolean, ai: AiSettings,
  */
 claudeCode: ClaudeCodeSettings, assistantTool: AssistantTool, opencode: OpenCodeSettings, github: GitHubSettings, 
 /**
+ * Code editor and merge tool.
+ */
+tools: ToolsSettings, 
+/**
  * Reopen the last repository on startup.
  */
 reopenLastRepo: boolean, 
@@ -44,9 +49,21 @@ reopenLastRepo: boolean,
  */
 autoRefresh: boolean, 
 /**
+ * Fetch the open repository in the background every this many minutes (0 = off).
+ */
+autoFetchMinutes: number, 
+/**
  * Show a notification when operations succeed (errors are always shown).
  */
 successNotifications: boolean, 
+/**
+ * Short explanations shown the first time something happens (staging, conflicts, …).
+ */
+tips: boolean, 
+/**
+ * Tips the user closed (ids like "stage", "conflict").
+ */
+dismissedTips: Array<string>, 
 /**
  * Look for a new version on startup (at most once a day).
  */

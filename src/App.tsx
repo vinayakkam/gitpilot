@@ -22,6 +22,7 @@ import { hasMod } from "@/lib/platform";
 import { AppStoreProvider, useStore } from "@/store/AppStore";
 import { UpdateDialog } from "@/features/updates/UpdateDialog";
 import { UpdateProvider } from "@/features/updates/UpdateProvider";
+import { TitleTooltips } from "@/components/ui/TitleTooltips";
 import { api } from "@/lib/api";
 
 function MissingRepo() {
@@ -136,6 +137,7 @@ function Shell() {
       <CommandPalette />
       <UpdateDialog />
       <Toaster />
+      <TitleTooltips />
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { absoluteTime, relativeTime } from "@/lib/format";
 import { highlightLine, languageFor } from "@/lib/highlight";
 import { useAsync } from "@/lib/useAsync";
 import { useStore } from "@/store/AppStore";
+import { useExternalTools } from "@/features/tools/useExternalTools";
 
 const ROW = 20;
 
@@ -23,6 +24,7 @@ export function blameRows(b: BlameResult): Row[] {
 /** Who last changed each line of a file, and in which commit. Click a commit to open it in History. */
 export function BlameView({ target, onClose }: { target: { path: string; rev: string | null } | null; onClose: () => void }) {
   const { activeRepo, settings, setSection, setHistoryJump } = useStore();
+  const tools = useExternalTools();
   const id = activeRepo?.id;
   const blame = useAsync(() => api.fileBlame(id!, target!.path, target!.rev), [id, target?.path, target?.rev], id != null && target !== null);
   const rows = useMemo(() => (blame.data ? blameRows(blame.data) : []), [blame.data]);
@@ -50,7 +52,7 @@ export function BlameView({ target, onClose }: { target: { path: string; rev: st
       onClose={onClose}
       width={1100}
       title={`Blame: ${target?.path ?? ""}`}
-      description={target?.rev ? `As of ${target.rev.slice(0, 7)}` : "Current version, including uncommitted changes. Click a commit to open it in History."}
+      description={target?.rev ? `As of ${target.rev.slice(0, 7)}` : "Current version, including uncommitted changes. Click a commit to open it in History, or a line number to open it in your editor."}
       footer={<Button onClick={onClose}>Close</Button>}
     >
       {blame.loading && !blame.data ? (
@@ -91,7 +93,19 @@ export function BlameView({ target, onClose }: { target: { path: string; rev: st
                     ) : (
                       <span className="w-[300px] shrink-0" />
                     )}
-                    <span className="w-12 shrink-0 select-none pr-2 text-right text-faint">{r.line}</span>
+                    {target?.rev ? (
+                      <span className="w-12 shrink-0 select-none pr-2 text-right text-faint">{r.line}</span>
+                    ) : (
+                      <button
+                        type="button"
+                        aria-label={`Open line ${r.line} in editor`}
+                        title="Open this line in your editor"
+                        onClick={() => target && tools.editor(target.path, r.line)}
+                        className="w-12 shrink-0 select-none pr-2 text-right text-faint hover:text-accent-text hover:underline"
+                      >
+                        {r.line}
+                      </button>
+                    )}
                     <span className="whitespace-pre pr-4">{html ? <span dangerouslySetInnerHTML={{ __html: html }} /> : r.content}</span>
                   </div>
                 );

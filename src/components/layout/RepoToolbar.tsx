@@ -8,10 +8,12 @@ import {
   Check,
   ChevronDown,
   CloudUpload,
+  Code,
   GitBranch,
   GitBranchPlus,
   RefreshCw,
   RotateCw,
+  SquareTerminal,
 } from "lucide-react";
 import type { AppError } from "@/bindings/AppError";
 import type { Branch } from "@/bindings/Branch";
@@ -26,6 +28,8 @@ import { Tooltip } from "@/components/ui/Tooltip";
 import { NewBranchDialog } from "@/features/branches/NewBranchDialog";
 import { useBranchSwitch } from "@/features/branches/useBranchSwitch";
 import { usePull } from "@/features/sync/usePull";
+import { useAutoFetch } from "@/features/sync/useAutoFetch";
+import { useExternalTools } from "@/features/tools/useExternalTools";
 import { api } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
 import { plural, relativeTime } from "@/lib/format";
@@ -197,6 +201,9 @@ function SyncStrip({ fetchError }: { fetchError: AppError | null }) {
 export function RepoToolbar() {
   const { activeRepo, status, busy, progress, run, revision, refreshStatus, statusLoading, notify } = useStore();
   const { pull, dialog: pullDialog } = usePull();
+  useAutoFetch(() => void pull());
+  const tools = useExternalTools();
+  const [openMenu, setOpenMenu] = useState<{ x: number; y: number } | null>(null);
   const [picker, setPicker] = useState<DOMRect | null>(null);
   const [newBranch, setNewBranch] = useState(false);
   const [remotes, setRemotes] = useState<Remote[]>([]);
@@ -310,6 +317,14 @@ export function RepoToolbar() {
 
         <div className="flex shrink-0 items-center gap-1">
           <IconButton
+            label="Open in editor or terminal"
+            icon={<Code size={14} />}
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              setOpenMenu({ x: r.left, y: r.bottom + 4 });
+            }}
+          />
+          <IconButton
             label="Refresh status"
             shortcut="F5"
             icon={statusLoading ? <Spinner size={13} /> : <RotateCw size={14} />}
@@ -380,6 +395,16 @@ export function RepoToolbar() {
       <NewBranchDialog open={newBranch} onClose={() => setNewBranch(false)} />
       {pullDialog}
       {pushMenu && <Menu at={pushMenu} items={pushItems} onClose={() => setPushMenu(null)} />}
+      {openMenu && (
+        <Menu
+          at={openMenu}
+          items={[
+            { label: "Open in editor", icon: <Code size={14} />, onSelect: () => tools.editor() },
+            { label: "Open a terminal here", icon: <SquareTerminal size={14} />, onSelect: () => tools.terminal() },
+          ]}
+          onClose={() => setOpenMenu(null)}
+        />
+      )}
     </div>
   );
 }

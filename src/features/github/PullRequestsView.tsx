@@ -14,6 +14,9 @@ import { openLink } from "@/lib/links";
 import { useAsync } from "@/lib/useAsync";
 import { useStore } from "@/store/AppStore";
 import { CreatePullRequestDialog } from "./CreatePullRequestDialog";
+import { PullReviewDialog } from "./PullReviewDialog";
+import { IssuesList } from "./IssuesList";
+import { Tip } from "@/components/ui/Tip";
 import { GitHubAccountCard } from "./GitHubAccountCard";
 import { defaultTarget, pullForBranch } from "./pulls";
 import { useGitHubAccount } from "./useGitHubAccount";
@@ -47,7 +50,7 @@ export function ChecksBadge({ checks }: { checks: PullRequest["checks"] }) {
   return null;
 }
 
-function PullRow({ pr, onCheckout, checkoutDisabled }: { pr: PullRequest; onCheckout: () => void; checkoutDisabled: boolean }) {
+function PullRow({ pr, onCheckout, onReview, checkoutDisabled }: { pr: PullRequest; onCheckout: () => void; onReview: () => void; checkoutDisabled: boolean }) {
   const updated = Date.parse(pr.updatedAt);
   return (
     <div className="flex items-start gap-3 border-b border-border px-4 py-3 last:border-b-0">
@@ -70,6 +73,9 @@ function PullRow({ pr, onCheckout, checkoutDisabled }: { pr: PullRequest; onChec
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1">
+        <Button size="sm" onClick={onReview}>
+          Review
+        </Button>
         <Button size="sm" disabled={checkoutDisabled} onClick={onCheckout}>
           Check out
         </Button>
@@ -87,6 +93,8 @@ export function PullRequestsView() {
   const link = useAsync(() => api.githubLink(id!), [id, account.data?.user?.login], id != null && signedIn);
   const [which, setWhich] = useState<"parent" | "repo">("parent");
   const [creating, setCreating] = useState(false);
+  const [reviewing, setReviewing] = useState<number | null>(null);
+  const [tab, setTab] = useState<"pulls" | "issues">("pulls");
 
   const l = link.data;
   const target: GitHubRepoRef | null = useMemo(() => {
@@ -170,51 +178,72 @@ export function PullRequestsView() {
           </div>
         )}
 
-        <section aria-label="Current branch" className="rounded-md border border-border px-4 py-3">
-          {!canCreate ? (
-            <p className="text-base text-muted">
-              {b?.detached ? "Switch to a branch to open a pull request from it." : onBase ? `You're on ${target.defaultBranch}, the default branch. Create a branch for your change to open a pull request.` : "Commit something first to open a pull request."}
-            </p>
-          ) : mine ? (
-            <div className="flex items-center gap-3">
-              <GitPullRequestArrow size={16} className="shrink-0 text-success" aria-hidden />
-              <p className="min-w-0 flex-1 text-base">
-                <span className="font-mono">{b.head}</span> has a pull request: <span className="font-medium">{mine.title}</span> <span className="text-faint">#{mine.number}</span>
-              </p>
-              <ChecksBadge checks={mine.checks} />
-              <Button size="sm" icon={<ExternalLink size={12} />} onClick={() => void openLink(mine.url)}>
-                Open
-              </Button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-3">
-              <p className="min-w-0 flex-1 text-base">
-                Ready to share <span className="font-mono">{b.head}</span>? Open a pull request into <span className="font-mono">{target.fullName}</span>.
-              </p>
-              <Button variant="primary" icon={<Plus size={14} />} disabled={pulls.loading && !pulls.data} onClick={() => setCreating(true)}>
-                Create pull request
-              </Button>
-            </div>
-          )}
-        </section>
+        <Segmented
+          label="Show"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: "pulls", label: "Pull requests" },
+            { value: "issues", label: "Issues" },
+          ]}
+        />
+        {tab === "issues" && <IssuesList target={target} />}
+        {tab === "pulls" && (
+          <>
+            <Tip id="pullRequest" title="Ask for a review before merging">
+              A pull request asks others to look at your branch&apos;s commits before they go into {target.defaultBranch}. Reviewers can comment on lines, and checks run on your changes. Push new commits to the same branch to update it.
+            </Tip>
+            <section aria-label="Current branch" className="rounded-md border border-border px-4 py-3">
+              {!canCreate ? (
+                <p className="text-base text-muted">
+                  {b?.detached ? "Switch to a branch to open a pull request from it." : onBase ? `You're on ${target.defaultBranch}, the default branch. Create a branch for your change to open a pull request.` : "Commit something first to open a pull request."}
+                </p>
+              ) : mine ? (
+                <div className="flex items-center gap-3">
+                  <GitPullRequestArrow size={16} className="shrink-0 text-success" aria-hidden />
+                  <p className="min-w-0 flex-1 text-base">
+                    <span className="font-mono">{b.head}</span> has a pull request: <span className="font-medium">{mine.title}</span> <span className="text-faint">#{mine.number}</span>
+                  </p>
+                  <ChecksBadge checks={mine.checks} />
+                  <Button size="sm" onClick={() => setReviewing(mine.number)}>
+                    Review
+                  </Button>
+                  <Button size="sm" icon={<ExternalLink size={12} />} onClick={() => void openLink(mine.url)}>
+                    Open
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <p className="min-w-0 flex-1 text-base">
+                    Ready to share <span className="font-mono">{b.head}</span>? Open a pull request into <span className="font-mono">{target.fullName}</span>.
+                  </p>
+                  <Button variant="primary" icon={<Plus size={14} />} disabled={pulls.loading && !pulls.data} onClick={() => setCreating(true)}>
+                    Create pull request
+                  </Button>
+                </div>
+              )}
+            </section>
 
-        <section aria-label="Open pull requests" className="overflow-hidden rounded-md border border-border">
-          {pulls.loading && !pulls.data && (
-            <div className="flex justify-center p-6">
-              <Spinner label="Loading pull requests" />
-            </div>
-          )}
-          {pulls.error && <ErrorNotice className="m-3" error={pulls.error} />}
-          {pulls.data?.length === 0 && (
-            <EmptyState className="h-auto" icon={<GitPullRequest size={22} />} title="No open pull requests">
-              Pull requests opened on {target.fullName} show up here.
-            </EmptyState>
-          )}
-          {pulls.data?.map((pr) => (
-            <PullRow key={pr.number} pr={pr} onCheckout={() => checkout(pr)} checkoutDisabled={!!busy || status?.state !== "normal"} />
-          ))}
-        </section>
+            <section aria-label="Open pull requests" className="overflow-hidden rounded-md border border-border">
+              {pulls.loading && !pulls.data && (
+                <div className="flex justify-center p-6">
+                  <Spinner label="Loading pull requests" />
+                </div>
+              )}
+              {pulls.error && <ErrorNotice className="m-3" error={pulls.error} />}
+              {pulls.data?.length === 0 && (
+                <EmptyState className="h-auto" icon={<GitPullRequest size={22} />} title="No open pull requests">
+                  Pull requests opened on {target.fullName} show up here.
+                </EmptyState>
+              )}
+              {pulls.data?.map((pr) => (
+                <PullRow key={pr.number} pr={pr} onCheckout={() => checkout(pr)} onReview={() => setReviewing(pr.number)} checkoutDisabled={!!busy || status?.state !== "normal"} />
+              ))}
+            </section>
+          </>
+        )}
 
+        <PullReviewDialog target={target} number={reviewing} onClose={() => setReviewing(null)} onChanged={() => void pulls.reload()} />
         <CreatePullRequestDialog
           open={creating}
           onClose={() => setCreating(false)}

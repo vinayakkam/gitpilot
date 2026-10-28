@@ -69,7 +69,8 @@ async fn end_to_end_stage_commit_history() {
             skip: 0,
             limit: 50,
             search: None,
-            path: None
+            path: None,
+            ..Default::default()
         })
         .await
         .unwrap()
@@ -147,6 +148,7 @@ async fn end_to_end_stage_commit_history() {
             limit: 10,
             search: Some("NOTES".into()),
             path: None,
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -158,6 +160,7 @@ async fn end_to_end_stage_commit_history() {
             limit: 10,
             search: Some(hash[..8].into()),
             path: None,
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -328,6 +331,14 @@ async fn branches_are_managed_safely() {
     std::fs::remove_file(root.join("b.txt")).unwrap();
 
     r.branch_rename("feature/x", "feature/y").await.unwrap();
+    let tip = r
+        .branches()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|b| b.name == "feature/y")
+        .unwrap()
+        .tip;
     r.branch_delete("feature/y", true).await.unwrap();
     assert!(!r
         .branches()
@@ -335,6 +346,10 @@ async fn branches_are_managed_safely() {
         .unwrap()
         .iter()
         .any(|b| b.name.starts_with("feature/")));
+    // A force delete keeps the tip as a backup, so the branch can be recovered.
+    let backups = r.backups().await.unwrap();
+    assert_eq!(backups[0].label, "deleted branch feature/y");
+    assert_eq!(backups[0].hash, tip);
 
     // Stash round trip.
     write(&root, "a.txt", "changed\n");
@@ -525,6 +540,7 @@ async fn merge_conflicts_are_reported() {
             limit: 1,
             search: None,
             path: None,
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -685,6 +701,7 @@ async fn revert_cherry_pick_merge() {
             limit: 1,
             search: None,
             path: None,
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -756,6 +773,7 @@ async fn rebase_conflict_then_abort_or_continue() {
             limit: 3,
             search: None,
             path: None,
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -2129,4 +2147,278 @@ async fn worktrees_are_added_listed_and_removed_safely() {
         .any(|w| w.prunable && w.branch.as_deref() == Some("fix")));
     r.worktree_prune().await.unwrap();
     assert_eq!(r.worktrees().await.unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn github_token_reaches_git_for_github_com_only() {
+    use gitpilot_lib::git::runner::RunOpts;
+    let g = git().with_github_token("tok123");
+    let dir = tempfile::tempdir().unwrap();
+    let get = |url: &'static str| {
+        let g = g.clone();
+        let path = dir.path().to_path_buf();
+        async move {
+            let opts = RunOpts {
+                ok_codes: &[1],
+                ..RunOpts::read()
+            };
+            g.run(
+                &path,
+                ["config", "--get-urlmatch", "http.extraheader", url],
+                opts,
+            )
+            .await
+            .unwrap()
+            .text()
+        }
+    };
+    // base64("x-access-token:tok123")
+    assert_eq!(
+        get("https://github.com/o/r.git").await.trim(),
+        "Authorization: Basic eC1hY2Nlc3MtdG9rZW46dG9rMTIz"
+    );
+    assert_eq!(get("https://gitlab.com/o/r.git").await.trim(), "");
+    assert_eq!(
+        get("https://github.com.evil.example/o/r.git").await.trim(),
+        ""
+    );
+    assert_eq!(get("http://github.com/o/r.git").await.trim(), "");
+    assert!(
+        !format!("{g:?}").contains("eC1h"),
+        "Debug must not show the token"
+    );
+}
+
+#[tokio::test]
+async fn reflog_marks_commits_only_the_reflog_keeps() {
+    use gitpilot_lib::git::rewrite::ResetMode;
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    assert!(r.reflog(50).await.unwrap().is_empty(), "no commits yet");
+    for (i, msg) in ["one", "two"].iter().enumerate() {
+        write(&root, "f.txt", &format!("{i}\n"));
+        r.stage_all().await.unwrap();
+        r.commit(msg).await.unwrap();
+    }
+    let two = r.reflog(50).await.unwrap()[0].hash.clone();
+    r.reset_to("HEAD~1", ResetMode::Hard).await.unwrap();
+
+    let log = r.reflog(50).await.unwrap();
+    assert_eq!(log[0].action, "reset");
+    assert!(!log[0].lost, "HEAD's commit is on main");
+    let gone = log.iter().find(|e| e.hash == two).unwrap();
+    assert_eq!(gone.subject, "two");
+    assert_eq!(gone.action, "commit");
+    // reset_to keeps a backup ref, which isn't a branch, so the commit still counts as lost.
+    assert!(gone.lost);
+    assert_eq!(r.reflog(1).await.unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn history_search_by_content_and_date() {
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    write(&root, "a.rs", "fn main() {}\n");
+    r.stage_all().await.unwrap();
+    r.commit("start").await.unwrap();
+    write(&root, "a.rs", "fn main() { let answer = 42; }\n");
+    r.stage_all().await.unwrap();
+    r.commit("add answer").await.unwrap();
+    write(&root, "b.txt", "unrelated\n");
+    r.stage_all().await.unwrap();
+    r.commit("other").await.unwrap();
+
+    let subjects = |q: LogQuery| {
+        let r = &r;
+        async move {
+            r.log(&q)
+                .await
+                .map(|p| p.commits.into_iter().map(|c| c.subject).collect::<Vec<_>>())
+        }
+    };
+    let q = |content: &str, regex: bool| LogQuery {
+        limit: 50,
+        content: Some(content.into()),
+        regex,
+        ..Default::default()
+    };
+    assert_eq!(subjects(q("answer", false)).await.unwrap(), ["add answer"]);
+    assert_eq!(
+        subjects(q("answer = [0-9]+", true)).await.unwrap(),
+        ["add answer"]
+    );
+    assert!(
+        subjects(q("Answer", false)).await.unwrap().is_empty(),
+        "-S is case-sensitive"
+    );
+    assert_eq!(
+        subjects(q("a(", true)).await.unwrap_err().message,
+        "That isn't a valid regular expression."
+    );
+    assert!(subjects(q("a\nb", false)).await.is_err());
+
+    let all = subjects(LogQuery {
+        limit: 50,
+        since: Some("2000-01-01".into()),
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+    assert_eq!(all.len(), 3);
+    let none = subjects(LogQuery {
+        limit: 50,
+        until: Some("2000-01-01".into()),
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+    assert!(none.is_empty());
+    assert!(subjects(LogQuery {
+        limit: 50,
+        since: Some("yesterday".into()),
+        ..Default::default()
+    })
+    .await
+    .is_err());
+}
+
+/// Large-repository speed: status for 50 000 changed files. Timing depends on the machine, so
+/// it's opt-in: `cargo test --release -- --ignored large_repo_status`.
+#[tokio::test]
+#[ignore]
+async fn large_repo_status_is_fast() {
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    for i in 0..50_000 {
+        write(&root, &format!("d{}/f{i}.txt", i % 100), "x\n");
+    }
+    r.stage_all().await.unwrap();
+    r.commit("many files").await.unwrap();
+    for i in 0..50_000 {
+        write(&root, &format!("d{}/f{i}.txt", i % 100), "y\n");
+    }
+    let t = std::time::Instant::now();
+    let st = r.status().await.unwrap();
+    let took = t.elapsed();
+    assert_eq!(st.files.len(), 50_000);
+    println!("status of 50 000 changed files: {took:?}");
+    assert!(took < std::time::Duration::from_secs(1), "took {took:?}");
+}
+
+#[tokio::test]
+async fn background_fetch_is_non_interactive_and_sees_new_commits() {
+    let g = git();
+    let quiet = g.clone().non_interactive();
+    let bare = tempfile::tempdir().unwrap();
+    g.run(
+        bare.path(),
+        ["init", "--bare", "-b", "main"],
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    let url = bare.path().display().to_string();
+    let (_d1, a) = new_repo(&g).await;
+    let ra = Repo { git: &g, path: &a };
+    ra.remote_add("origin", &url).await.unwrap();
+    write(&a, "x.txt", "1\n");
+    ra.stage_all().await.unwrap();
+    ra.commit("one").await.unwrap();
+    ra.push(None, false, false, None, |_| {}).await.unwrap();
+    let parent = tempfile::tempdir().unwrap();
+    let b = repo::clone(&g, &url, &parent.path().join("copy"), None, |_| {})
+        .await
+        .unwrap();
+
+    // The settings that keep credential windows closed reach git.
+    let cfg = |key: &'static str| {
+        let quiet = quiet.clone();
+        let b = b.clone();
+        async move {
+            quiet
+                .run(
+                    &b,
+                    ["config", "--get", key],
+                    gitpilot_lib::git::runner::RunOpts {
+                        ok_codes: &[1],
+                        ..Default::default()
+                    },
+                )
+                .await
+                .unwrap()
+                .text()
+        }
+    };
+    assert_eq!(cfg("credential.interactive").await.trim(), "false");
+    assert_eq!(cfg("core.askpass").await.trim(), "");
+
+    write(&a, "x.txt", "1\n2\n");
+    ra.stage_all().await.unwrap();
+    ra.commit("two").await.unwrap();
+    ra.push(None, false, false, None, |_| {}).await.unwrap();
+    let rb = Repo {
+        git: &quiet,
+        path: &b,
+    };
+    rb.fetch(None, None, |_| {}).await.unwrap();
+    assert_eq!(rb.status().await.unwrap().branch.behind, Some(1));
+}
+
+#[tokio::test]
+async fn merge_tool_resolves_and_stages_a_conflict() {
+    let g = git();
+    let (_d, root) = new_repo(&g).await;
+    let r = Repo {
+        git: &g,
+        path: &root,
+    };
+    write(&root, "a.txt", "base\n");
+    r.stage_all().await.unwrap();
+    r.commit("base").await.unwrap();
+    r.branch_create("x", None, true).await.unwrap();
+    write(&root, "a.txt", "theirs\n");
+    r.stage_all().await.unwrap();
+    r.commit("theirs").await.unwrap();
+    r.branch_switch("main").await.unwrap();
+    write(&root, "a.txt", "ours\n");
+    r.stage_all().await.unwrap();
+    r.commit("ours").await.unwrap();
+    assert!(r.merge("x").await.is_err(), "conflict expected");
+
+    // A stub tool that takes the incoming side, defined only in this repository.
+    for (k, val) in [
+        ("mergetool.stub.cmd", r#"cp "$REMOTE" "$MERGED""#),
+        ("mergetool.stub.trustExitCode", "true"),
+    ] {
+        g.run(&root, ["config", k, val], Default::default())
+            .await
+            .unwrap();
+    }
+    assert!(r.conflict_mergetool("a.txt", "bad name").await.is_err());
+    r.conflict_mergetool("a.txt", "stub").await.unwrap();
+    assert_eq!(
+        std::fs::read_to_string(root.join("a.txt")).unwrap(),
+        "theirs\n"
+    );
+    let st = r.status().await.unwrap();
+    assert!(
+        st.files.iter().all(|f| f.area != Area::Conflicted),
+        "staged as resolved"
+    );
+    assert!(
+        !root.join("a.txt.orig").exists(),
+        "no backup file left behind"
+    );
 }

@@ -9,6 +9,7 @@ pub mod history;
 pub mod remotes;
 pub mod repos;
 pub mod signing;
+pub mod tools;
 
 use std::path::PathBuf;
 

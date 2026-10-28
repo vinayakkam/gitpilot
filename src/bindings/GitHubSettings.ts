@@ -5,4 +5,8 @@ export type GitHubSettings = {
  * Client ID of a GitHub OAuth app with device flow enabled, used for "Sign in with GitHub".
  * Empty = the ID built into this version of GitPilot, if any.
  */
-clientId: string, };
+clientId: string, 
+/**
+ * Use the GitHub sign-in (when signed in) for clone/fetch/pull/push to https://github.com.
+ */
+useForHttps: boolean, };
