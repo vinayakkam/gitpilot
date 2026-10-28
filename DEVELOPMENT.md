@@ -4,10 +4,10 @@
 
 - **Phase:** 6 — reliability and refinement (implemented on Linux and Windows; Windows verified by the user)
 - **Overall:** core Git workflow, branches, remotes, sync, AI provider integration, Claude Code integration and settings are implemented and verified on Linux against real repositories. Linux packages (deb, AppImage) build and launch.
-- **Current working area:** 0.5.0 — implemented on branch `release/0.5.0` (session 11), not pushed or released yet
-- **Most recently completed:** v0.5.0 (session 11, not released) — Arch in-app updates through pacman, pull request review + merge, issues, GitHub sign-in for HTTPS git, Recover (reflog), history content search, auto-fetch, editors/terminal/merge tool, beginner tips, large-repo speed, accessibility pass. Before that: v0.4.5 (session 10) — multiple windows, worktrees, submodules, Git LFS, commit signing + Verified, OpenCode in the Assistant; checks gate the installer builds. Before that: v0.4.2 (session 9, released as `v0.4.2`) — GitHub sign-in, clone from your repository list, pull requests (list with checks, create, check out), AI explain, AI pull request descriptions, AI conflict help. Before that: v0.4.0 — Batches A–C: everyday Git (amend, undo, tags, stash selected files, discard hunks/lines, auto-refresh), understanding code (blame, commit graph, compare any refs, image previews), conflicts and history (conflict resolver, edit commits, reset with backups) (session 8). Before that: v0.3.1 — readable update notes, Add to .gitignore (session 7)
+- **Current working area:** 0.5.1 — implemented on branch `release/0.5.1` (session 12), not pushed or released yet
+- **Most recently completed:** v0.5.1 (session 12, not released) — auto-fetch every minute by default (15 s and 30 s options), pull request check/review notices, line comments on the PR diff, all PR comments (paged), File or folder in advanced search, one Recover list with backups, focus back after dialogs, keyboard tests. Before that: v0.5.0 (session 11, merged to main as PR #5) — Arch in-app updates through pacman, pull request review + merge, issues, GitHub sign-in for HTTPS git, Recover (reflog), history content search, auto-fetch, editors/terminal/merge tool, beginner tips, large-repo speed, accessibility pass. Before that: v0.4.5 (session 10) — multiple windows, worktrees, submodules, Git LFS, commit signing + Verified, OpenCode in the Assistant; checks gate the installer builds. Before that: v0.4.2 (session 9, released as `v0.4.2`) — GitHub sign-in, clone from your repository list, pull requests (list with checks, create, check out), AI explain, AI pull request descriptions, AI conflict help. Before that: v0.4.0 — Batches A–C: everyday Git (amend, undo, tags, stash selected files, discard hunks/lines, auto-refresh), understanding code (blame, commit graph, compare any refs, image previews), conflicts and history (conflict resolver, edit commits, reset with backups) (session 8). Before that: v0.3.1 — readable update notes, Add to .gitignore (session 7)
 - **Windows:** verified by the user on a real Windows machine (2026-10-21, all features working); this environment still can't build for Windows
-- **Immediate next task:** the user reviews branch `release/0.5.0`, runs "Run workflow" on `build-installers.yml` for that branch so the Windows tests run (A1 of the plan), shares any failures, then merges, tags `v0.5.0` and releases. See "Next-session handoff".
+- **Immediate next task:** the user reviews branch `release/0.5.1`, runs "Run workflow" on `build-installers.yml` (the Linux job now fetches crates before testing, see 67d4ed5), merges, tags `v0.5.1` and releases. See "Next-session handoff".
 
 ## Feature tracker
 
@@ -56,14 +56,20 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 - [~] GitHub sign-in for HTTPS git (0.5.0): header via `GIT_CONFIG_*`, github.com only, on by default. Integration-tested with `git config --get-urlmatch` (no network); not tried against a private repository yet
 - [x] Recover (0.5.0): reflog with lost commits marked, Recover section, Show earlier states, force-deleted branches backed up (integration-tested)
 - [x] History content search (0.5.0): `-S`/`-G`, date range, invalid regex message, matching lines marked (integration-tested)
-- [x] Auto-fetch (0.5.0): quiet non-interactive fetch, backoff, Pull notification (integration + UI tested); the PR checks/reviews notification from the plan isn't done
+- [x] Auto-fetch (0.5.0, 0.5.1): quiet non-interactive fetch, backoff, Pull notification; every 15 s to 30 min (default 1 min); PR checks/review notices, GitHub asked at most once a minute (integration + UI tested; PR notices not tried against GitHub)
 - [~] Editors, terminal, merge tool (0.5.0): detection + line arguments unit-tested, mergetool integration-tested with a stub tool; launching real editors not run on the desktop
 - [x] Beginner tips (0.5.0)
 - [x] Large repo speed (0.5.0): virtualized file list above 300 files; status of 50 000 changed files 0.44 s (opt-in test)
-- [x] Accessibility pass (0.5.0): axe-core checks in component tests (fixed: file list roles), live region for operations, sidebar auto-collapse, app-styled tooltips for `title`. No screen-reader session
+- [x] Accessibility pass (0.5.0, 0.5.1): axe-core checks in component tests (fixed: file list roles), live region for operations, sidebar auto-collapse, app-styled tooltips for `title`, focus returned after dialogs, automated keyboard tests (dialogs, file list, Recover). No screen-reader session and no keyboard walkthrough by hand in the real app
 - [~] Documentation and release preparation (README, CLAUDE.md, INSTALL.md, CHANGELOG, this file; CI builds installers and releases on tags; update packages are signed, installers are not — no code-signing certificate)
 
 ## Work log
+
+### Session 12 — 2026-10-29 (v0.5.1, branch `release/0.5.1`, not pushed)
+- User: Linux CI `cargo test` died with "Bus error" while updating the crates.io index (Windows fine). Fixed on main (67d4ed5): rust-cache key bumped, `cargo fetch --locked` with one retry on a fresh index, `cargo test --locked`. Not yet run in CI.
+- User asked for 0.5.0 release notes (given in chat), then 0.5.1 on its own branch: auto-fetch every minute plus options under a minute, and the items left out of 0.5.0. Plan approved: intervals off/15 s/30 s/1/5/15/30 min, default 1 min (0.5.0 users who had it off stay off); all six left-out items, the hand keyboard walkthrough replaced by automated keyboard tests.
+- Built: `autoFetchSeconds` + settings version 3; PR notices in `useAutoFetch` (`pullNotice`); folder paths in `log` (no `--follow` for folders) + File or folder box; Recover list merged with backups (`recoverRows`, `BackupsSection` removed); `get_all` paging for PR comments and files, `side`/`outdated` on line comments; `DiffViewer` notes; Dialog focus restore (found while writing keyboard tests); keyboard tests with user-event.
+- Checks: strict check script, release `.deb` build.
 
 ### Session 11 — 2026-10-28 (v0.5.0, branch `release/0.5.0`, not pushed)
 - User asked to start 0.5.0 on a new branch, commit a lot, no co-author line, no push, release notes at the end, and to make Arch updates work like Windows (no manual pacman -U). First proposed a fresh plan; the user pointed to the plan from the previous session (`~/.claude/plans/give-me-release-notes-steady-otter.md`), so both were merged (see Roadmap → 0.5.0).
@@ -234,7 +240,8 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 12. **Arch in-app update not run end to end** (session 11): needs a signed release with the `linux-x86_64-pacman` entry and an Arch install. Moving from 0.4.5 still needs one manual `pacman -U`. If pacman's database is locked (another pacman running), the update fails with "pacman couldn't install the update" and the technical details.
 13. **GitHub review, issues and HTTPS sign-in not used against GitHub yet** (session 11): request shapes follow the REST docs (`pulls/{n}`, `/files`, `/reviews`, `/comments`, `issues/{n}/comments`, `commits/{sha}/check-runs` + `/status`, `PUT pulls/{n}/merge` with `sha`, `DELETE git/refs/heads/…`, `issues`); parsers unit-tested with sample JSON. Pull request files: GitHub stops at 3000 files and leaves out patches for big/binary files (shown as "No preview from GitHub").
 14. **Merge tool and editor launches not run on the desktop** (session 11): `git mergetool` is integration-tested with a stub tool; GUI tools (meld etc.) and editor windows were not opened.
-15. **Auto-fetch skips remotes that need a password** by design (non-interactive); it doesn't tell the user, apart from backing off.
+15. **Auto-fetch skips remotes that need a password** by design (non-interactive); it doesn't tell the user, apart from backing off. At 15 s intervals each open window fetches its repository four times a minute; hosts with strict rate limits may refuse, which backs off.
+16. **Pull request comments:** at most 1000 of each kind (comments, reviews, line comments) are read; line comments on lines a later commit changed ("outdated") are listed in the conversation only.
 
 ## Roadmap (agreed with the user, 2026-10-21)
 
@@ -271,6 +278,12 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 - E. Release: version bump, docs, changelog, release notes. Done.
 
 ## Next-session handoff
+
+**0.5.1 (session 12):** branch `release/0.5.1` is committed, not pushed. Before releasing:
+1. Push `main` (has the CI fix) and the branch; run "Run workflow" on `build-installers.yml` and check the Linux job gets past `cargo fetch`/`cargo test`.
+2. Real app: background fetch at 15 s; a PR whose checks change shows a notice within about a minute; PR Files tab shows line comments; History → advanced → `src/`; Recover shows backups and Restore works; Escape/Close returns focus.
+3. Merge to main, tag `v0.5.1`, push the tag.
+
 
 **0.5.0 (session 11):** branch `release/0.5.0` is committed, not pushed. Before releasing:
 1. Push the branch and start "Run workflow" on `build-installers.yml` for it: this runs the Windows tests (plan item A1) and builds every package, including the signed Arch package. Fix whatever Windows reports.

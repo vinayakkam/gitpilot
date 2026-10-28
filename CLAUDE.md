@@ -184,7 +184,7 @@ libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev build-essential file`.
 ## Current implementation state
 
 See `DEVELOPMENT.md` → "Feature tracker", "Current implementation details" and "Known issues" for
-the authoritative status. In short (0.5.0): all core features are implemented and verified on Linux,
+the authoritative status. In short (0.5.1): all core features are implemented and verified on Linux,
 and on Windows by the user (up to 0.4.0); AI: Claude Code provider verified live, the others not.
 0.4.2 (GitHub, AI help), 0.4.5 (windows, worktrees, submodules, LFS, signing, OpenCode) and 0.5.0
 (Arch in-app updates, PR review, issues, GitHub over HTTPS, Recover, content search, auto-fetch,
@@ -244,8 +244,13 @@ Key decisions:
   `redact.rs` strips `Authorization:` values.
 - Background git (auto-fetch): `Git::non_interactive()` clears askpass helpers and sets
   `GCM_INTERACTIVE=never`, `SSH_ASKPASS_REQUIRE=never`, `credential.interactive=false`;
-  `sync_fetch(quiet: true)` gives up if the repo lock is held.
-- Force-deleting a branch first saves its tip with `backup_at` ("deleted branch <name>").
+  `sync_fetch(quiet: true)` gives up if the repo lock is held. Interval: `settings.autoFetchSeconds`
+  (0/15/30/60/300/900/1800; settings version 3 migrated 0.5.0's `autoFetchMinutes`). After a fetch,
+  `useAutoFetch` checks the branch's pull request (at most once a minute) and notifies on check/review changes.
+- Force-deleting a branch first saves its tip with `backup_at` ("deleted branch <name>"). Branches → Recover
+  lists reflog entries and backups together (`recoverRows`); there's no separate Backups section.
+- `DiffViewer` `notes` (old/new line number) put comments under their line; PR line comments use it.
+- `Dialog` returns focus to the element focused before it opened.
 - Tooltips: `TitleTooltips` (mounted once in App) shows every `title` attribute in the app's style;
   prefer plain `title` over wrapping in `Tooltip` for simple hints.
 - The changed-file list is an ARIA grid (rows, rowgroups, gridcells), virtualized above 300 files.
