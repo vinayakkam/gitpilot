@@ -195,6 +195,8 @@ pub struct Settings {
     pub reopen_last_repo: bool,
     /// Refresh the file list as soon as files change on disk.
     pub auto_refresh: bool,
+    /// Fetch the open repository in the background every this many minutes (0 = off).
+    pub auto_fetch_minutes: u32,
     /// Show a notification when operations succeed (errors are always shown).
     pub success_notifications: bool,
     /// Look for a new version on startup (at most once a day).
@@ -225,6 +227,7 @@ impl Default for Settings {
             github: GitHubSettings::default(),
             reopen_last_repo: true,
             auto_refresh: true,
+            auto_fetch_minutes: 15,
             success_notifications: true,
             check_for_updates: true,
             last_repo_id: None,
@@ -266,6 +269,11 @@ impl Settings {
                 "Choose one of the accent colours or enter a colour like #3550c8.",
             ));
         }
+        if !AUTO_FETCH_MINUTES.contains(&self.auto_fetch_minutes) {
+            return Err(AppError::invalid(
+                "Choose how often to fetch: off, 5, 15 or 30 minutes.",
+            ));
+        }
         let b = self.default_branch.trim();
         if !b.is_empty() {
             crate::git::validate::ref_name(b)?;
@@ -291,6 +299,9 @@ impl Settings {
         Ok(())
     }
 }
+
+/// The choices offered for `auto_fetch_minutes`.
+pub const AUTO_FETCH_MINUTES: [u32; 4] = [0, 5, 15, 30];
 
 pub fn load(path: &Path) -> Settings {
     let mut s = load_raw(path);
@@ -391,6 +402,17 @@ mod tests {
         assert_eq!(s.github.client_id, "Ov23abc");
         let s: Settings = serde_json::from_str(r#"{"github":{"useForHttps":false}}"#).unwrap();
         assert!(!s.github.use_for_https);
+    }
+
+    #[test]
+    fn auto_fetch_interval_is_one_of_the_choices() {
+        let mut s = Settings::default();
+        assert_eq!(s.auto_fetch_minutes, 15);
+        assert!(s.validate().is_ok());
+        s.auto_fetch_minutes = 7;
+        assert!(s.validate().is_err());
+        s.auto_fetch_minutes = 0;
+        assert!(s.validate().is_ok());
     }
 
     #[test]

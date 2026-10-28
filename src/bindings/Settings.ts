@@ -44,6 +44,10 @@ reopenLastRepo: boolean,
  */
 autoRefresh: boolean, 
 /**
+ * Fetch the open repository in the background every this many minutes (0 = off).
+ */
+autoFetchMinutes: number, 
+/**
  * Show a notification when operations succeed (errors are always shown).
  */
 successNotifications: boolean, 
