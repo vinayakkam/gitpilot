@@ -1,5 +1,5 @@
 // Typed wrappers around every Tauri command. Components never call invoke() directly.
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { isMainWindow } from "./windows";
 import type { AiProviderKind } from "@/bindings/AiProviderKind";
@@ -57,6 +57,7 @@ import type { SigningScope } from "@/bindings/SigningScope";
 import type { SequenceAction } from "@/bindings/SequenceAction";
 import type { Stash } from "@/bindings/Stash";
 import type { Submodule } from "@/bindings/Submodule";
+import type { UpdateProgress } from "@/bindings/UpdateProgress";
 import type { UpdateSupport } from "@/bindings/UpdateSupport";
 import type { Worktree } from "@/bindings/Worktree";
 
@@ -69,6 +70,11 @@ export const api = {
   secretSet: (provider: AiProviderKind, key: string) => invoke<KeyStatus>("secret_set", { provider, key }),
   secretClear: (provider: AiProviderKind) => invoke<KeyStatus>("secret_clear", { provider }),
   updateSupport: () => invoke<UpdateSupport>("update_support"),
+  updateInstallPacman: (onProgress: (p: UpdateProgress) => void) => {
+    const ch = new Channel<UpdateProgress>();
+    ch.onmessage = onProgress;
+    return invoke<string>("update_install_pacman", { onProgress: ch });
+  },
 
   // repositories
   repoList: () => invoke<RepoRecord[]>("repo_list"),

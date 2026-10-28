@@ -82,7 +82,7 @@ export function UpdateDialog() {
           </p>
         </div>
       )}
-      {phase.kind === "installing" && <p className="mt-3 text-sm text-muted">Installing… On Windows, GitPilot closes and the installer finishes the update.</p>}
+      {phase.kind === "installing" && <p className="mt-3 text-sm text-muted">{support?.installKind === "pacman" ? "Installing with pacman… Enter your password when asked." : "Installing… On Windows, GitPilot closes and the installer finishes the update."}</p>}
       {support?.note && phase.kind !== "restartPending" && <p className="mt-3 text-sm text-muted">{support.note}</p>}
       {phase.kind === "error" && <ErrorNotice className="mt-3" error={phase.error} />}
     </Dialog>

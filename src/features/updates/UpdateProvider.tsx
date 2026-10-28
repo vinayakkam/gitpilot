@@ -4,6 +4,7 @@ import { check, type Update } from "@tauri-apps/plugin-updater";
 import type { AppError } from "@/bindings/AppError";
 import type { UpdateSupport } from "@/bindings/UpdateSupport";
 import { api } from "@/lib/api";
+import { isAppError } from "@/lib/errors";
 import { isMainWindow } from "@/lib/windows";
 import { useStore } from "@/store/AppStore";
 
@@ -66,7 +67,8 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
       busy.current = true;
       setPhase({ kind: "checking" });
       try {
-        const update = await check({ timeout: 30_000 });
+        // Arch installs read their own entry in latest.json (the signed pacman package).
+        const update = await check({ timeout: 30_000, ...(support?.installKind === "pacman" ? { target: "linux-x86_64-pacman" } : {}) });
         try {
           localStorage.setItem(LAST_CHECK, String(Date.now()));
         } catch {
@@ -88,7 +90,7 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
         busy.current = false;
       }
     },
-    [notify],
+    [notify, support],
   );
 
   // Background check shortly after startup, at most once a day.
@@ -116,25 +118,30 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
     let total: number | null = null;
     setPhase({ kind: "downloading", update, done, total });
     try {
-      await update.downloadAndInstall((ev) => {
-        if (ev.event === "Started") {
-          total = ev.data.contentLength ?? null;
-          setPhase({ kind: "downloading", update, done: 0, total });
-        } else if (ev.event === "Progress") {
-          done += ev.data.chunkLength;
-          setPhase({ kind: "downloading", update, done, total });
-        } else if (ev.event === "Finished") {
-          setPhase({ kind: "installing", update });
-        }
-      });
+      if (support?.installKind === "pacman") {
+        // pacman installs the package (asks for the password); the updater's own installer would use dpkg.
+        await api.updateInstallPacman((p) => setPhase(p.total !== null && p.done >= p.total ? { kind: "installing", update } : { kind: "downloading", update, done: p.done, total: p.total }));
+      } else {
+        await update.downloadAndInstall((ev) => {
+          if (ev.event === "Started") {
+            total = ev.data.contentLength ?? null;
+            setPhase({ kind: "downloading", update, done: 0, total });
+          } else if (ev.event === "Progress") {
+            done += ev.data.chunkLength;
+            setPhase({ kind: "downloading", update, done, total });
+          } else if (ev.event === "Finished") {
+            setPhase({ kind: "installing", update });
+          }
+        });
+      }
       // On Windows the installer closes GitPilot itself; elsewhere we restart into the new version.
       setPhase({ kind: "restartPending", update });
     } catch (e) {
-      setPhase({ kind: "error", error: friendly(e, "The update couldn't be installed. GitPilot is unchanged."), update });
+      setPhase({ kind: "error", error: isAppError(e) ? e : friendly(e, "The update couldn't be installed. GitPilot is unchanged."), update });
     } finally {
       busy.current = false;
     }
-  }, [phase]);
+  }, [phase, support]);
 
   const restart = useCallback(async () => {
     await relaunch();
