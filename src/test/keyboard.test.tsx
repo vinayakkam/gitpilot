@@ -11,6 +11,8 @@ vi.mock("@/lib/api", () => ({ api: {}, onProgress: () => Promise.resolve(() => {
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) { this.open = true; };
   HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) { this.open = false; };
+  // jsdom has no layout, so no scrolling either.
+  Element.prototype.scrollIntoView ??= () => {};
 });
 
 function Opener() {
