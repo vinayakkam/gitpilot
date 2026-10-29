@@ -919,16 +919,32 @@ impl Repo<'_> {
             Some(r) => v::revision(r)?.to_string(),
             None => "HEAD".into(),
         };
-        if q.path.is_some() {
+        // A folder ("src" or "src/") limits history to what's inside it. --follow works for single
+        // files only, so it's used just for those.
+        let path = match q
+            .path
+            .as_deref()
+            .map(|p| p.trim().trim_end_matches(['/', '\\']))
+        {
+            Some(p) if !p.is_empty() => Some(v::rel_path(p)?),
+            _ => None,
+        };
+        let folder = path.is_some_and(|p| {
+            q.path
+                .as_deref()
+                .is_some_and(|raw| raw.trim_end().ends_with(['/', '\\']))
+                || self.path.join(p).is_dir()
+        });
+        if path.is_some() && !folder {
             args.push("--follow".into());
-        } else if !filtered {
+        } else if path.is_none() && !filtered {
             // Children before parents, so the commit graph can be drawn.
             args.push("--date-order".into());
         }
         args.push(rev);
         args.push("--".into());
-        if let Some(p) = &q.path {
-            args.push(v::rel_path(p)?.into());
+        if let Some(p) = path {
+            args.push(p.into());
         }
         let raw = self.read(&args).await.map_err(|e| {
             if q.regex && e.detail.as_deref().is_some_and(|d| d.contains("regex")) {
@@ -1144,7 +1160,7 @@ impl Repo<'_> {
             ));
         }
         if force {
-            // -D can drop commits no other branch has, so keep the tip under Branches → Backups.
+            // -D can drop commits no other branch has, so keep the tip as a backup (Branches → Recover).
             self.backup_at(
                 &format!("deleted branch {name}"),
                 &format!("refs/heads/{name}"),

@@ -9,6 +9,7 @@ import type { Hunk } from "@/bindings/Hunk";
 import { Button } from "@/components/ui/Button";
 import { cx } from "@/components/ui/cx";
 import { Badge, EmptyState, ErrorNotice } from "@/components/ui/Misc";
+import { ReleaseNotes } from "@/components/ui/ReleaseNotes";
 import { Segmented } from "@/components/ui/Segmented";
 import { Spinner } from "@/components/ui/Spinner";
 import { highlightLine, languageFor } from "@/lib/highlight";
@@ -64,6 +65,16 @@ interface Props {
   emptyBody?: string;
   /** Marks added/removed lines that match a history content search. */
   match?: (text: string) => boolean;
+  /** Comments shown under the line they're about (pull request line comments). */
+  notes?: DiffNote[];
+}
+
+/** A comment on one line: `side` "old" uses the old file's numbering (removed lines), "new" the new one's. */
+export interface DiffNote {
+  side: "old" | "new";
+  line: number;
+  author: string | null;
+  body: string;
 }
 
 type Ref = { line: DiffLine; li: number };
@@ -71,12 +82,46 @@ type Row =
   | { t: "hunk"; hunk: Hunk; hi: number; key: string }
   | { t: "line"; line: DiffLine; hi: number; li: number; key: string }
   | { t: "pair"; left: Ref | null; right: Ref | null; hi: number; key: string }
-  | { t: "conflict"; index: number; key: string };
+  | { t: "conflict"; index: number; key: string }
+  | { t: "note"; notes: DiffNote[]; key: string };
 
 const LINE_H = 20;
+const NOTE_H = 64;
 const HUNK_H = 30;
 
-function buildRows(diff: FileDiff, mode: DiffMode): Row[] {
+/** Lines a row shows, as "old:N" / "new:N", for placing notes under them. */
+function rowLines(r: Row): string[] {
+  const of = (l: DiffLine | undefined, side?: "old" | "new") => {
+    if (!l) return [];
+    const out: string[] = [];
+    if (side !== "new" && l.oldNo != null && l.kind !== "add") out.push(`old:${l.oldNo}`);
+    if (side !== "old" && l.newNo != null && l.kind !== "del") out.push(`new:${l.newNo}`);
+    return out;
+  };
+  if (r.t === "line") return of(r.line);
+  if (r.t === "pair") return [...of(r.left?.line, "old"), ...of(r.right?.line, "new")];
+  return [];
+}
+
+export function buildRows(diff: FileDiff, mode: DiffMode, notes: DiffNote[] = []): Row[] {
+  const rows = buildLineRows(diff, mode);
+  if (!notes.length) return rows;
+  const pending = new Map<string, DiffNote[]>();
+  for (const n of notes) pending.set(`${n.side}:${n.line}`, [...(pending.get(`${n.side}:${n.line}`) ?? []), n]);
+  const out: Row[] = [];
+  for (const r of rows) {
+    out.push(r);
+    const here = rowLines(r).flatMap((k) => {
+      const ns = pending.get(k) ?? [];
+      pending.delete(k);
+      return ns;
+    });
+    if (here.length) out.push({ t: "note", notes: here, key: `n:${r.key}` });
+  }
+  return out;
+}
+
+function buildLineRows(diff: FileDiff, mode: DiffMode): Row[] {
   const rows: Row[] = [];
   diff.hunks.forEach((h, hi) => {
     if (h.header) rows.push({ t: "hunk", hunk: h, hi, key: `h${hi}` });
@@ -237,7 +282,7 @@ export function diffKey(d: FileDiff | null): string {
   return [d.oldPath, d.newPath, ...d.hunks.map((h) => `${h.header}\n${h.lines.map((l) => `${l.kind}:${l.content}`).join("\n")}`)].join("\u0000");
 }
 
-export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight, hunkAction, lineAction, discardHunk, discardLines, conflict, busy, actions, emptyTitle, emptyBody, match }: Props) {
+export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight, hunkAction, lineAction, discardHunk, discardLines, conflict, busy, actions, emptyTitle, emptyBody, match, notes }: Props) {
   const [sel, setSel] = useState<Selection>(null);
   // A different diff (after staging, or another file) invalidates line indices. A refresh that
   // returns the same content (auto-refresh, window focus) keeps the selection.
@@ -267,7 +312,8 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
   const path = diff?.newPath ?? diff?.oldPath ?? null;
   const lang = highlight ? languageFor(path) : null;
   const effectiveMode: DiffMode = diff?.conflictView ? "unified" : mode;
-  const rows = useMemo(() => (diff ? buildRows(diff, effectiveMode) : []), [diff, effectiveMode]);
+  const rows = useMemo(() => (diff ? buildRows(diff, effectiveMode, notes) : []), [diff, effectiveMode, notes]);
+  const hasNotes = rows.some((r) => r.t === "note");
 
   const { maxLen, mixedEol } = useMemo(() => {
     let m = 0;
@@ -288,10 +334,11 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
   const virt = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: (i) => (rows[i]?.t === "hunk" || rows[i]?.t === "conflict" ? HUNK_H : LINE_H),
+    estimateSize: (i) => (rows[i]?.t === "note" ? NOTE_H : rows[i]?.t === "hunk" || rows[i]?.t === "conflict" ? HUNK_H : LINE_H),
     overscan: 24,
     // Side-by-side wraps long lines, so rows are measured; unified rows have a fixed height.
-    measureElement: effectiveMode === "split" && !diff?.conflictView ? (el) => el.getBoundingClientRect().height : undefined,
+    // Notes have their own height, so rows are measured when there are any.
+    measureElement: (effectiveMode === "split" && !diff?.conflictView) || hasNotes ? (el) => el.getBoundingClientRect().height : undefined,
   });
   const split = effectiveMode === "split";
   // Hunk headers stay pinned to the visible width while the code scrolls horizontally.
@@ -343,10 +390,22 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
         <div style={{ height: virt.getTotalSize(), minWidth: contentWidth, width: "100%", position: "relative" }}>
           {virt.getVirtualItems().map((vi) => {
             const r = rows[vi.index]!;
-            const style = split
+            const measured = split || hasNotes;
+            const style = measured
               ? { position: "absolute" as const, top: 0, left: 0, right: 0, transform: `translateY(${vi.start}px)` }
               : { position: "absolute" as const, top: vi.start, left: 0, right: 0, height: vi.size };
-            const measure = split ? { ref: virt.measureElement, "data-index": vi.index } : {};
+            const measure = measured ? { ref: virt.measureElement, "data-index": vi.index } : {};
+            if (r.t === "note")
+              return (
+                <div key={r.key} style={style} {...measure} className="py-1 pl-24 pr-4 font-sans">
+                  {r.notes.map((n, i) => (
+                    <div key={i} role="note" aria-label={`Comment by ${n.author ?? "someone"}`} className="mb-1 rounded border border-border bg-surface px-3 py-1.5 text-sm last:mb-0">
+                      <span className="font-medium">{n.author ?? "someone"}</span>
+                      <ReleaseNotes source={n.body} className="selectable mt-0.5 text-base" />
+                    </div>
+                  ))}
+                </div>
+              );
             if (r.t === "conflict")
               return (
                 <div key={r.key} style={style} {...measure} className="flex items-center gap-2 border-y border-conflict/30 bg-conflict-bg pl-3 pr-2 font-sans text-sm">

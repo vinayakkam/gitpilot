@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.1 — 2026-10-29
+
+### Background fetch
+- **Every minute by default**, and as often as every 15 or 30 seconds (Settings → General → Fetch in the background). If you turned background fetch off in 0.5.0, it stays off.
+- **Pull request news.** When you're signed in to GitHub, background fetch also tells you when your branch's pull request passes or fails its checks, is approved, or gets change requests. GitHub is asked at most once a minute.
+
+### Pull requests
+- **Line comments on the diff.** In a pull request's Files tab, review comments appear under the line they're about. Comments on lines that have since changed stay in the conversation.
+- **Long discussions.** Pull requests with more than 100 comments, reviews or line comments now show all of them (up to 1,000 of each).
+
+### History and Recover
+- **File or folder in advanced search.** The sliders button next to History's search has a **File or folder** box, so you can see only the commits that touched `src/` or one file, combined with text and date filters.
+- **One Recover list.** Branches → Recover now shows GitPilot's backups (from resets, commit edits and force-deleted branches) together with the repository's earlier states, newest first. **Restore**, **Create branch** and **Delete** work as before; the separate Backups list is gone.
+
+### Fixed
+- Closing a dialog puts keyboard focus back where it was.
+
 ## 0.5.0 — 2026-10-28
 
 ### Updates on Arch and CachyOS

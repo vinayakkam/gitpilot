@@ -13,7 +13,7 @@ const MODES: { value: ResetMode; title: string; body: string }[] = [
   { value: "hard", title: "Discard everything after it", body: "The branch and your files go back to exactly this commit. Uncommitted work is saved in the backup too." },
 ];
 
-/** Moves the current branch to a commit. A backup is always saved first (Branches → Backups). */
+/** Moves the current branch to a commit. A backup is always saved first (Branches → Recover). */
 export function ResetDialog({ target, onClose }: { target: { hash: string; label: string } | null; onClose: () => void }) {
   const { activeRepo, status, run, notify } = useStore();
   const [mode, setMode] = useState<ResetMode>("mixed");
@@ -33,7 +33,7 @@ export function ResetDialog({ target, onClose }: { target: { hash: string; label
     const b = await run("Reset", () => api.branchReset(activeRepo.id, target.hash, mode));
     setBusy(false);
     if (b) {
-      notify({ tone: "success", title: `Reset ${branch} to ${target.hash.slice(0, 7)}`, body: "A backup of the previous state is under Branches → Backups." });
+      notify({ tone: "success", title: `Reset ${branch} to ${target.hash.slice(0, 7)}`, body: "A backup of the previous state is under Branches → Recover." });
       onClose();
     }
   };

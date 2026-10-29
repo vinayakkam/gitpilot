@@ -99,11 +99,14 @@ function GeneralPane({ settings, set }: PaneProps) {
         <Switch label="Refresh automatically when files change" description="The file list updates as soon as you save in your editor. Files ignored by .gitignore (like node_modules) are skipped. When off, GitPilot refreshes when you switch back to it." checked={settings.autoRefresh} onChange={(autoRefresh) => void set({ autoRefresh })} />
         <Field label="Fetch in the background" hint="Checks the remote for new commits and tells you when your branch can pull. It never asks for a password: if the remote needs one, fetch once yourself.">
           {(p) => (
-            <Select {...p} value={settings.autoFetchMinutes} onChange={(e) => void set({ autoFetchMinutes: Number(e.target.value) })}>
+            <Select {...p} value={settings.autoFetchSeconds} onChange={(e) => void set({ autoFetchSeconds: Number(e.target.value) })}>
               <option value={0}>Off</option>
-              <option value={5}>Every 5 minutes</option>
-              <option value={15}>Every 15 minutes</option>
-              <option value={30}>Every 30 minutes</option>
+              <option value={15}>Every 15 seconds</option>
+              <option value={30}>Every 30 seconds</option>
+              <option value={60}>Every minute</option>
+              <option value={300}>Every 5 minutes</option>
+              <option value={900}>Every 15 minutes</option>
+              <option value={1800}>Every 30 minutes</option>
             </Select>
           )}
         </Field>

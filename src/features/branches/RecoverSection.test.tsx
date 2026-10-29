@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { expectNoAxeViolations } from "@/test/axe";
 import { AppStoreProvider } from "@/store/AppStore";
 import { repo, settings, status } from "@/test/fixtures";
-import { describeReflog, RecoverSection } from "./RecoverSection";
+import { describeReflog, RecoverSection, recoverRows } from "./RecoverSection";
 
 const api = vi.hoisted(() => ({
   settingsGet: vi.fn(),
@@ -11,6 +11,9 @@ const api = vi.hoisted(() => ({
   repoOpen: vi.fn(),
   status: vi.fn(),
   reflogList: vi.fn(),
+  backupList: vi.fn(),
+  backupRestore: vi.fn(),
+  backupDelete: vi.fn(),
   branchCreate: vi.fn(),
 }));
 vi.mock("@/lib/api", () => ({ api, onProgress: () => Promise.resolve(() => {}) }));
@@ -30,10 +33,14 @@ beforeEach(() => {
     entry(2, "abc", "commit (initial)", "One", "One"),
   ]);
   api.branchCreate.mockResolvedValue(undefined);
+  api.backupList.mockResolvedValue([backup]);
+  api.backupRestore.mockResolvedValue(undefined);
   HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) { this.open = true; };
   HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) { this.open = false; };
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
 });
+
+const backup = { name: "refs/gitpilot/backups/1699999999500", hash: "bak1234", subject: "Saved state", time: 1_699_999_999, label: "deleted branch topic", wip: null };
 
 const setup = () => render(<AppStoreProvider><RecoverSection /></AppStoreProvider>);
 
@@ -48,7 +55,41 @@ describe("describeReflog", () => {
   });
 });
 
+describe("recoverRows", () => {
+  it("merges reflog and backups newest first; backups survive the lost filter", () => {
+    const reflog = [entry(0, "a", "commit", "", "A", false), entry(3, "b", "commit", "", "B", true)];
+    const b = { ...backup, time: 1_699_999_998 };
+    expect(recoverRows(reflog, [b], false).map((r) => r.kind)).toEqual(["reflog", "backup", "reflog"]);
+    expect(recoverRows(reflog, [b], true).map((r) => (r.kind === "reflog" ? r.e.hash : r.b.hash))).toEqual(["bak1234", "b"]);
+  });
+});
+
 describe("RecoverSection", () => {
+  it("reaches each row's actions with Tab", async () => {
+    const user = (await import("@testing-library/user-event")).default.setup();
+    setup();
+    const section = await screen.findByRole("region", { name: "Recover" });
+    await within(section).findByText("Backup (deleted branch topic)");
+    const reached = new Set<string>();
+    for (let i = 0; i < 25; i++) {
+      await user.tab();
+      const el = document.activeElement;
+      if (el && section.contains(el)) reached.add(el.getAttribute("aria-label") ?? el.textContent ?? "");
+    }
+    expect([...reached]).toEqual(expect.arrayContaining(["Create branch here…", "Restore", "Create branch from this backup…", "Delete backup…"]));
+  });
+
+  it("restores a backup after confirming", async () => {
+    setup();
+    const section = await screen.findByRole("region", { name: "Recover" });
+    expect(await within(section).findByText("Backup (deleted branch topic)")).toBeInTheDocument();
+    fireEvent.click(within(section).getByRole("button", { name: "Restore" }));
+    const dialog = await screen.findByRole("dialog", { name: "Restore this backup?" });
+    fireEvent.click(within(dialog).getByRole("checkbox"));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Restore" }));
+    await vi.waitFor(() => expect(api.backupRestore).toHaveBeenCalledWith(1, backup.name));
+  });
+
   it("has no accessibility violations", async () => {
     setup();
     await screen.findByRole("region", { name: "Recover" });

@@ -142,7 +142,11 @@ export function HistoryView() {
   const [since, setSince] = useState("");
   const [until, setUntil] = useState("");
   const dates = advanced ? { since: since || null, until: until || null } : { since: null, until: null };
-  const filtered = !!(q.trim() || historyPath || content || dates.since || dates.until);
+  const [folderInput, setFolderInput] = useState("");
+  const folder = useDebounced(advanced ? folderInput.trim() : "", 400);
+  // File history (from a file's menu) wins over the advanced search's file or folder.
+  const path = historyPath ?? (folder || null);
+  const filtered = !!(q.trim() || path || content || dates.since || dates.until);
   const match = useMemo(() => contentMatcher(content, regex), [content, regex]);
   const [commits, setCommits] = useState<CommitSummary[]>([]);
   // The graph only makes sense for the full, unfiltered history.
@@ -194,7 +198,7 @@ export function HistoryView() {
       const s = ++seq.current;
       setLoading(true);
       try {
-        const page = await api.log(id, { rev: null, skip, limit: PAGE, search: q.trim() || null, path: historyPath, content: content || null, regex, ...dates });
+        const page = await api.log(id, { rev: null, skip, limit: PAGE, search: q.trim() || null, path, content: content || null, regex, ...dates });
         if (s !== seq.current) return;
         setCommits((prev) => (skip === 0 ? page.commits : [...prev, ...page.commits]));
         setHasMore(page.hasMore);
@@ -206,7 +210,7 @@ export function HistoryView() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `dates` is rebuilt every render; its parts are listed.
-    [id, q, historyPath, content, regex, dates.since, dates.until],
+    [id, q, path, content, regex, dates.since, dates.until],
   );
 
   // Reload when the query/filter changes, after operations, or when HEAD moves.
@@ -219,7 +223,7 @@ export function HistoryView() {
   }, [commits, sel]);
   useEffect(() => {
     setSel(null);
-  }, [id, q, historyPath, content, regex, dates.since, dates.until]);
+  }, [id, q, path, content, regex, dates.since, dates.until]);
   // When HEAD moves (commit, reset, edited commits), the selected commit may no longer be on
   // the branch: start again from the newest one.
   const lastHead = useRef(headOid);
@@ -241,7 +245,8 @@ export function HistoryView() {
       (d) => {
         if (c) return;
         setDetail(d);
-        const keep = historyPath ? d.files.find((f) => f.path === historyPath || f.origPath === historyPath) : null;
+        const inside = path?.replace(/[\\/]+$/, "");
+        const keep = inside ? d.files.find((f) => f.path === inside || f.origPath === inside || f.path.startsWith(`${inside}/`)) : null;
         setFile(keep ?? d.files[0] ?? null);
       },
       (e) => !c && setDetailErr(toAppError(e)),
@@ -249,7 +254,7 @@ export function HistoryView() {
     return () => {
       c = true;
     };
-  }, [id, sel, historyPath]);
+  }, [id, sel, path]);
 
   useEffect(() => {
     if (id == null || !sel || !file) {
@@ -316,6 +321,14 @@ export function HistoryView() {
           {advanced && (
             <div className="flex flex-col gap-1.5 rounded border border-border p-2" role="group" aria-label="Advanced search">
               <Input aria-label="Text in changes" placeholder="Text added or removed by the commit" className="font-mono" value={contentInput} onChange={(e) => setContentInput(e.target.value)} />
+              <Input
+                aria-label="File or folder"
+                placeholder={historyPath ? "Showing one file's history" : "File or folder, e.g. src/ or README.md"}
+                className="font-mono"
+                disabled={!!historyPath}
+                value={folderInput}
+                onChange={(e) => setFolderInput(e.target.value)}
+              />
               <Checkbox checked={regex} onChange={setRegex} label="Regular expression (matches changed lines)" />
               <div className="flex items-center gap-1.5 text-sm text-muted">
                 <label className="flex items-center gap-1.5">
@@ -358,7 +371,7 @@ export function HistoryView() {
           {error && <ErrorNotice className="m-2" error={error} />}
           {!error && commits.length === 0 && !loading && (
             <EmptyState icon={<GitCommitHorizontal size={22} />} title={filtered ? "No matching commits" : "No commits yet"}>
-              {q ? `Nothing matches “${q}”.` : content ? `No commit changes “${content}”.` : dates.since || dates.until ? "No commits in that date range." : historyPath ? "This file has no committed history." : "Commits you make will be listed here."}
+              {q ? `Nothing matches “${q}”.` : content ? `No commit changes “${content}”.` : dates.since || dates.until ? "No commits in that date range." : historyPath ? "This file has no committed history." : folder ? `No commits changed “${folder}”.` : "Commits you make will be listed here."}
             </EmptyState>
           )}
           {commits.map((c, i) => (
