@@ -20,16 +20,45 @@ const api = vi.hoisted(() => ({
   githubPullMerge: vi.fn(),
   githubPullDeleteBranch: vi.fn(),
   aiExplain: vi.fn(),
+  githubPullLineComment: vi.fn(),
+  githubPullReply: vi.fn(),
+  githubPullReady: vi.fn(),
+  githubPullRequestReviewers: vi.fn(),
+  githubPullSetLabels: vi.fn(),
+  githubLabels: vi.fn(),
+  githubReviewerCandidates: vi.fn(),
+  githubPullRerunFailed: vi.fn(),
 }));
 vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({ writeText: vi.fn(() => Promise.resolve()) }));
 vi.mock("@/lib/api", () => ({ api, onProgress: () => Promise.resolve(() => {}) }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn(() => Promise.resolve()) }));
 // The real viewer needs layout (ResizeObserver); show the changed lines as text instead.
 vi.mock("@/features/diff/DiffViewer", () => ({
-  DiffViewer: ({ diff, notes }: { diff: { hunks: { lines: { content: string }[] }[] } | null; notes?: { line: number; body: string }[] }) => (
+  DiffViewer: ({
+    diff,
+    notes,
+    onLineComment,
+    composer,
+  }: {
+    diff: { hunks: { lines: { content: string }[] }[] } | null;
+    notes?: { line: number; body: string; extra?: React.ReactNode }[];
+    onLineComment?: (side: "old" | "new", line: number, text: string) => void;
+    composer?: { node: React.ReactNode } | null;
+  }) => (
     <>
       <pre>{diff?.hunks.flatMap((h) => h.lines.map((l) => l.content)).join("\n")}</pre>
-      {notes?.map((n) => <p key={n.body}>{`line ${n.line}: ${n.body}`}</p>)}
+      {onLineComment && (
+        <button type="button" onClick={() => onLineComment("new", 1, "new line")}>
+          Comment on line 1
+        </button>
+      )}
+      {notes?.map((n) => (
+        <div key={n.body}>
+          <p>{`line ${n.line}: ${n.body}`}</p>
+          {n.extra}
+        </div>
+      ))}
+      {composer?.node}
     </>
   ),
 }));
@@ -51,6 +80,9 @@ beforeEach(() => {
   api.githubPullChecks.mockResolvedValue([{ name: "build", result: "failure", url: "https://github.com/x" }]);
   api.githubPullReview.mockResolvedValue(undefined);
   api.githubPullMerge.mockResolvedValue(undefined);
+  api.githubLabels.mockResolvedValue([{ name: "bug", color: "d73a4a", description: "Something broke" }, { name: "docs", color: "0075ca", description: "" }]);
+  api.githubReviewerCandidates.mockResolvedValue(["ann", "bob", "cy"]);
+  for (const f of [api.githubPullLineComment, api.githubPullReply, api.githubPullReady, api.githubPullRequestReviewers, api.githubPullSetLabels]) f.mockResolvedValue(undefined);
   HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) { this.open = true; };
   HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) { this.open = false; };
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
@@ -129,6 +161,76 @@ describe("PullReviewDialog", () => {
     setup();
     expect(await screen.findByText(/has conflicts with its base branch/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Merge" })).toBeDisabled();
+  });
+});
+
+describe("PullReviewDialog: working with others", () => {
+  it("comments on a line with a suggested change", async () => {
+    setup();
+    fireEvent.click(await screen.findByRole("button", { name: "Comment on line 1" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Suggest a change" }));
+    const box = screen.getByLabelText("Comment on line 1");
+    expect(box).toHaveValue("```suggestion\nnew line\n```");
+    fireEvent.change(box, { target: { value: "```suggestion\nnewer line\n```" } });
+    fireEvent.click(within(box.parentElement!).getByRole("button", { name: "Comment" }));
+    await waitFor(() => expect(api.githubPullLineComment).toHaveBeenCalledWith("me", "app", 7, "abc1234", "a.ts", 1, "RIGHT", "```suggestion\nnewer line\n```"));
+    await waitFor(() => expect(screen.queryByLabelText("Comment on line 1")).not.toBeInTheDocument());
+  });
+
+  it("shows replies under their thread and replies to the first comment", async () => {
+    api.githubPullConversation.mockResolvedValue([
+      { id: 10, replyTo: null, kind: "reviewComment", author: "bob", body: "Use a const", createdAt: "1", reviewState: null, path: "a.ts", line: 1, side: "RIGHT", outdated: false, url: "u" },
+      { id: 11, replyTo: 10, kind: "reviewComment", author: "ann", body: "Done", createdAt: "2", reviewState: null, path: "a.ts", line: 1, side: "RIGHT", outdated: false, url: "u" },
+    ]);
+    setup();
+    expect(await screen.findByText("line 1: Use a const")).toBeInTheDocument();
+    expect(screen.getByText("Done")).toBeInTheDocument();
+    expect(screen.queryByText("line 1: Done")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reply" }));
+    fireEvent.change(screen.getByLabelText("Your reply"), { target: { value: "Thanks" } });
+    fireEvent.click(screen.getByRole("button", { name: "Reply" }));
+    await waitFor(() => expect(api.githubPullReply).toHaveBeenCalledWith("me", "app", 7, 10, "Thanks"));
+  });
+
+  it("marks a draft ready for review", async () => {
+    api.githubPullDetail.mockResolvedValue({ ...detail, draft: true });
+    setup();
+    fireEvent.click(await screen.findByRole("button", { name: "Ready for review" }));
+    await waitFor(() => expect(api.githubPullReady).toHaveBeenCalledWith("PR_7"));
+  });
+
+  it("asks for reviews from people not asked yet", async () => {
+    api.githubPullDetail.mockResolvedValue({ ...detail, requestedReviewers: ["bob"] });
+    setup();
+    fireEvent.click(await screen.findByRole("button", { name: "Ask for a review" }));
+    const dlg = await screen.findByRole("dialog", { name: "Ask for a review" });
+    await within(dlg).findByLabelText("cy");
+    expect(within(dlg).queryByLabelText("ann")).not.toBeInTheDocument();
+    expect(within(dlg).queryByLabelText("bob")).not.toBeInTheDocument();
+    fireEvent.click(within(dlg).getByLabelText("cy"));
+    fireEvent.click(within(dlg).getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(api.githubPullRequestReviewers).toHaveBeenCalledWith("me", "app", 7, ["cy"]));
+  });
+
+  it("sets labels", async () => {
+    api.githubPullDetail.mockResolvedValue({ ...detail, labels: ["bug"] });
+    setup();
+    fireEvent.click(await screen.findByRole("button", { name: "Edit labels" }));
+    const dlg = await screen.findByRole("dialog", { name: "Labels" });
+    expect(await within(dlg).findByRole("checkbox", { name: /bug/ })).toBeChecked();
+    fireEvent.click(within(dlg).getByRole("checkbox", { name: /bug/ }));
+    fireEvent.click(within(dlg).getByRole("checkbox", { name: /docs/ }));
+    fireEvent.click(within(dlg).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(api.githubPullSetLabels).toHaveBeenCalledWith("me", "app", 7, ["docs"]));
+  });
+
+  it("re-runs failed checks and says when none can be", async () => {
+    api.githubPullRerunFailed.mockResolvedValue(0);
+    setup();
+    fireEvent.click(await screen.findByRole("radio", { name: "Checks" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Re-run failed checks" }));
+    await waitFor(() => expect(api.githubPullRerunFailed).toHaveBeenCalledWith("me", "app", "abc1234"));
+    expect(await screen.findByText("Nothing to run again")).toBeInTheDocument();
   });
 });
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CircleCheck, CircleDot, CircleMinus, CircleX, ExternalLink, MessageSquare, Sparkles } from "lucide-react";
+import { CircleCheck, CircleDot, CircleMinus, CircleX, ExternalLink, MessageSquare, Reply, RotateCcw, Sparkles, Tag, UserPlus } from "lucide-react";
 import type { CheckRun } from "@/bindings/CheckRun";
 import type { GitHubRepoRef } from "@/bindings/GitHubRepoRef";
 import type { MergeMethod } from "@/bindings/MergeMethod";
@@ -16,6 +16,8 @@ import { Segmented } from "@/components/ui/Segmented";
 import { Spinner } from "@/components/ui/Spinner";
 import { StatusGlyph } from "@/components/ui/StatusGlyph";
 import { DiffViewer, type DiffNote } from "@/features/diff/DiffViewer";
+import { PickListDialog } from "./PickListDialog";
+import { showSuggestions, suggestionBlock } from "./suggestions";
 import { ExplainDialog, type ExplainRequest } from "@/features/assistant/ExplainDialog";
 import { api } from "@/lib/api";
 import { toAppError } from "@/lib/errors";
@@ -53,7 +55,7 @@ function change(status: string) {
   return status === "added" ? "added" : status === "removed" ? "deleted" : status === "renamed" ? "renamed" : "modified";
 }
 
-function Comment({ c }: { c: PullComment }) {
+function Comment({ c, reply }: { c: PullComment; reply?: (body: string) => Promise<void> }) {
   const t = Date.parse(c.createdAt);
   const review = c.reviewState ? REVIEW_LABEL[c.reviewState] : undefined;
   return (
@@ -72,18 +74,118 @@ function Comment({ c }: { c: PullComment }) {
         {!Number.isNaN(t) && <span className="text-faint">{relativeTime(t / 1000)}</span>}
         <IconButton size="sm" label="Open on GitHub" icon={<ExternalLink size={12} />} onClick={() => void openLink(c.url)} />
       </header>
-      {c.body.trim() ? <ReleaseNotes source={c.body} className="selectable px-3 py-2 text-base" /> : <p className="px-3 py-2 text-sm text-faint">No comment.</p>}
+      {c.body.trim() ? <ReleaseNotes source={showSuggestions(c.body)} className="selectable px-3 py-2 text-base" /> : <p className="px-3 py-2 text-sm text-faint">No comment.</p>}
+      {reply && (
+        <div className="px-3 pb-2">
+          <ReplyBox send={reply} />
+        </div>
+      )}
     </article>
   );
 }
 
-/** Line comments on `path` that still point at a line in the diff, for showing under that line. */
-export function lineNotes(comments: PullComment[], path: string | undefined): DiffNote[] {
-  if (!path) return [];
-  return comments
-    .filter((c) => c.kind === "reviewComment" && c.path === path && !c.outdated && c.line != null)
-    .map((c) => ({ side: c.side === "LEFT" ? "old" : "new", line: c.line!, author: c.author, body: c.body }));
+/** A "Reply" button that opens a small composer; `send` throws to keep the text. */
+export function ReplyBox({ send }: { send: (body: string) => Promise<void> }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (!open)
+    return (
+      <Button size="sm" variant="ghost" icon={<Reply size={12} />} onClick={() => setOpen(true)} className="mt-1">
+        Reply
+      </Button>
+    );
+  return (
+    <div className="mt-2 flex flex-col gap-1.5">
+      <TextArea aria-label="Your reply" rows={2} value={text} autoFocus onChange={(e) => setText(e.target.value)} />
+      <div className="flex justify-end gap-2">
+        <Button size="sm" disabled={busy} onClick={() => setOpen(false)}>
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={!text.trim()}
+          loading={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await send(text);
+              setText("");
+              setOpen(false);
+            } catch {
+              // Reported by the caller; the text stays.
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Reply
+        </Button>
+      </div>
+    </div>
+  );
 }
+
+/** Root line comments of each thread (replies are listed with their root, not as roots). */
+export function threadRoots(comments: PullComment[]): PullComment[] {
+  return comments.filter((c) => c.kind === "reviewComment" && c.replyTo == null);
+}
+
+export function repliesTo(comments: PullComment[], id: number): PullComment[] {
+  return comments.filter((c) => c.kind === "reviewComment" && c.replyTo === id);
+}
+
+/** Line comment threads on `path` that still point at a line in the diff, for showing under that line. */
+export function lineNotes(comments: PullComment[], path: string | undefined, extra?: (root: PullComment) => DiffNote["extra"]): DiffNote[] {
+  if (!path) return [];
+  return threadRoots(comments)
+    .filter((c) => c.path === path && !c.outdated && c.line != null)
+    .map((c) => ({ side: c.side === "LEFT" ? "old" : "new", line: c.line!, author: c.author, body: showSuggestions(c.body), ...(extra ? { extra: extra(c) } : {}) }));
+}
+
+/** A new comment on one line, with an optional suggested change that starts from the line's text. */
+function LineComposer({ where, send, onCancel }: { where: Composing; send: (body: string) => Promise<void>; onCancel: () => void }) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="flex flex-col gap-1.5 rounded border border-accent bg-surface p-2">
+      <span className="text-sm text-muted">
+        Comment on {where.side === "old" ? "removed " : ""}line {where.line}
+      </span>
+      <TextArea aria-label={`Comment on line ${where.line}`} rows={3} value={text} autoFocus onChange={(e) => setText(e.target.value)} placeholder="Leave a comment (Markdown)" />
+      <div className="flex gap-2">
+        {where.side === "new" && (
+          <Button size="sm" variant="ghost" title="Propose new text for this line; the author can commit it on GitHub" onClick={() => setText((t) => (t ? t + "\n\n" : "") + suggestionBlock(where.text))}>
+            Suggest a change
+          </Button>
+        )}
+        <span className="flex-1" />
+        <Button size="sm" disabled={busy} onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={!text.trim()}
+          loading={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await send(text);
+            } catch {
+              setBusy(false);
+            }
+          }}
+        >
+          Comment
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+type Composing = { path: string; side: "old" | "new"; line: number; text: string };
 
 /** Review a pull request without leaving GitPilot: files, conversation, checks, review and merge. */
 export function PullReviewDialog({ target, number, onClose, onChanged }: { target: GitHubRepoRef; number: number | null; onClose: () => void; onChanged: () => void }) {
@@ -103,19 +205,59 @@ export function PullReviewDialog({ target, number, onClose, onChanged }: { targe
   const [sending, setSending] = useState<ReviewEvent | null>(null);
   const [method, setMethod] = useState<MergeMethod>("merge");
   const [confirm, setConfirm] = useState<"merge" | "deleteBranch" | null>(null);
+  const [composing, setComposing] = useState<Composing | null>(null);
+  const [picking, setPicking] = useState<"reviewers" | "labels" | null>(null);
+  const [working, setWorking] = useState<"ready" | "rerun" | null>(null);
+  const candidates = useAsync(() => api.githubReviewerCandidates(target.owner, target.name), [target.fullName], picking === "reviewers");
+  const labels = useAsync(() => api.githubLabels(target.owner, target.name), [target.fullName], open);
 
   useEffect(() => {
     if (open) {
       setTab("files");
       setFile(null);
       setText("");
+      setComposing(null);
     }
   }, [open, n]);
   useEffect(() => {
     if (!file && files.data?.[0]) setFile(files.data[0].path);
   }, [files.data, file]);
   const selected = files.data?.find((f) => f.path === file) ?? null;
-  const notes = useMemo(() => lineNotes(talk.data ?? [], selected?.path), [talk.data, selected?.path]);
+
+  /** Runs a GitHub change, tells the user, and reloads what it affected. Rethrows so forms keep their text. */
+  const act = async (run: () => Promise<unknown>, done: string, reload: { detail?: boolean; talk?: boolean; checks?: boolean }) => {
+    try {
+      await run();
+    } catch (e) {
+      notify({ tone: "error", title: "GitHub didn't accept that", error: toAppError(e) });
+      throw e;
+    }
+    notify({ tone: "success", title: done });
+    if (reload.detail) void detail.reload();
+    if (reload.talk) void talk.reload();
+    if (reload.checks) void checks.reload();
+    onChanged();
+  };
+  const reply = (root: PullComment) => (body: string) => act(() => api.githubPullReply(target.owner, target.name, n, root.id, body), "Reply posted", { talk: true });
+  const all = talk.data ?? [];
+  const notes = useMemo(
+    () =>
+      lineNotes(all, selected?.path, (root) => (
+        <>
+          {repliesTo(all, root.id).map((r) => (
+            <div key={r.id} className="mt-1.5 border-l-2 border-border pl-2">
+              <span className="text-sm font-medium">{r.author ?? "someone"}</span>
+              <ReleaseNotes source={showSuggestions(r.body)} className="selectable text-base" />
+            </div>
+          ))}
+          {d?.state === "open" && <ReplyBox send={reply(root)} />}
+        </>
+      )),
+    // `reply` only closes over values in these deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [talk.data, selected?.path, d?.state],
+  );
+  const failed = checks.data?.some((c) => ["failure", "timedOut", "cancelled"].includes(c.result)) ?? false;
 
   const send = async (event: ReviewEvent | "plain") => {
     setSending(event === "plain" ? "comment" : event);
@@ -196,6 +338,20 @@ export function PullReviewDialog({ target, number, onClose, onChanged }: { targe
             <Badge tone={d.state === "open" ? "success" : d.state === "merged" ? "accent" : "neutral"}>{d.state}</Badge>
             {d.draft && <Badge>draft</Badge>}
             {d.crossRepository && <Badge title="The changes come from another repository">from a fork</Badge>}
+            {d.draft && d.state === "open" && (
+              <Button
+                size="sm"
+                variant="primary"
+                loading={working === "ready"}
+                onClick={async () => {
+                  setWorking("ready");
+                  await act(() => api.githubPullReady(d.nodeId), `#${n} is ready for review`, { detail: true }).catch(() => {});
+                  setWorking(null);
+                }}
+              >
+                Ready for review
+              </Button>
+            )}
             <span className="flex-1" />
             {activeRepo && (
               <Button
@@ -218,6 +374,36 @@ export function PullReviewDialog({ target, number, onClose, onChanged }: { targe
               ]}
             />
           </div>
+          <dl className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1.5 rounded border border-border bg-surface-2 px-3 py-2 text-sm">
+            <dt className="text-muted">Reviewers</dt>
+            <dd className="flex flex-wrap items-center gap-1.5">
+              {d.requestedReviewers.length ? d.requestedReviewers.map((r) => <Badge key={r}>{r}</Badge>) : <span className="text-faint">Nobody asked yet</span>}
+              {d.state === "open" && (
+                <Button size="sm" variant="ghost" icon={<UserPlus size={12} />} onClick={() => setPicking("reviewers")}>
+                  Ask for a review
+                </Button>
+              )}
+            </dd>
+            <dt className="text-muted">Labels</dt>
+            <dd className="flex flex-wrap items-center gap-1.5">
+              {d.labels.length ? (
+                d.labels.map((l) => {
+                  const color = labels.data?.find((x) => x.name === l)?.color;
+                  return (
+                    <span key={l} className="inline-flex h-[18px] items-center gap-1 rounded-sm bg-surface-3 px-1.5 text-xs font-medium">
+                      {color && <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: `#${color}` }} />}
+                      {l}
+                    </span>
+                  );
+                })
+              ) : (
+                <span className="text-faint">None</span>
+              )}
+              <Button size="sm" variant="ghost" icon={<Tag size={12} />} onClick={() => setPicking("labels")}>
+                Edit labels
+              </Button>
+            </dd>
+          </dl>
           {mergeNote && <p className="text-sm text-warning">{mergeNote}</p>}
 
           {tab === "files" && (
@@ -258,6 +444,26 @@ export function PullReviewDialog({ target, number, onClose, onChanged }: { targe
                     onModeChange={(m) => void saveSettings({ diffMode: m })}
                     highlight={settings?.syntaxHighlighting ?? true}
                     notes={notes}
+                    onLineComment={d.state === "open" && selected ? (side, line, text) => setComposing({ path: selected.path, side, line, text }) : undefined}
+                    composer={
+                      composing && composing.path === selected?.path
+                        ? {
+                            side: composing.side,
+                            line: composing.line,
+                            node: (
+                              <LineComposer
+                                key={`${composing.side}:${composing.line}`}
+                                where={composing}
+                                onCancel={() => setComposing(null)}
+                                send={async (body) => {
+                                  await act(() => api.githubPullLineComment(target.owner, target.name, n, d.headSha, composing.path, composing.line, composing.side === "old" ? "LEFT" : "RIGHT", body), "Comment posted", { talk: true });
+                                  setComposing(null);
+                                }}
+                              />
+                            ),
+                          }
+                        : null
+                    }
                     emptyTitle="Select a file"
                   />
                 )}
@@ -270,7 +476,9 @@ export function PullReviewDialog({ target, number, onClose, onChanged }: { targe
               {d.body.trim() ? <Comment c={{ id: 0, replyTo: null, kind: "comment", author: d.author, body: d.body, createdAt: "", reviewState: null, path: null, line: null, side: null, outdated: false, url: d.url }} /> : <p className="text-sm text-faint">No description.</p>}
               {talk.loading && !talk.data && <Spinner label="Loading the conversation" />}
               {talk.error && <ErrorNotice error={talk.error} />}
-              {talk.data?.map((c, i) => <Comment key={`${c.url}-${i}`} c={c} />)}
+              {talk.data?.map((c, i) => (
+                <Comment key={`${c.url}-${i}`} c={c} reply={c.kind === "reviewComment" && d.state === "open" ? reply(c.replyTo != null ? (talk.data!.find((x) => x.id === c.replyTo) ?? c) : c) : undefined} />
+              ))}
             </div>
           )}
 
@@ -278,6 +486,34 @@ export function PullReviewDialog({ target, number, onClose, onChanged }: { targe
             <div className="max-h-[52vh] overflow-y-auto rounded border border-border">
               {checks.loading && !checks.data && <Spinner className="m-3" label="Loading checks" />}
               {checks.error && <ErrorNotice className="m-2" error={checks.error} />}
+              {failed && d.state === "open" && (
+                <div className="flex items-center gap-2 border-b border-border bg-surface-2 px-3 py-1.5 text-sm">
+                  <span className="flex-1 text-muted">Some checks failed. GitHub Actions can run the failed jobs again.</span>
+                  <Button
+                    size="sm"
+                    icon={<RotateCcw size={12} />}
+                    loading={working === "rerun"}
+                    onClick={async () => {
+                      setWorking("rerun");
+                      try {
+                        const count = await api.githubPullRerunFailed(target.owner, target.name, d.headSha);
+                        notify(
+                          count
+                            ? { tone: "success", title: `Running ${count === 1 ? "1 workflow" : `${count} workflows`} again` }
+                            : { tone: "info", title: "Nothing to run again", body: "The failed checks don't come from GitHub Actions. Re-run them where they ran." },
+                        );
+                        if (count) void checks.reload();
+                      } catch (e) {
+                        notify({ tone: "error", title: "Couldn't run the checks again", error: toAppError(e) });
+                      } finally {
+                        setWorking(null);
+                      }
+                    }}
+                  >
+                    Re-run failed checks
+                  </Button>
+                </div>
+              )}
               {checks.data?.length === 0 && <p className="px-3 py-2 text-sm text-muted">No checks ran on the latest commit.</p>}
               {checks.data?.map((c, i) => (
                 <div key={`${c.name}-${i}`} className="flex h-9 items-center gap-3 border-b border-border px-3 last:border-b-0">
@@ -309,6 +545,34 @@ export function PullReviewDialog({ target, number, onClose, onChanged }: { targe
       ) : null}
 
       <ExplainDialog request={explain} onClose={() => setExplain(null)} />
+      <PickListDialog
+        open={picking === "reviewers"}
+        onClose={() => setPicking(null)}
+        title="Ask for a review"
+        // People already asked are left out: GitHub keeps them asked until they review.
+        items={candidates.data?.filter((l) => l !== d?.author && !d?.requestedReviewers.includes(l)).map((l) => ({ value: l, label: l })) ?? null}
+        loading={candidates.loading}
+        error={candidates.error}
+        initial={[]}
+        emptyText="Nobody else can be asked in this repository."
+        saveLabel="Ask"
+        onSave={async (fresh) => {
+          if (!fresh.length) return;
+          await act(() => api.githubPullRequestReviewers(target.owner, target.name, n, fresh), fresh.length === 1 ? `Asked ${fresh[0]} to review` : `Asked ${fresh.length} people to review`, { detail: true });
+        }}
+      />
+      <PickListDialog
+        open={picking === "labels"}
+        onClose={() => setPicking(null)}
+        title="Labels"
+        items={labels.data?.map((l) => ({ value: l.name, label: l.name, hint: l.description || undefined, color: l.color })) ?? null}
+        loading={labels.loading}
+        error={labels.error}
+        initial={d?.labels ?? []}
+        emptyText="This repository has no labels."
+        saveLabel="Save"
+        onSave={(picked) => act(() => api.githubPullSetLabels(target.owner, target.name, n, picked), "Labels saved", { detail: true })}
+      />
       <ConfirmDialog
         open={confirm === "merge"}
         onClose={() => setConfirm(null)}
