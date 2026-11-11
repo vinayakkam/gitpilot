@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useFunGate } from "@/features/fun/FunGate";
 import { createPortal } from "react-dom";
 import {
   ArrowDown,
@@ -177,8 +178,8 @@ function SyncStrip({ fetchError }: { fetchError: AppError | null }) {
       }
     >
       <div className="flex min-w-0 items-center gap-2 text-sm" tabIndex={0} aria-label={`${state.text}, ${target}, ${fetched}`}>
-        <span className="h-px w-4 shrink-0 bg-border-strong" aria-hidden />
-        <span className="flex shrink-0 items-center gap-1.5 rounded-sm border border-border px-1.5 font-mono text-xs leading-[18px] text-muted">
+        <span className={cx("shrink-0 font-medium", fetchError ? "text-danger" : state.tone)}>{fetchError ? "Fetch failed" : state.text}</span>
+        <span className="flex shrink-0 items-center gap-1.5 rounded-sm bg-surface-2 px-1.5 font-mono text-xs leading-[20px] text-muted ring-1 ring-inset ring-border">
           <span className={cx("flex items-center", ahead ? "text-text" : "text-faint")}>
             <ArrowUp size={11} />
             {ahead}
@@ -188,11 +189,11 @@ function SyncStrip({ fetchError }: { fetchError: AppError | null }) {
             {behind}
           </span>
         </span>
-        <span className="h-px w-4 shrink-0 bg-border-strong" aria-hidden />
-        <span className="truncate font-mono text-xs text-muted">{target}</span>
+        <span className="truncate text-muted">
+          with <span className="font-mono text-xs">{target}</span>
+        </span>
         {!b.upstream && <span className="shrink-0 rounded-sm bg-surface-3 px-1 text-[10px] text-muted">not linked</span>}
-        <span className={cx("shrink-0", fetchError ? "text-danger" : state.tone)}>{fetchError ? "Fetch failed" : state.text}</span>
-        <span className="hidden shrink-0 text-faint xl:inline">{fetched}</span>
+        <span className="hidden shrink-0 text-faint xl:inline">· {fetched}</span>
       </div>
     </Tooltip>
   );
@@ -201,8 +202,10 @@ function SyncStrip({ fetchError }: { fetchError: AppError | null }) {
 export function RepoToolbar() {
   const { activeRepo, status, busy, progress, run, revision, refreshStatus, statusLoading, notify } = useStore();
   const { pull, dialog: pullDialog } = usePull();
-  useAutoFetch(() => void pull());
+  // `fetch` is declared below; the callback only runs later.
+  useAutoFetch(() => void pull(), () => fetch());
   const tools = useExternalTools();
+  const { gate, element: funGate } = useFunGate();
   const [openMenu, setOpenMenu] = useState<{ x: number; y: number } | null>(null);
   const [picker, setPicker] = useState<DOMRect | null>(null);
   const [newBranch, setNewBranch] = useState(false);
@@ -292,18 +295,18 @@ export function RepoToolbar() {
                 ? `Push to ${twin.name} and link ${b.head} to it`
               : `Publish ${b.head} to ${remotes[0]?.name ?? "a remote"} and track it`;
 
-  const pushItems: MenuItem[] = remotes.map((r) => ({ label: `Publish to ${r.name}`, onSelect: () => void push(r.name) }));
+  const pushItems: MenuItem[] = remotes.map((r) => ({ label: `Publish to ${r.name}`, onSelect: () => gate("push", () => void push(r.name)) }));
 
   return (
     <div className="relative shrink-0 border-b border-border bg-surface">
-      <div className="flex h-11 items-center gap-2 px-3">
+      <div className="flex h-12 items-center gap-3 px-3">
         <button
           type="button"
           aria-haspopup="listbox"
           aria-label={`Current branch: ${b?.head ?? "none"}. Switch branch`}
           onClick={(e) => setPicker(e.currentTarget.getBoundingClientRect())}
           disabled={!status}
-          className="flex h-7 max-w-[260px] items-center gap-1.5 rounded border border-border px-2 hover:border-border-strong hover:bg-surface-2 disabled:opacity-50"
+          className="flex h-8 max-w-[280px] items-center gap-1.5 rounded border border-border bg-surface-2 px-2.5 hover:border-border-strong hover:bg-surface-3 disabled:opacity-50"
         >
           <GitBranch size={14} className="shrink-0 text-muted" />
           <span className="truncate font-mono text-sm font-medium">
@@ -330,9 +333,10 @@ export function RepoToolbar() {
             icon={statusLoading ? <Spinner size={13} /> : <RotateCw size={14} />}
             onClick={() => void refreshStatus()}
           />
+          <span className="mx-1 h-5 w-px bg-border" aria-hidden />
           <Tooltip content={remotes.length ? "Download new commits from all remotes without changing your files" : "No remotes configured"}>
             <span>
-              <Button size="md" icon={<RefreshCw size={13} />} onClick={fetch} disabled={!!busy || remotes.length === 0} loading={busy === "Fetch"}>
+              <Button size="md" icon={<RefreshCw size={13} />} onClick={() => gate("fetch", () => void fetch())} disabled={!!busy || remotes.length === 0} loading={busy === "Fetch"}>
                 Fetch
               </Button>
             </span>
@@ -347,7 +351,7 @@ export function RepoToolbar() {
             }
           >
             <span>
-              <Button size="md" variant={behind > 0 ? "primary" : "secondary"} icon={<ArrowDownToLine size={13} />} onClick={() => void pull()} disabled={!!busy || !canPull || midOperation} loading={busy === "Pull"}>
+              <Button size="md" variant={behind > 0 ? "primary" : "secondary"} icon={<ArrowDownToLine size={13} />} onClick={() => gate("pull", () => void pull())} disabled={!!busy || !canPull || midOperation} loading={busy === "Pull"}>
                 Pull{behind ? ` ${behind}` : ""}
               </Button>
             </span>
@@ -364,7 +368,7 @@ export function RepoToolbar() {
                   if (!hasUpstream && !twin && remotes.length > 1) {
                     const r = e.currentTarget.getBoundingClientRect();
                     setPushMenu({ x: r.right - 200, y: r.bottom + 4 });
-                  } else void push();
+                  } else gate("push", () => void push());
                 }}
               >
                 {pushLabel}
@@ -394,6 +398,7 @@ export function RepoToolbar() {
       {picker && <BranchPicker anchor={picker} onClose={() => setPicker(null)} onNew={() => setNewBranch(true)} />}
       <NewBranchDialog open={newBranch} onClose={() => setNewBranch(false)} />
       {pullDialog}
+      {funGate}
       {pushMenu && <Menu at={pushMenu} items={pushItems} onClose={() => setPushMenu(null)} />}
       {openMenu && (
         <Menu

@@ -63,6 +63,8 @@ import type { Issue } from "@/bindings/Issue";
 import type { MergeMethod } from "@/bindings/MergeMethod";
 import type { PullComment } from "@/bindings/PullComment";
 import type { PullDetail } from "@/bindings/PullDetail";
+import type { DiffSide } from "@/bindings/DiffSide";
+import type { RepoLabel } from "@/bindings/RepoLabel";
 import type { PullFile } from "@/bindings/PullFile";
 import type { ReviewEvent } from "@/bindings/ReviewEvent";
 import type { ReflogEntry } from "@/bindings/ReflogEntry";
@@ -260,6 +262,15 @@ export const api = {
   githubPullMerge: (owner: string, name: string, number: number, method: MergeMethod, sha: string) =>
     invoke<void>("github_pull_merge", { owner, name, number, method, sha, confirmed: true }),
   githubPullDeleteBranch: (owner: string, name: string, branch: string) => invoke<void>("github_pull_delete_branch", { owner, name, branch, confirmed: true }),
+  githubPullLineComment: (owner: string, name: string, number: number, sha: string, path: string, line: number, side: DiffSide, body: string) =>
+    invoke<void>("github_pull_line_comment", { owner, name, number, sha, path, line, side, body }),
+  githubPullReply: (owner: string, name: string, number: number, commentId: number, body: string) => invoke<void>("github_pull_reply", { owner, name, number, commentId, body }),
+  githubPullReady: (nodeId: string) => invoke<void>("github_pull_ready", { nodeId }),
+  githubPullRequestReviewers: (owner: string, name: string, number: number, logins: string[]) => invoke<void>("github_pull_request_reviewers", { owner, name, number, logins }),
+  githubPullSetLabels: (owner: string, name: string, number: number, labels: string[]) => invoke<void>("github_pull_set_labels", { owner, name, number, labels }),
+  githubLabels: (owner: string, name: string) => invoke<RepoLabel[]>("github_labels", { owner, name }),
+  githubReviewerCandidates: (owner: string, name: string) => invoke<string[]>("github_reviewer_candidates", { owner, name }),
+  githubPullRerunFailed: (owner: string, name: string, sha: string) => invoke<number>("github_pull_rerun_failed", { owner, name, sha }),
   githubIssues: (owner: string, name: string) => invoke<Issue[]>("github_issues", { owner, name }),
   githubIssueCreate: (owner: string, name: string, title: string, body: string) => invoke<Issue>("github_issue_create", { owner, name, title, body }),
 

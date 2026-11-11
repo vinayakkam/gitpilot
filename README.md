@@ -4,7 +4,7 @@ A desktop Git manager for Windows and Linux. GitPilot shows exactly what changed
 
 Built with Tauri 2 (Rust) and React. It runs your installed `git` executable; nothing is simulated.
 
-> Status: v0.5.1. Linux is built and tested; Windows installers are built by the GitHub Actions workflow and have been used on Windows. See [Known limitations](#known-limitations).
+> Status: v0.6.0. Linux is built and tested; Windows installers are built by the GitHub Actions workflow and have been used on Windows. See [Known limitations](#known-limitations).
 
 ## Features
 
@@ -19,13 +19,14 @@ Available now:
 - **Branches** — local and remote-tracking branches with upstream ahead/behind, merged status, create/switch/rename/delete, check out remote branches, compare branches, set/unset upstream, stashes. Switching with uncommitted changes asks whether to bring them along or stash first.
 - **Merge, rebase, cherry-pick, revert** — from Branches, Compare and History, with Continue / Skip / Abort when Git pauses for conflicts. Rebasing a published branch asks for explicit acknowledgement.
 - **Remotes & sync** — add/edit/remove remotes (any Git host), fetch/pull/push with progress (fetch, push and clone can be cancelled), publish new branches, sync status that distinguishes up to date / ahead / behind / diverged / never fetched / no upstream. Pull is fast-forward-only by default. Force push exists only as an advanced, double-confirmed `--force-with-lease`.
-- **GitHub** — sign in (with a personal access token, or in the browser with a one-time code when an OAuth app is configured; kept in the OS keychain), clone from your repository list, see open pull requests with checks and review state, check one out (forks too), and open new pull requests, as drafts if you like. **Review pull requests** in GitPilot (files, conversation, checks; comment, approve, request changes, merge), work with **issues** (search, create, Start work on a branch named after the issue), and use the sign-in for **HTTPS clone/fetch/push to github.com** (can be turned off).
+- **GitHub** — sign in (with a personal access token, or in the browser with a one-time code when an OAuth app is configured; kept in the OS keychain), clone from your repository list, see open pull requests with checks and review state, check one out (forks too), and open new pull requests, as drafts if you like. **Review pull requests** in GitPilot (files, conversation, checks; comment on lines with suggested changes, reply, approve, request changes, ask for reviewers, edit labels, mark drafts ready, re-run failed checks, merge), work with **issues** (search, create, Start work on a branch named after the issue), and use the sign-in for **HTTPS clone/fetch/push to github.com** (can be turned off).
 - **AI help (optional, off by default)** — explain a commit or a file's changes, draft a pull request title and description, and get suggested resolutions for merge conflicts that you review (and can edit) before applying.
 - **AI commit messages (optional, off by default)** — OpenRouter (default: hundreds of models with one key, including free ones), your own Claude account through Claude Code (no API key), the Anthropic API, or any OpenAI-compatible API (OpenAI, Ollama, LM Studio…). Sends only the staged diff, skips files that look like secrets, never commits for you.
 - **Fix and reshape history safely** — amend or undo the last commit, edit commits (reorder, combine, reword, remove), reset a branch to any commit, and restore from automatic backups.
 - **Conflict resolver** — Keep mine / Keep theirs / Keep both per conflict or per file.
 - **Understand code** — blame, a commit graph, file-by-file compare of any two branches/tags/commits, and before/after image previews.
-- **Tags, stash selected files, discard single hunks or lines, and auto-refresh** when files change, plus **background fetch** (as often as every 15 seconds) that tells you when there's something to pull and when your pull request's checks or reviews change.
+- **Tags, stash selected files, discard single hunks or lines, and auto-refresh** when files change, plus **background fetch** (as often as every 15 seconds) that tells you when there's something to pull and when your pull request's checks or reviews change, optionally as desktop notifications.
+- **Fun mode (optional)** — haul a rope to pull, push a car uphill to push, throw a ball to fetch and stamp to commit.
 - **Recover lost work** — Branches → Recover shows where the repository has been (resets, rebases, switches) and GitPilot's backups in one list, and marks commits no branch keeps; create a branch at any point or restore a backup. Force-deleted branches are backed up.
 - **Search history by content** — find commits that added or removed some text or match a regular expression, within a date range and a file or folder.
 - **Your editor, terminal and merge tool** — open the repository, a file or a Blame line in VS Code, Zed, JetBrains IDEs and others; open a terminal there; resolve conflicts in meld, kdiff3 or any `git mergetool`.

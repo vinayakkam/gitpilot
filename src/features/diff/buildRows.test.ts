@@ -27,4 +27,10 @@ describe("buildRows with notes", () => {
   it("drops comments on lines that aren't in the diff", () => {
     expect(shape(buildRows(diff, "unified", [{ side: "new", line: 40, author: null, body: "gone" }]))).not.toContain("note:gone");
   });
+
+  it("puts the composer under the chosen line, after its comments", () => {
+    const notes = [{ side: "old" as const, line: 2, author: "bob", body: "why remove" }];
+    expect(shape(buildRows(diff, "unified", notes, "old:2"))).toEqual(["hunk", "line:keep", "line:old two", "note:why remove", "compose", "line:new two"]);
+    expect(shape(buildRows(diff, "unified", [], "new:1"))).toEqual(["hunk", "line:keep", "compose", "line:old two", "line:new two"]);
+  });
 });

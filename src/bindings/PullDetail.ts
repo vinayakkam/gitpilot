@@ -16,4 +16,12 @@ mergeable: boolean | null,
 /**
  * "clean", "blocked", "behind", "dirty", "unstable", "draft", "unknown", …
  */
-mergeableState: string, additions: number, deletions: number, changedFiles: number, };
+mergeableState: string, additions: number, deletions: number, changedFiles: number, 
+/**
+ * GraphQL id, for "Ready for review".
+ */
+nodeId: string, labels: Array<string>, 
+/**
+ * Logins still asked to review (GitHub drops a login once they review).
+ */
+requestedReviewers: Array<string>, };

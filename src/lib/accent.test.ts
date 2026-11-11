@@ -18,7 +18,7 @@ describe("accent colours", () => {
       expect(contrast(dark["--on-accent"], dark["--accent"]), `${p.id} dark button`).toBeGreaterThanOrEqual(3.6);
       // Accent text on the surfaces it is used on.
       expect(contrast(light["--accent-text"], "#ffffff"), `${p.id} light text`).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(dark["--accent-text"], "#181b21"), `${p.id} dark text`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(dark["--accent-text"], "#16191f"), `${p.id} dark text`).toBeGreaterThanOrEqual(4.5);
       for (const v of [...Object.values(light), ...Object.values(dark)]) expect(v).toMatch(/^#[0-9a-f]{6}$/);
     }
   });

@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.6.0 — 2026-11-12
+
+### Pull requests: working with others
+- **Comment on a line.** In a pull request's Files tab, click a line number to write a comment right under that line. Removed lines can be commented on too.
+- **Suggest a change.** While commenting on a line, **Suggest a change** starts a suggestion from the line's text. Edit it, post it, and the author can commit it on GitHub. Suggestions in comments are labelled **Suggested change**.
+- **Reply to comments.** Replies now appear under the comment they answer. **Reply** works in the Files tab and in the conversation.
+- **Ready for review.** Drafts have a **Ready for review** button.
+- **Reviewers and labels.** A new panel shows who is asked to review and the labels on the pull request. **Ask for a review** picks people from the repository, and **Edit labels** adds or removes labels.
+- **Re-run failed checks.** When checks failed, **Re-run failed checks** runs the failed GitHub Actions jobs again. Checks from other services are re-run where they ran.
+
+### Background fetch
+- **Remotes that need a password.** If the remote asks for a sign-in, background fetch now tells you once instead of failing silently. **Fetch now** runs a normal fetch, where you can sign in.
+- **Desktop notifications** (Settings → General → Notifications, off by default). New commits and pull request news also appear as desktop notifications while GitPilot isn't in front.
+
+### A fresher look
+- **Easier to read.** Secondary text is darker in light mode and lighter in dark mode, so it's readable everywhere. Panels and borders stand apart more clearly.
+- **Sidebar.** Sections are grouped under Workspace, Collaborate and Help, and the open section stands out more. Keyboard shortcuts are unchanged.
+- **Toolbar.** A little taller, with the sync state first: "Diverged ↑2 ↓1 with origin/main · fetched 5 minutes ago".
+- **Pull request window.** Reviewers and labels have their own panel, and comments, replies and suggestions sit under their lines.
+
+### Fun mode
+Turn it on in Settings → General → Fun. Then:
+- **Pull:** haul a rope all the way down.
+- **Push:** push a car up the hill to the remote.
+- **Fetch:** throw the ball, and the dog fetches it.
+- **Commit:** bring the rubber stamp down on the page.
+
+Drag with the mouse, or use the arrow keys. A **Just pull** / **Just push** / … button always skips the scene.
+
 ## 0.5.1 — 2026-10-29
 
 ### Background fetch

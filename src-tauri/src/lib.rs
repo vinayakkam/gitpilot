@@ -27,6 +27,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let data = app.path().app_data_dir()?;
@@ -166,6 +167,14 @@ pub fn run() {
             commands::github::github_pull_review,
             commands::github::github_pull_merge,
             commands::github::github_pull_delete_branch,
+            commands::github::github_pull_line_comment,
+            commands::github::github_pull_reply,
+            commands::github::github_pull_ready,
+            commands::github::github_pull_request_reviewers,
+            commands::github::github_pull_set_labels,
+            commands::github::github_labels,
+            commands::github::github_reviewer_candidates,
+            commands::github::github_pull_rerun_failed,
             commands::github::github_issues,
             commands::github::github_issue_create,
             commands::assist::ai_suggest_commit,

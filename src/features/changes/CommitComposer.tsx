@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useFunGate } from "@/features/fun/FunGate";
 import { Sparkles, TriangleAlert, X } from "lucide-react";
 import type { AiSuggestions } from "@/bindings/AiSuggestions";
 import type { AppError } from "@/bindings/AppError";
@@ -52,6 +53,7 @@ export async function undoLastCommit(id: number, confirmedPushed: boolean) {
 }
 
 export function CommitComposer({ stagedCount }: { stagedCount: number }) {
+  const { gate, element: funGate } = useFunGate();
   const { activeRepo, status, settings, run, busy, openSettings, notify } = useStore();
   const id = activeRepo?.id;
   const [summary, setSummary] = useState("");
@@ -208,10 +210,12 @@ export function CommitComposer({ stagedCount }: { stagedCount: number }) {
       onKeyDown={(e) => {
         if (e.key === "Enter" && hasMod(e)) {
           e.preventDefault();
-          void commit();
+          if (canCommit) gate("commit", () => void commit());
+          else void commit();
         }
       }}
     >
+      {funGate}
       {(ai || aiError || aiLoading) && (
         <div className="gp-pop absolute inset-x-2.5 bottom-full mb-2 max-h-[60vh] overflow-y-auto rounded-md border border-border bg-surface shadow-overlay" role="region" aria-label="Suggested commit messages">
           <div className="flex h-9 items-center gap-2 border-b border-border pl-3 pr-1.5">
@@ -319,7 +323,7 @@ export function CommitComposer({ stagedCount }: { stagedCount: number }) {
       {commitError && <ErrorNotice compact className="mt-2" error={commitError} />}
       <Tooltip content={canCommit ? `${modKey}+Enter` : !summary.trim() ? "Write a summary first" : "Stage the changes you want to commit"}>
         <span className="mt-2 block">
-          <Button variant="primary" className="w-full" disabled={!canCommit} loading={busy === "Commit" || busy === "Amend commit"} onClick={() => void commit()}>
+          <Button variant="primary" className="w-full" disabled={!canCommit} loading={busy === "Commit" || busy === "Amend commit"} onClick={() => gate("commit", () => void commit())}>
             {amend
               ? "Amend last commit"
               : merging

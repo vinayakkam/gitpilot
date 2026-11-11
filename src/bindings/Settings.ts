@@ -57,6 +57,14 @@ autoFetchSeconds: number,
  */
 successNotifications: boolean, 
 /**
+ * Also show background fetch news as desktop notifications while GitPilot isn't in front.
+ */
+desktopNotifications: boolean, 
+/**
+ * Fun mode: pull a rope, push a car uphill, throw a ball or stamp before those actions.
+ */
+funMode: boolean, 
+/**
  * Short explanations shown the first time something happens (staging, conflicts, …).
  */
 tips: boolean, 

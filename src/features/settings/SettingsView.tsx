@@ -10,6 +10,7 @@ import { ErrorNotice } from "@/components/ui/Misc";
 import { Spinner } from "@/components/ui/Spinner";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
+import { allowDesktopNotifications } from "@/lib/desktopNotify";
 import { useStore, type SettingsTab } from "@/store/AppStore";
 import { UpdateSettings } from "@/features/updates/UpdateSettings";
 import { AiPane } from "./AiPane";
@@ -88,7 +89,7 @@ export function SettingsView() {
 }
 
 function GeneralPane({ settings, set }: PaneProps) {
-  const { repos, setPage } = useStore();
+  const { repos, setPage, notify } = useStore();
   return (
     <>
       <PaneHeader title="General" />
@@ -120,8 +121,28 @@ function GeneralPane({ settings, set }: PaneProps) {
           </div>
         )}
       </Group>
+      <Group title="Fun">
+        <Switch
+          label="Fun mode"
+          description="Pull by hauling a rope, push by shoving a car up a hill, fetch by throwing a ball for the dog, and commit with a rubber stamp. There's always a button to skip it."
+          checked={settings.funMode}
+          onChange={(funMode) => void set({ funMode })}
+        />
+      </Group>
       <Group title="Notifications">
         <Switch label="Show a notification when an operation succeeds" description="Errors are always shown." checked={settings.successNotifications} onChange={(successNotifications) => void set({ successNotifications })} />
+        <Switch
+          label="Desktop notifications"
+          description="When GitPilot isn't in front, background fetch news (new commits, pull request checks and reviews) also appears as a desktop notification."
+          checked={settings.desktopNotifications}
+          onChange={async (desktopNotifications) => {
+            if (desktopNotifications && !(await allowDesktopNotifications())) {
+              notify({ tone: "error", title: "Notifications are blocked", body: "Allow notifications for GitPilot in your system settings, then turn this on again." });
+              return;
+            }
+            void set({ desktopNotifications });
+          }}
+        />
       </Group>
       <Group title="Repositories">
         <div className="flex items-center justify-between gap-4">
