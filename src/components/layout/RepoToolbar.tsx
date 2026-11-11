@@ -177,8 +177,8 @@ function SyncStrip({ fetchError }: { fetchError: AppError | null }) {
       }
     >
       <div className="flex min-w-0 items-center gap-2 text-sm" tabIndex={0} aria-label={`${state.text}, ${target}, ${fetched}`}>
-        <span className="h-px w-4 shrink-0 bg-border-strong" aria-hidden />
-        <span className="flex shrink-0 items-center gap-1.5 rounded-sm border border-border px-1.5 font-mono text-xs leading-[18px] text-muted">
+        <span className={cx("shrink-0 font-medium", fetchError ? "text-danger" : state.tone)}>{fetchError ? "Fetch failed" : state.text}</span>
+        <span className="flex shrink-0 items-center gap-1.5 rounded-sm bg-surface-2 px-1.5 font-mono text-xs leading-[20px] text-muted ring-1 ring-inset ring-border">
           <span className={cx("flex items-center", ahead ? "text-text" : "text-faint")}>
             <ArrowUp size={11} />
             {ahead}
@@ -188,11 +188,11 @@ function SyncStrip({ fetchError }: { fetchError: AppError | null }) {
             {behind}
           </span>
         </span>
-        <span className="h-px w-4 shrink-0 bg-border-strong" aria-hidden />
-        <span className="truncate font-mono text-xs text-muted">{target}</span>
+        <span className="truncate text-muted">
+          with <span className="font-mono text-xs">{target}</span>
+        </span>
         {!b.upstream && <span className="shrink-0 rounded-sm bg-surface-3 px-1 text-[10px] text-muted">not linked</span>}
-        <span className={cx("shrink-0", fetchError ? "text-danger" : state.tone)}>{fetchError ? "Fetch failed" : state.text}</span>
-        <span className="hidden shrink-0 text-faint xl:inline">{fetched}</span>
+        <span className="hidden shrink-0 text-faint xl:inline">· {fetched}</span>
       </div>
     </Tooltip>
   );
@@ -297,14 +297,14 @@ export function RepoToolbar() {
 
   return (
     <div className="relative shrink-0 border-b border-border bg-surface">
-      <div className="flex h-11 items-center gap-2 px-3">
+      <div className="flex h-12 items-center gap-3 px-3">
         <button
           type="button"
           aria-haspopup="listbox"
           aria-label={`Current branch: ${b?.head ?? "none"}. Switch branch`}
           onClick={(e) => setPicker(e.currentTarget.getBoundingClientRect())}
           disabled={!status}
-          className="flex h-7 max-w-[260px] items-center gap-1.5 rounded border border-border px-2 hover:border-border-strong hover:bg-surface-2 disabled:opacity-50"
+          className="flex h-8 max-w-[280px] items-center gap-1.5 rounded border border-border bg-surface-2 px-2.5 hover:border-border-strong hover:bg-surface-3 disabled:opacity-50"
         >
           <GitBranch size={14} className="shrink-0 text-muted" />
           <span className="truncate font-mono text-sm font-medium">
@@ -331,6 +331,7 @@ export function RepoToolbar() {
             icon={statusLoading ? <Spinner size={13} /> : <RotateCw size={14} />}
             onClick={() => void refreshStatus()}
           />
+          <span className="mx-1 h-5 w-px bg-border" aria-hidden />
           <Tooltip content={remotes.length ? "Download new commits from all remotes without changing your files" : "No remotes configured"}>
             <span>
               <Button size="md" icon={<RefreshCw size={13} />} onClick={fetch} disabled={!!busy || remotes.length === 0} loading={busy === "Fetch"}>

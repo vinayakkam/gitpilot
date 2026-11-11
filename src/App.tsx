@@ -90,7 +90,7 @@ function Shell() {
         setPage("settings");
       } else if (mod && !e.shiftKey && /^[1-7]$/.test(e.key) && activeRepo) {
         e.preventDefault();
-        const s = SECTIONS[Number(e.key) - 1];
+        const s = SECTIONS.find((x) => x.key === e.key);
         if (s) setSection(s.id);
       } else if (e.key === "F5" || (mod && e.key.toLowerCase() === "r")) {
         e.preventDefault();

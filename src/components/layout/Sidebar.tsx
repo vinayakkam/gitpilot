@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import {
   ChevronsUpDown,
   FileDiff,
@@ -28,14 +28,15 @@ import { UpdateNotice } from "@/features/updates/UpdateNotice";
 import { modKey } from "@/lib/platform";
 import { useStore, type Section } from "@/store/AppStore";
 
-export const SECTIONS: { id: Section; label: string; icon: ReactNode; key: string }[] = [
-  { id: "overview", label: "Overview", icon: <LayoutList size={16} />, key: "1" },
-  { id: "changes", label: "Changes", icon: <FileDiff size={16} />, key: "2" },
-  { id: "history", label: "History", icon: <History size={16} />, key: "3" },
-  { id: "branches", label: "Branches", icon: <GitBranch size={16} />, key: "4" },
-  { id: "remotes", label: "Remotes", icon: <Server size={16} />, key: "5" },
-  { id: "assistant", label: "Assistant", icon: <Sparkles size={16} />, key: "6" },
-  { id: "pulls", label: "Pull requests", icon: <GitPullRequest size={16} />, key: "7" },
+/** Sidebar order; `key` is the Ctrl/Cmd+number shortcut (unchanged since 0.4). */
+export const SECTIONS: { id: Section; label: string; icon: ReactNode; key: string; group: string }[] = [
+  { id: "overview", label: "Overview", icon: <LayoutList size={16} />, key: "1", group: "Workspace" },
+  { id: "changes", label: "Changes", icon: <FileDiff size={16} />, key: "2", group: "Workspace" },
+  { id: "history", label: "History", icon: <History size={16} />, key: "3", group: "Workspace" },
+  { id: "branches", label: "Branches", icon: <GitBranch size={16} />, key: "4", group: "Workspace" },
+  { id: "remotes", label: "Remotes", icon: <Server size={16} />, key: "5", group: "Collaborate" },
+  { id: "pulls", label: "Pull requests", icon: <GitPullRequest size={16} />, key: "7", group: "Collaborate" },
+  { id: "assistant", label: "Assistant", icon: <Sparkles size={16} />, key: "6", group: "Help" },
 ];
 
 function NavItem({
@@ -65,8 +66,8 @@ function NavItem({
       aria-current={active ? "page" : undefined}
       aria-label={collapsed ? label : undefined}
       className={cx(
-        "relative flex h-[30px] w-full items-center gap-2.5 rounded px-2 text-base transition-colors disabled:opacity-40",
-        active ? "bg-surface-3 font-medium text-text" : "text-muted hover:bg-surface-2 hover:text-text",
+        "relative flex h-8 w-full items-center gap-2.5 rounded px-2 text-base transition-colors disabled:opacity-40",
+        active ? "bg-surface font-medium text-text ring-1 ring-inset ring-border" : "text-muted hover:bg-surface-3/60 hover:text-text",
         collapsed && "justify-center px-0",
       )}
     >
@@ -147,7 +148,7 @@ export function Sidebar() {
       aria-label="Main"
       className={cx("flex h-full shrink-0 flex-col border-r border-border bg-bg", collapsed ? "w-[52px]" : "w-[224px]")}
     >
-      <div className={cx("flex h-11 items-center gap-2 px-3", collapsed && "justify-center px-0")}>
+      <div className={cx("flex h-12 items-center gap-2 px-3", collapsed && "justify-center px-0")}>
         {!collapsed && <Logo size={18} />}
         {!collapsed && <span className="flex-1 text-md font-semibold tracking-tight">GitPilot</span>}
         <IconButton
@@ -188,7 +189,14 @@ export function Sidebar() {
       </div>
 
       <div className={cx("flex flex-1 flex-col gap-px overflow-y-auto px-2", collapsed && "px-1.5")}>
-        {SECTIONS.map((s) => (
+        {SECTIONS.map((s, i) => (
+          <Fragment key={s.id}>
+          {s.group !== SECTIONS[i - 1]?.group &&
+            (collapsed ? (
+              i > 0 && <div className="mx-2 my-1.5 h-px bg-border" aria-hidden />
+            ) : (
+              <div className={cx("px-2 pb-1 text-xs font-medium text-faint", i > 0 ? "pt-3" : "pt-1")}>{s.group}</div>
+            ))}
           <NavItem
             key={s.id}
             icon={s.icon}
@@ -207,6 +215,7 @@ export function Sidebar() {
               ) : undefined
             }
           />
+          </Fragment>
         ))}
       </div>
 
