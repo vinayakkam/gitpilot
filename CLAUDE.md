@@ -184,7 +184,7 @@ libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev build-essential file`.
 ## Current implementation state
 
 See `DEVELOPMENT.md` → "Feature tracker", "Current implementation details" and "Known issues" for
-the authoritative status. In short (0.5.1): all core features are implemented and verified on Linux,
+the authoritative status. In short (0.6.0): all core features are implemented and verified on Linux,
 and on Windows by the user (up to 0.4.0); AI: Claude Code provider verified live, the others not.
 0.4.2 (GitHub, AI help), 0.4.5 (windows, worktrees, submodules, LFS, signing, OpenCode) and 0.5.0
 (Arch in-app updates, PR review, issues, GitHub over HTTPS, Recover, content search, auto-fetch,
@@ -255,6 +255,13 @@ Key decisions:
   prefer plain `title` over wrapping in `Tooltip` for simple hints.
 - The changed-file list is an ARIA grid (rows, rowgroups, gridcells), virtualized above 300 files.
   Component tests call `expectNoAxeViolations()` (`src/test/axe.ts`) for new views.
+- PR collaboration (0.6.0): line comments use `line` + `side` at the reviewed head SHA; replies go to the thread's
+  first comment (`PullComment.replyTo`); suggested changes are GitHub's ```` ```suggestion ```` block, shown with
+  `showSuggestions`. Re-run covers GitHub Actions only (`actions/runs?head_sha=` + `rerun-failed-jobs`).
+- Desktop notifications: only via `notifyDesktop` (`src/lib/desktopNotify.ts`), only when no window has focus,
+  only when `settings.desktopNotifications`; capability grants is-permission-granted, request-permission, notify.
+- Fun mode: `useFunGate().gate(kind, run)` wraps an action; scenes in `features/fun/FunGate.tsx` use tokens only
+  and always offer a skip button.
 - Update notes: `latest.json` gets plain text (`scripts/notes.mjs`) because older versions display it raw; `ReleaseNotes` renders both plain and Markdown.
 
 ## Session continuity rules

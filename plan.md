@@ -18,6 +18,8 @@
 - Colours and contrast: retune surface, border and text tokens (light and dark).
 - Pull request dialog: new layout for line comments, replies, reviewers and labels.
 
+**Fun mode** (added 2026-11-11): pull by hauling a rope, push a car up a hill, throw a ball to fetch, stamp to commit. Off by default, always skippable.
+
 **Docs:** remove the outdated known issues.
 
 ## 0.7.0: safety and understanding

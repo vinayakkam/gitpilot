@@ -4,10 +4,10 @@
 
 - **Phase:** 6 — reliability and refinement (implemented on Linux and Windows; Windows verified by the user)
 - **Overall:** core Git workflow, branches, remotes, sync, AI provider integration, Claude Code integration and settings are implemented and verified on Linux against real repositories. Linux packages (deb, AppImage) build and launch.
-- **Current working area:** 0.5.1 — implemented on branch `release/0.5.1` (session 12), not pushed or released yet
-- **Most recently completed:** v0.5.1 (session 12, not released) — auto-fetch every minute by default (15 s and 30 s options), pull request check/review notices, line comments on the PR diff, all PR comments (paged), File or folder in advanced search, one Recover list with backups, focus back after dialogs, keyboard tests. Before that: v0.5.0 (session 11, merged to main as PR #5) — Arch in-app updates through pacman, pull request review + merge, issues, GitHub sign-in for HTTPS git, Recover (reflog), history content search, auto-fetch, editors/terminal/merge tool, beginner tips, large-repo speed, accessibility pass. Before that: v0.4.5 (session 10) — multiple windows, worktrees, submodules, Git LFS, commit signing + Verified, OpenCode in the Assistant; checks gate the installer builds. Before that: v0.4.2 (session 9, released as `v0.4.2`) — GitHub sign-in, clone from your repository list, pull requests (list with checks, create, check out), AI explain, AI pull request descriptions, AI conflict help. Before that: v0.4.0 — Batches A–C: everyday Git (amend, undo, tags, stash selected files, discard hunks/lines, auto-refresh), understanding code (blame, commit graph, compare any refs, image previews), conflicts and history (conflict resolver, edit commits, reset with backups) (session 8). Before that: v0.3.1 — readable update notes, Add to .gitignore (session 7)
+- **Current working area:** 0.6.0 — implemented on branch `release/0.6.0` (session 13), not pushed or released yet
+- **Most recently completed:** v0.6.0 (session 13, not released) — pull request line comments, suggested changes, replies, ready for review, reviewers, labels, re-run failed checks; background fetch password notice and desktop notifications; small UI overhaul; fun mode. Before that: v0.5.1 (session 12, not released) — auto-fetch every minute by default (15 s and 30 s options), pull request check/review notices, line comments on the PR diff, all PR comments (paged), File or folder in advanced search, one Recover list with backups, focus back after dialogs, keyboard tests. Before that: v0.5.0 (session 11, merged to main as PR #5) — Arch in-app updates through pacman, pull request review + merge, issues, GitHub sign-in for HTTPS git, Recover (reflog), history content search, auto-fetch, editors/terminal/merge tool, beginner tips, large-repo speed, accessibility pass. Before that: v0.4.5 (session 10) — multiple windows, worktrees, submodules, Git LFS, commit signing + Verified, OpenCode in the Assistant; checks gate the installer builds. Before that: v0.4.2 (session 9, released as `v0.4.2`) — GitHub sign-in, clone from your repository list, pull requests (list with checks, create, check out), AI explain, AI pull request descriptions, AI conflict help. Before that: v0.4.0 — Batches A–C: everyday Git (amend, undo, tags, stash selected files, discard hunks/lines, auto-refresh), understanding code (blame, commit graph, compare any refs, image previews), conflicts and history (conflict resolver, edit commits, reset with backups) (session 8). Before that: v0.3.1 — readable update notes, Add to .gitignore (session 7)
 - **Windows:** verified by the user on a real Windows machine (2026-10-21, all features working); this environment still can't build for Windows
-- **Immediate next task:** the user reviews branch `release/0.5.1`, runs "Run workflow" on `build-installers.yml` (the Linux job now fetches crates before testing, see 67d4ed5), merges, tags `v0.5.1` and releases. See "Next-session handoff".
+- **Immediate next task:** the user reviews branch `release/0.6.0`, tries the new pull request actions against a real GitHub repository, runs "Run workflow" on `build-installers.yml`, merges, tags `v0.6.0` and releases. See "Next-session handoff".
 
 ## Feature tracker
 
@@ -61,9 +61,20 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 - [x] Beginner tips (0.5.0)
 - [x] Large repo speed (0.5.0): virtualized file list above 300 files; status of 50 000 changed files 0.44 s (opt-in test)
 - [x] Accessibility pass (0.5.0, 0.5.1): axe-core checks in component tests (fixed: file list roles), live region for operations, sidebar auto-collapse, app-styled tooltips for `title`, focus returned after dialogs, automated keyboard tests (dialogs, file list, Recover). No screen-reader session and no keyboard walkthrough by hand in the real app
+- [~] Working with others (0.6.0): line comments from the diff (with suggested changes), threaded replies, ready for review, request reviewers, labels, re-run failed GitHub Actions jobs. Parsers unit-tested, UI tested with a mocked backend; **no live GitHub call made**
+- [~] Background fetch notices (0.6.0): one notice when the remote needs a password; optional desktop notifications (`tauri-plugin-notification`). Frontend logic tested; desktop notification not shown on a real desktop yet
+- [x] Small UI overhaul (0.6.0): contrast-tested tokens, grouped sidebar, roomier toolbar, reworked pull request dialog (checked with screenshots of a mocked backend)
+- [x] Fun mode (0.6.0): rope, car, ball and stamp scenes before pull, push, fetch and commit; off by default, always skippable, keyboard operable
 - [~] Documentation and release preparation (README, CLAUDE.md, INSTALL.md, CHANGELOG, this file; CI builds installers and releases on tags; update packages are signed, installers are not — no code-signing certificate)
 
 ## Work log
+
+### Session 13 — 2026-11-11/12 (v0.6.0, branch `release/0.6.0`, not pushed)
+- Local `main` was 19 commits behind `origin/main` (0.5.1 merged as #6); fast-forwarded. The user wrote the roadmap to 1.0 (`plan.md`, committed) and asked for only its 0.6.0 items, then added a small UI overhaul (spacing, sidebar/toolbar, colours, pull request dialog) and fun mode to the same release.
+- Built: `github_pr.rs` line comments, replies, `markPullRequestReadyForReview` (GraphQL; `github::graphql` is now `pub(crate)`), reviewers, labels, reviewer candidates (`/assignees`), `rerun_failed` (failed Actions runs on the head SHA); `PullDetail.nodeId/labels/requestedReviewers`, `PullComment.id/replyTo`. `DiffViewer` `onLineComment` + `composer` row + `DiffNote.extra`. `PickListDialog`, `suggestions.ts`. `useAutoFetch`: auth-failure notice once, `fetchNow`, `notifyDesktop` (`src/lib/desktopNotify.ts`). Settings `desktopNotifications`, `funMode`. Tokens retuned with `src/styles/tokens.test.ts`. Sidebar groups (`SECTIONS[].group`; shortcuts looked up by key). `src/features/fun/FunGate.tsx` + `useFunGate`.
+- Visual checks: Vite with an injected `__TAURI_INTERNALS__` mock, screenshots with the cached Playwright Chromium (`chrome --headless --screenshot`), scripts in the session scratchpad.
+- Website (`~/OLIT.github.io`, separate repo): LatchVerify link added to Selected work and the command palette; GitPilot screenshot refreshed for 0.6.0. Committed there, not pushed.
+- Checks: cargo fmt/clippy/test, typecheck, lint, vitest (171 tests) before each commit.
 
 ### Session 12 — 2026-10-29 (v0.5.1, branch `release/0.5.1`, not pushed)
 - User: Linux CI `cargo test` died with "Bus error" while updating the crates.io index (Windows fine). Fixed on main (67d4ed5): rust-cache key bumped, `cargo fetch --locked` with one retry on a fresh index, `cargo test --locked`. Not yet run in CI.
@@ -276,6 +287,13 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 - E. Release: version bump, docs, changelog, release notes. Done.
 
 ## Next-session handoff
+
+**0.6.0 (session 13):** branch `release/0.6.0` is committed, not pushed. Before releasing:
+1. On a test pull request in the real app: comment on a line, Suggest a change, reply in a thread, Ready for review on a draft, Ask for a review, Edit labels, Re-run failed checks (needs a failed Actions run and write access).
+2. Turn on Settings → General → Desktop notifications (the OS may ask), put another window in front and wait for a background fetch notice. Point a repository at an HTTPS remote that needs a password and check the one-time notice.
+3. Turn on Fun mode and try Pull, Push, Fetch and Commit with the mouse and with the keyboard.
+4. Push the branch, run `build-installers.yml`, merge, tag `v0.6.0`. `packaging/arch/PKGBUILD` has `pkgver=0.6.0`; update its checksum from the release .deb if you build by hand.
+5. Push `~/OLIT.github.io` (LatchVerify link and new screenshot are committed there).
 
 **0.5.1 (session 12):** branch `release/0.5.1` is committed, not pushed. Before releasing:
 1. Push `main` (has the CI fix) and the branch; run "Run workflow" on `build-installers.yml` and check the Linux job gets past `cargo fetch`/`cargo test`.
