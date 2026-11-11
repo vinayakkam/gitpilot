@@ -12,6 +12,12 @@
 - One notice when a remote needs a password, instead of skipping silently.
 - Optional desktop notifications when GitPilot isn't in front (new notification permission, off by default).
 
+**Small UI overhaul** (added 2026-11-11):
+- Spacing and density: even padding, row heights and font sizes across views.
+- Sidebar and toolbar: grouping, icons, active states, branch and sync controls.
+- Colours and contrast: retune surface, border and text tokens (light and dark).
+- Pull request dialog: new layout for line comments, replies, reviewers and labels.
+
 **Docs:** remove the outdated known issues.
 
 ## 0.7.0: safety and understanding
