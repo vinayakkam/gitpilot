@@ -219,6 +219,8 @@ pub struct Settings {
     pub success_notifications: bool,
     /// Also show background fetch news as desktop notifications while GitPilot isn't in front.
     pub desktop_notifications: bool,
+    /// Fun mode: pull a rope, push a car uphill, throw a ball or stamp before those actions.
+    pub fun_mode: bool,
     /// Short explanations shown the first time something happens (staging, conflicts, …).
     pub tips: bool,
     /// Tips the user closed (ids like "stage", "conflict").
@@ -256,6 +258,7 @@ impl Default for Settings {
             auto_fetch_minutes: None,
             success_notifications: true,
             desktop_notifications: false,
+            fun_mode: false,
             tips: true,
             dismissed_tips: Vec::new(),
             check_for_updates: true,

@@ -61,6 +61,10 @@ successNotifications: boolean,
  */
 desktopNotifications: boolean, 
 /**
+ * Fun mode: pull a rope, push a car uphill, throw a ball or stamp before those actions.
+ */
+funMode: boolean, 
+/**
  * Short explanations shown the first time something happens (staging, conflicts, …).
  */
 tips: boolean, 

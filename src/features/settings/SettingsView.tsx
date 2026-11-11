@@ -121,6 +121,14 @@ function GeneralPane({ settings, set }: PaneProps) {
           </div>
         )}
       </Group>
+      <Group title="Fun">
+        <Switch
+          label="Fun mode"
+          description="Pull by hauling a rope, push by shoving a car up a hill, fetch by throwing a ball for the dog, and commit with a rubber stamp. There's always a button to skip it."
+          checked={settings.funMode}
+          onChange={(funMode) => void set({ funMode })}
+        />
+      </Group>
       <Group title="Notifications">
         <Switch label="Show a notification when an operation succeeds" description="Errors are always shown." checked={settings.successNotifications} onChange={(successNotifications) => void set({ successNotifications })} />
         <Switch

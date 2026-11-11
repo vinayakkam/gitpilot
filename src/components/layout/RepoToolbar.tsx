@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useFunGate } from "@/features/fun/FunGate";
 import { createPortal } from "react-dom";
 import {
   ArrowDown,
@@ -204,6 +205,7 @@ export function RepoToolbar() {
   // `fetch` is declared below; the callback only runs later.
   useAutoFetch(() => void pull(), () => fetch());
   const tools = useExternalTools();
+  const { gate, element: funGate } = useFunGate();
   const [openMenu, setOpenMenu] = useState<{ x: number; y: number } | null>(null);
   const [picker, setPicker] = useState<DOMRect | null>(null);
   const [newBranch, setNewBranch] = useState(false);
@@ -293,7 +295,7 @@ export function RepoToolbar() {
                 ? `Push to ${twin.name} and link ${b.head} to it`
               : `Publish ${b.head} to ${remotes[0]?.name ?? "a remote"} and track it`;
 
-  const pushItems: MenuItem[] = remotes.map((r) => ({ label: `Publish to ${r.name}`, onSelect: () => void push(r.name) }));
+  const pushItems: MenuItem[] = remotes.map((r) => ({ label: `Publish to ${r.name}`, onSelect: () => gate("push", () => void push(r.name)) }));
 
   return (
     <div className="relative shrink-0 border-b border-border bg-surface">
@@ -334,7 +336,7 @@ export function RepoToolbar() {
           <span className="mx-1 h-5 w-px bg-border" aria-hidden />
           <Tooltip content={remotes.length ? "Download new commits from all remotes without changing your files" : "No remotes configured"}>
             <span>
-              <Button size="md" icon={<RefreshCw size={13} />} onClick={fetch} disabled={!!busy || remotes.length === 0} loading={busy === "Fetch"}>
+              <Button size="md" icon={<RefreshCw size={13} />} onClick={() => gate("fetch", () => void fetch())} disabled={!!busy || remotes.length === 0} loading={busy === "Fetch"}>
                 Fetch
               </Button>
             </span>
@@ -349,7 +351,7 @@ export function RepoToolbar() {
             }
           >
             <span>
-              <Button size="md" variant={behind > 0 ? "primary" : "secondary"} icon={<ArrowDownToLine size={13} />} onClick={() => void pull()} disabled={!!busy || !canPull || midOperation} loading={busy === "Pull"}>
+              <Button size="md" variant={behind > 0 ? "primary" : "secondary"} icon={<ArrowDownToLine size={13} />} onClick={() => gate("pull", () => void pull())} disabled={!!busy || !canPull || midOperation} loading={busy === "Pull"}>
                 Pull{behind ? ` ${behind}` : ""}
               </Button>
             </span>
@@ -366,7 +368,7 @@ export function RepoToolbar() {
                   if (!hasUpstream && !twin && remotes.length > 1) {
                     const r = e.currentTarget.getBoundingClientRect();
                     setPushMenu({ x: r.right - 200, y: r.bottom + 4 });
-                  } else void push();
+                  } else gate("push", () => void push());
                 }}
               >
                 {pushLabel}
@@ -396,6 +398,7 @@ export function RepoToolbar() {
       {picker && <BranchPicker anchor={picker} onClose={() => setPicker(null)} onNew={() => setNewBranch(true)} />}
       <NewBranchDialog open={newBranch} onClose={() => setNewBranch(false)} />
       {pullDialog}
+      {funGate}
       {pushMenu && <Menu at={pushMenu} items={pushItems} onClose={() => setPushMenu(null)} />}
       {openMenu && (
         <Menu
