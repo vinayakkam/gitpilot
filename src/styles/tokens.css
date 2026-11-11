@@ -1,15 +1,15 @@
 /* GitPilot design tokens. Components use semantic utilities (bg-surface, text-muted…), never raw hex. */
 
 :root {
-  --bg: #f4f5f8;
+  --bg: #f3f4f7;
   --surface: #ffffff;
-  --surface-2: #f2f4f7;
-  --surface-3: #e8ebf0;
-  --border: #e2e5ea;
-  --border-strong: #cdd2da;
-  --text: #1b1e24;
-  --text-muted: #5b6370;
-  --text-faint: #8a919c;
+  --surface-2: #f4f5f8;
+  --surface-3: #e9ecf1;
+  --border: #dfe3e9;
+  --border-strong: #c8ced8;
+  --text: #171a20;
+  --text-muted: #525a67;
+  --text-faint: #68707c;
   --accent: #3550c8;
   --accent-hover: #2b43ad;
   --accent-text: #2f49bd;
@@ -40,15 +40,15 @@
 }
 
 :root[data-theme="dark"] {
-  --bg: #121419;
-  --surface: #181b21;
-  --surface-2: #1f232a;
-  --surface-3: #282d36;
-  --border: #272c34;
-  --border-strong: #363c47;
-  --text: #e5e7eb;
-  --text-muted: #a0a7b2;
-  --text-faint: #6f7783;
+  --bg: #0f1115;
+  --surface: #16191f;
+  --surface-2: #1d2128;
+  --surface-3: #262b33;
+  --border: #252a32;
+  --border-strong: #363d48;
+  --text: #e6e8ec;
+  --text-muted: #a6adb8;
+  --text-faint: #8a929e;
   --accent: #4862d9;
   --accent-hover: #5872e6;
   --accent-text: #93a6f6;
