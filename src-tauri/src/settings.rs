@@ -217,6 +217,8 @@ pub struct Settings {
     pub auto_fetch_minutes: Option<u32>,
     /// Show a notification when operations succeed (errors are always shown).
     pub success_notifications: bool,
+    /// Also show background fetch news as desktop notifications while GitPilot isn't in front.
+    pub desktop_notifications: bool,
     /// Short explanations shown the first time something happens (staging, conflicts, …).
     pub tips: bool,
     /// Tips the user closed (ids like "stage", "conflict").
@@ -253,6 +255,7 @@ impl Default for Settings {
             auto_fetch_seconds: 60,
             auto_fetch_minutes: None,
             success_notifications: true,
+            desktop_notifications: false,
             tips: true,
             dismissed_tips: Vec::new(),
             check_for_updates: true,

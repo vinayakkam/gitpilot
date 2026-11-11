@@ -201,7 +201,8 @@ function SyncStrip({ fetchError }: { fetchError: AppError | null }) {
 export function RepoToolbar() {
   const { activeRepo, status, busy, progress, run, revision, refreshStatus, statusLoading, notify } = useStore();
   const { pull, dialog: pullDialog } = usePull();
-  useAutoFetch(() => void pull());
+  // `fetch` is declared below; the callback only runs later.
+  useAutoFetch(() => void pull(), () => fetch());
   const tools = useExternalTools();
   const [openMenu, setOpenMenu] = useState<{ x: number; y: number } | null>(null);
   const [picker, setPicker] = useState<DOMRect | null>(null);

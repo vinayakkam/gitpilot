@@ -15,10 +15,13 @@ const api = vi.hoisted(() => ({
   githubPulls: vi.fn(),
 }));
 vi.mock("@/lib/api", () => ({ api, onProgress: () => Promise.resolve(() => {}) }));
+const desktop = vi.hoisted(() => ({ notifyDesktop: vi.fn(() => Promise.resolve()), allowDesktopNotifications: vi.fn() }));
+vi.mock("@/lib/desktopNotify", () => desktop);
 
 const pull = vi.fn();
+const fetchNow = vi.fn();
 function Probe() {
-  useAutoFetch(pull);
+  useAutoFetch(pull, fetchNow);
   return null;
 }
 
@@ -26,6 +29,8 @@ beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   Object.values(api).forEach((f) => f.mockReset());
   pull.mockReset();
+  fetchNow.mockReset();
+  desktop.notifyDesktop.mockClear();
   api.settingsGet.mockResolvedValue({ ...settings, autoFetchSeconds: 15 });
   api.repoList.mockResolvedValue([repo]);
   api.appInfo.mockResolvedValue({ version: "0.5.0", os: "linux", gitPath: "git", gitVersion: "2.43.0", gitError: null, globalIdentity: null, dataDir: "/d" });
@@ -84,6 +89,44 @@ describe("useAutoFetch", () => {
     expect(api.githubPulls).toHaveBeenCalledTimes(1);
     await act(() => vi.advanceTimersByTimeAsync(15_000));
     expect(await screen.findByText("Checks failed on #12")).toBeInTheDocument();
+  });
+});
+
+describe("useAutoFetch: telling you", () => {
+  it("says once when the remote needs a password, and offers Fetch now", async () => {
+    api.fetch.mockRejectedValue({ kind: "authFailed", message: "Sign in", detail: null });
+    render(<AppStoreProvider><Probe /><Toaster /></AppStoreProvider>);
+    await vi.waitFor(() => expect(api.status).toHaveBeenCalled());
+    await act(() => vi.advanceTimersByTimeAsync(15_000));
+    expect(await screen.findByText("Background fetch needs your password")).toBeInTheDocument();
+    screen.getByRole("button", { name: "Fetch now" }).click();
+    expect(fetchNow).toHaveBeenCalled();
+    expect(desktop.notifyDesktop).not.toHaveBeenCalled();
+    // Backoff doubles the wait: 30 s, then 60 s. The notice isn't repeated.
+    await act(() => vi.advanceTimersByTimeAsync(90_000));
+    expect(api.fetch).toHaveBeenCalledTimes(3);
+    expect(screen.queryByText("Background fetch needs your password")).not.toBeInTheDocument();
+  });
+
+  it("stays quiet about other fetch failures", async () => {
+    api.fetch.mockRejectedValue({ kind: "networkFailed", message: "Offline", detail: null });
+    render(<AppStoreProvider><Probe /><Toaster /></AppStoreProvider>);
+    await vi.waitFor(() => expect(api.status).toHaveBeenCalled());
+    await act(() => vi.advanceTimersByTimeAsync(15_000));
+    expect(api.fetch).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Background fetch needs your password")).not.toBeInTheDocument();
+  });
+
+  it("also sends news to the desktop when that's turned on", async () => {
+    api.settingsGet.mockResolvedValue({ ...settings, autoFetchSeconds: 15, desktopNotifications: true });
+    const st = status([]);
+    api.status.mockResolvedValue(st);
+    render(<AppStoreProvider><Probe /><Toaster /></AppStoreProvider>);
+    await vi.waitFor(() => expect(api.status).toHaveBeenCalled());
+    api.status.mockResolvedValue({ ...st, branch: { ...st.branch, behind: 2 } });
+    await act(() => vi.advanceTimersByTimeAsync(15_000));
+    expect(await screen.findByText(/2 new commits/)).toBeInTheDocument();
+    expect(desktop.notifyDesktop).toHaveBeenCalledWith(expect.stringMatching(/2 new commits/), "Fetched in the background.");
   });
 });
 

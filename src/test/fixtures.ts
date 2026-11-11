@@ -25,6 +25,7 @@ export const settings: Settings = {
   tips: false,
   dismissedTips: [],
   successNotifications: true,
+  desktopNotifications: false,
   checkForUpdates: true,
   lastRepoId: 1,
 };
