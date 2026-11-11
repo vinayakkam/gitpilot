@@ -67,6 +67,10 @@ interface Props {
   match?: (text: string) => boolean;
   /** Comments shown under the line they're about (pull request line comments). */
   notes?: DiffNote[];
+  /** Makes line numbers buttons that start a comment on that line. */
+  onLineComment?: (side: "old" | "new", line: number, text: string) => void;
+  /** Shown under the line being commented on (see `onLineComment`). */
+  composer?: { side: "old" | "new"; line: number; node: ReactNode } | null;
 }
 
 /** A comment on one line: `side` "old" uses the old file's numbering (removed lines), "new" the new one's. */
@@ -75,6 +79,8 @@ export interface DiffNote {
   line: number;
   author: string | null;
   body: string;
+  /** Shown under the comment (replies, a Reply button). */
+  extra?: ReactNode;
 }
 
 type Ref = { line: DiffLine; li: number };
@@ -83,7 +89,8 @@ type Row =
   | { t: "line"; line: DiffLine; hi: number; li: number; key: string }
   | { t: "pair"; left: Ref | null; right: Ref | null; hi: number; key: string }
   | { t: "conflict"; index: number; key: string }
-  | { t: "note"; notes: DiffNote[]; key: string };
+  | { t: "note"; notes: DiffNote[]; key: string }
+  | { t: "compose"; key: string };
 
 const LINE_H = 20;
 const NOTE_H = 64;
@@ -103,9 +110,10 @@ function rowLines(r: Row): string[] {
   return [];
 }
 
-export function buildRows(diff: FileDiff, mode: DiffMode, notes: DiffNote[] = []): Row[] {
+/** `composeAt` ("old:N" / "new:N") puts a composer row under that line, after its notes. */
+export function buildRows(diff: FileDiff, mode: DiffMode, notes: DiffNote[] = [], composeAt?: string): Row[] {
   const rows = buildLineRows(diff, mode);
-  if (!notes.length) return rows;
+  if (!notes.length && !composeAt) return rows;
   const pending = new Map<string, DiffNote[]>();
   for (const n of notes) pending.set(`${n.side}:${n.line}`, [...(pending.get(`${n.side}:${n.line}`) ?? []), n]);
   const out: Row[] = [];
@@ -117,6 +125,7 @@ export function buildRows(diff: FileDiff, mode: DiffMode, notes: DiffNote[] = []
       return ns;
     });
     if (here.length) out.push({ t: "note", notes: here, key: `n:${r.key}` });
+    if (composeAt && rowLines(r).includes(composeAt)) out.push({ t: "compose", key: "compose" });
   }
   return out;
 }
@@ -187,7 +196,9 @@ function LineCells({
   li = 0,
   pick,
   match,
+  comment,
 }: {
+  comment?: (side: "old" | "new", line: number, text: string) => void;
   line: DiffLine | null;
   lang: string | null;
   showEol: boolean;
@@ -204,17 +215,34 @@ function LineCells({
   const lineNo = line.kind === "del" ? line.oldNo : line.newNo;
   const no = side === "left" ? line.oldNo : side === "right" ? line.newNo : null;
   const matched = !selected && (line.kind === "add" || line.kind === "del") && !!match?.(line.content);
+  // The number that can be commented on: removed lines use the old numbering, others the new.
+  const target: ["old" | "new", number] | null =
+    line.kind === "noNewline" ? null : side === "left" || (!side && line.kind === "del") ? (line.kind === "add" || line.oldNo == null ? null : ["old", line.oldNo]) : line.kind === "del" || line.newNo == null ? null : ["new", line.newNo];
+  const num = (n: number | null, which: "old" | "new", w: string) =>
+    comment && target && target[0] === which ? (
+      <button
+        type="button"
+        title="Comment on this line"
+        aria-label={`Comment on line ${n}`}
+        onClick={() => comment(target[0], target[1], line.content)}
+        className={cx(w, "shrink-0 select-none pr-2 text-right hover:bg-accent-soft hover:text-accent-text", t.gutter)}
+      >
+        {n ?? ""}
+      </button>
+    ) : (
+      <span className={cx(w, "shrink-0 select-none pr-2 text-right", t.gutter)}>{n ?? ""}</span>
+    );
   return (
     <div
       className={cx("flex min-h-5 min-w-0 flex-1", t.row, selected && "shadow-[inset_3px_0_0_var(--accent)]", matched && "shadow-[inset_3px_0_0_var(--warning)]")}
       title={matched ? "Matches your search" : undefined}
     >
       {side ? (
-        <span className={cx("w-12 shrink-0 select-none pr-2 text-right", t.gutter)}>{no ?? ""}</span>
+        num(no, side === "left" ? "old" : "new", "w-12")
       ) : (
         <>
-          <span className={cx("w-11 shrink-0 select-none pr-2 text-right", t.gutter)}>{line.oldNo ?? ""}</span>
-          <span className={cx("w-11 shrink-0 select-none pr-2 text-right", t.gutter)}>{line.newNo ?? ""}</span>
+          {num(line.oldNo, "old", "w-11")}
+          {num(line.newNo, "new", "w-11")}
         </>
       )}
       {selectable ? (
@@ -282,7 +310,7 @@ export function diffKey(d: FileDiff | null): string {
   return [d.oldPath, d.newPath, ...d.hunks.map((h) => `${h.header}\n${h.lines.map((l) => `${l.kind}:${l.content}`).join("\n")}`)].join("\u0000");
 }
 
-export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight, hunkAction, lineAction, discardHunk, discardLines, conflict, busy, actions, emptyTitle, emptyBody, match, notes }: Props) {
+export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight, hunkAction, lineAction, discardHunk, discardLines, conflict, busy, actions, emptyTitle, emptyBody, match, notes, onLineComment, composer }: Props) {
   const [sel, setSel] = useState<Selection>(null);
   // A different diff (after staging, or another file) invalidates line indices. A refresh that
   // returns the same content (auto-refresh, window focus) keeps the selection.
@@ -312,8 +340,9 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
   const path = diff?.newPath ?? diff?.oldPath ?? null;
   const lang = highlight ? languageFor(path) : null;
   const effectiveMode: DiffMode = diff?.conflictView ? "unified" : mode;
-  const rows = useMemo(() => (diff ? buildRows(diff, effectiveMode, notes) : []), [diff, effectiveMode, notes]);
-  const hasNotes = rows.some((r) => r.t === "note");
+  const composeAt = composer ? `${composer.side}:${composer.line}` : undefined;
+  const rows = useMemo(() => (diff ? buildRows(diff, effectiveMode, notes, composeAt) : []), [diff, effectiveMode, notes, composeAt]);
+  const hasNotes = rows.some((r) => r.t === "note" || r.t === "compose");
 
   const { maxLen, mixedEol } = useMemo(() => {
     let m = 0;
@@ -334,7 +363,7 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
   const virt = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: (i) => (rows[i]?.t === "note" ? NOTE_H : rows[i]?.t === "hunk" || rows[i]?.t === "conflict" ? HUNK_H : LINE_H),
+    estimateSize: (i) => (rows[i]?.t === "note" || rows[i]?.t === "compose" ? NOTE_H : rows[i]?.t === "hunk" || rows[i]?.t === "conflict" ? HUNK_H : LINE_H),
     overscan: 24,
     // Side-by-side wraps long lines, so rows are measured; unified rows have a fixed height.
     // Notes have their own height, so rows are measured when there are any.
@@ -402,8 +431,15 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
                     <div key={i} role="note" aria-label={`Comment by ${n.author ?? "someone"}`} className="mb-1 rounded border border-border bg-surface px-3 py-1.5 text-sm last:mb-0">
                       <span className="font-medium">{n.author ?? "someone"}</span>
                       <ReleaseNotes source={n.body} className="selectable mt-0.5 text-base" />
+                      {n.extra}
                     </div>
                   ))}
+                </div>
+              );
+            if (r.t === "compose")
+              return (
+                <div key={r.key} style={style} {...measure} className="py-1 pl-24 pr-4 font-sans">
+                  {composer?.node}
                 </div>
               );
             if (r.t === "conflict")
@@ -482,16 +518,16 @@ export function DiffViewer({ diff, loading, error, mode, onModeChange, highlight
             if (r.t === "line")
               return (
                 <div key={r.key} style={style} {...measure} className="flex">
-                  <LineCells line={r.line} lang={lang} showEol={mixedEol} hi={r.hi} li={r.li} pick={pick} match={match} />
+                  <LineCells line={r.line} lang={lang} showEol={mixedEol} hi={r.hi} li={r.li} pick={pick} match={match} comment={onLineComment} />
                 </div>
               );
             return (
               <div key={r.key} style={style} {...measure} className="flex">
                 <div className="flex w-1/2 min-w-0 border-r border-border">
-                  <LineCells side="left" line={r.left?.line.kind === "add" ? null : (r.left?.line ?? null)} lang={lang} showEol={mixedEol} hi={r.hi} li={r.left?.li} pick={pick} match={match} />
+                  <LineCells side="left" line={r.left?.line.kind === "add" ? null : (r.left?.line ?? null)} lang={lang} showEol={mixedEol} hi={r.hi} li={r.left?.li} pick={pick} match={match} comment={onLineComment} />
                 </div>
                 <div className="flex w-1/2 min-w-0">
-                  <LineCells side="right" line={r.right?.line.kind === "del" ? null : (r.right?.line ?? null)} lang={lang} showEol={mixedEol} hi={r.hi} li={r.right?.li} pick={pick} match={match} />
+                  <LineCells side="right" line={r.right?.line.kind === "del" ? null : (r.right?.line ?? null)} lang={lang} showEol={mixedEol} hi={r.hi} li={r.right?.li} pick={pick} match={match} comment={onLineComment} />
                 </div>
               </div>
             );
