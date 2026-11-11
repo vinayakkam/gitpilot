@@ -351,7 +351,7 @@ pub(crate) async fn get(token: &str, path: &str) -> AppResult<Value> {
     send(api_req(&client()?, reqwest::Method::GET, path, token)).await
 }
 
-async fn graphql(token: &str, query: &str, variables: Value) -> AppResult<Value> {
+pub(crate) async fn graphql(token: &str, query: &str, variables: Value) -> AppResult<Value> {
     let req = api_req(&client()?, reqwest::Method::POST, "/graphql", token)
         .json(&json!({ "query": query, "variables": variables }));
     let body = send(req).await?;

@@ -33,6 +33,11 @@ pub struct PullDetail {
     pub additions: u32,
     pub deletions: u32,
     pub changed_files: u32,
+    /// GraphQL id, for "Ready for review".
+    pub node_id: String,
+    pub labels: Vec<String>,
+    /// Logins still asked to review (GitHub drops a login once they review).
+    pub requested_reviewers: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, TS)]
@@ -53,6 +58,11 @@ pub struct PullFile {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct PullComment {
+    #[ts(type = "number")]
+    pub id: u64,
+    /// Line comments: the first comment of the thread this one replies to.
+    #[ts(type = "number | null")]
+    pub reply_to: Option<u64>,
     /// "comment" (conversation), "review" (a submitted review) or "reviewComment" (on a line).
     pub kind: String,
     pub author: Option<String>,
@@ -112,6 +122,15 @@ fn login(v: &Value) -> Option<String> {
     v["login"].as_str().map(str::to_string)
 }
 
+/// `key` of every object in the array `v`.
+fn names(v: &Value, key: &str) -> Vec<String> {
+    v.as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|x| x[key].as_str().map(str::to_string))
+        .collect()
+}
+
 fn base(owner: &str, name: &str, number: u32) -> AppResult<String> {
     Ok(format!(
         "/repos/{}/{}/pulls/{number}",
@@ -146,6 +165,9 @@ pub fn parse_detail(v: &Value) -> Option<PullDetail> {
         additions: n(&v["additions"]),
         deletions: n(&v["deletions"]),
         changed_files: n(&v["changed_files"]),
+        node_id: s(&v["node_id"]),
+        labels: names(&v["labels"], "name"),
+        requested_reviewers: names(&v["requested_reviewers"], "login"),
     })
 }
 
@@ -224,6 +246,8 @@ pub fn parse_conversation(
     let mut out: Vec<PullComment> = Vec::new();
     for c in comments.as_array().into_iter().flatten() {
         out.push(PullComment {
+            id: c["id"].as_u64().unwrap_or(0),
+            reply_to: None,
             kind: "comment".into(),
             author: login(&c["user"]),
             body: s(&c["body"]),
@@ -243,6 +267,8 @@ pub fn parse_conversation(
             continue;
         }
         out.push(PullComment {
+            id: r["id"].as_u64().unwrap_or(0),
+            reply_to: None,
             kind: "review".into(),
             author: login(&r["user"]),
             body: s(&r["body"]),
@@ -257,6 +283,8 @@ pub fn parse_conversation(
     }
     for c in line_comments.as_array().into_iter().flatten() {
         out.push(PullComment {
+            id: c["id"].as_u64().unwrap_or(0),
+            reply_to: c["in_reply_to_id"].as_u64(),
             kind: "reviewComment".into(),
             author: login(&c["user"]),
             body: s(&c["body"]),
@@ -483,6 +511,216 @@ pub async fn delete_branch(token: &str, owner: &str, name: &str, branch: &str) -
     Ok(())
 }
 
+#[derive(Debug, Clone, Copy, serde::Deserialize, TS, PartialEq)]
+#[ts(export)]
+pub enum DiffSide {
+    /// A removed line (old numbering).
+    #[serde(rename = "LEFT")]
+    Left,
+    /// An added or unchanged line (new numbering).
+    #[serde(rename = "RIGHT")]
+    Right,
+}
+
+#[derive(Debug, Clone, Serialize, TS, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RepoLabel {
+    pub name: String,
+    /// Hex without '#'.
+    pub color: String,
+    pub description: String,
+}
+
+fn non_empty(body: &str, what: &str) -> AppResult<String> {
+    let body = body.trim();
+    if body.is_empty() {
+        return Err(AppError::invalid(format!("Write {what} first.")));
+    }
+    Ok(body.to_string())
+}
+
+/// A comment on one line of the diff, at the head the user is looking at (`sha`).
+#[allow(clippy::too_many_arguments)]
+pub async fn line_comment(
+    token: &str,
+    owner: &str,
+    name: &str,
+    number: u32,
+    sha: &str,
+    path: &str,
+    line: u32,
+    side: DiffSide,
+    body: &str,
+) -> AppResult<()> {
+    let body = non_empty(body, "a comment")?;
+    let sha = crate::git::validate::commit_hash(sha)?;
+    let path = crate::git::validate::rel_path(path)?;
+    if line == 0 {
+        return Err(AppError::invalid("Choose a line to comment on."));
+    }
+    let side = if side == DiffSide::Left {
+        "LEFT"
+    } else {
+        "RIGHT"
+    };
+    let url = format!("{}/comments", base(owner, name, number)?);
+    send(
+        api_req(&client()?, reqwest::Method::POST, &url, token).json(&json!({
+            "body": body, "commit_id": sha, "path": path, "line": line, "side": side
+        })),
+    )
+    .await?;
+    Ok(())
+}
+
+/// Replies in the thread of line comment `comment_id` (GitHub wants the thread's first comment).
+pub async fn reply(
+    token: &str,
+    owner: &str,
+    name: &str,
+    number: u32,
+    comment_id: u64,
+    body: &str,
+) -> AppResult<()> {
+    let body = non_empty(body, "a reply")?;
+    let url = format!(
+        "{}/comments/{comment_id}/replies",
+        base(owner, name, number)?
+    );
+    send(api_req(&client()?, reqwest::Method::POST, &url, token).json(&json!({ "body": body })))
+        .await?;
+    Ok(())
+}
+
+/// Turns a draft into a pull request that's ready for review (GraphQL only).
+pub async fn ready_for_review(token: &str, node_id: &str) -> AppResult<()> {
+    if node_id.is_empty()
+        || !node_id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '=')
+    {
+        return Err(AppError::invalid("That pull request id isn't valid."));
+    }
+    crate::github::graphql(
+        token,
+        "mutation($id: ID!) { markPullRequestReadyForReview(input: {pullRequestId: $id}) { pullRequest { isDraft } } }",
+        json!({ "id": node_id }),
+    )
+    .await?;
+    Ok(())
+}
+
+/// Asks `logins` to review. People already asked stay asked.
+pub async fn request_reviewers(
+    token: &str,
+    owner: &str,
+    name: &str,
+    number: u32,
+    logins: &[String],
+) -> AppResult<()> {
+    if logins.is_empty() {
+        return Err(AppError::invalid("Choose someone to ask for a review."));
+    }
+    let logins = logins
+        .iter()
+        .map(|l| valid_name(l).map(str::to_string))
+        .collect::<AppResult<Vec<_>>>()?;
+    let url = format!("{}/requested_reviewers", base(owner, name, number)?);
+    send(
+        api_req(&client()?, reqwest::Method::POST, &url, token)
+            .json(&json!({ "reviewers": logins })),
+    )
+    .await?;
+    Ok(())
+}
+
+/// Replaces the pull request's labels with `labels` (an empty list removes them all).
+pub async fn set_labels(
+    token: &str,
+    owner: &str,
+    name: &str,
+    number: u32,
+    labels: &[String],
+) -> AppResult<()> {
+    if labels.len() > 100 || labels.iter().any(|l| l.trim().is_empty() || l.len() > 100) {
+        return Err(AppError::invalid("Those labels aren't valid."));
+    }
+    let url = format!(
+        "/repos/{}/{}/issues/{number}/labels",
+        valid_name(owner)?,
+        valid_name(name)?
+    );
+    send(api_req(&client()?, reqwest::Method::PUT, &url, token).json(&json!({ "labels": labels })))
+        .await?;
+    Ok(())
+}
+
+pub fn parse_labels(v: &Value) -> Vec<RepoLabel> {
+    v.as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|l| {
+            Some(RepoLabel {
+                name: l["name"].as_str()?.to_string(),
+                color: s(&l["color"]),
+                description: s(&l["description"]),
+            })
+        })
+        .collect()
+}
+
+/// The repository's labels (up to 300).
+pub async fn repo_labels(token: &str, owner: &str, name: &str) -> AppResult<Vec<RepoLabel>> {
+    let url = format!("/repos/{}/{}/labels", valid_name(owner)?, valid_name(name)?);
+    Ok(parse_labels(&get_all(token, &url, 3).await?))
+}
+
+/// People who can be asked to review: the repository's assignable users (up to 300).
+pub async fn reviewer_candidates(token: &str, owner: &str, name: &str) -> AppResult<Vec<String>> {
+    let url = format!(
+        "/repos/{}/{}/assignees",
+        valid_name(owner)?,
+        valid_name(name)?
+    );
+    Ok(names(&get_all(token, &url, 3).await?, "login"))
+}
+
+/// GitHub Actions runs of `sha` that ended badly (failed, timed out or cancelled).
+pub fn failed_run_ids(v: &Value) -> Vec<u64> {
+    v["workflow_runs"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|r| {
+            r["status"].as_str() == Some("completed")
+                && matches!(
+                    r["conclusion"].as_str(),
+                    Some("failure" | "timed_out" | "cancelled" | "startup_failure")
+                )
+        })
+        .filter_map(|r| r["id"].as_u64())
+        .collect()
+}
+
+/// Re-runs the failed jobs of every failed GitHub Actions run on `sha`. Returns how many runs
+/// were restarted; checks from other services can't be restarted from here.
+pub async fn rerun_failed(token: &str, owner: &str, name: &str, sha: &str) -> AppResult<u32> {
+    let (o, r) = (valid_name(owner)?, valid_name(name)?);
+    let sha = crate::git::validate::commit_hash(sha)?;
+    let v = get(
+        token,
+        &format!("/repos/{o}/{r}/actions/runs?head_sha={sha}&per_page=100"),
+    )
+    .await?;
+    let ids = failed_run_ids(&v);
+    for id in &ids {
+        let url = format!("/repos/{o}/{r}/actions/runs/{id}/rerun-failed-jobs");
+        send(api_req(&client()?, reqwest::Method::POST, &url, token)).await?;
+    }
+    Ok(ids.len() as u32)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -557,6 +795,57 @@ mod tests {
             (Some(9), Some("LEFT"), false)
         );
         assert_eq!(all[2].review_state.as_deref(), Some("APPROVED"));
+    }
+
+    #[test]
+    fn picks_failed_runs_and_labels() {
+        let runs = json!({"workflow_runs": [
+            {"id": 1, "status": "completed", "conclusion": "failure"},
+            {"id": 2, "status": "completed", "conclusion": "success"},
+            {"id": 3, "status": "in_progress", "conclusion": null},
+            {"id": 4, "status": "completed", "conclusion": "timed_out"}
+        ]});
+        assert_eq!(failed_run_ids(&runs), [1, 4]);
+        let l = parse_labels(
+            &json!([{"name": "bug", "color": "d73a4a", "description": null}, {"color": "x"}]),
+        );
+        assert_eq!(
+            l,
+            [RepoLabel {
+                name: "bug".into(),
+                color: "d73a4a".into(),
+                description: String::new()
+            }]
+        );
+    }
+
+    #[test]
+    fn reads_labels_reviewers_and_reply_threads() {
+        let d = parse_detail(
+            &json!({"number": 1, "node_id": "PR_x", "labels": [{"name": "bug"}],
+            "requested_reviewers": [{"login": "bo"}], "head": {}, "base": {}}),
+        )
+        .unwrap();
+        assert_eq!(
+            (
+                d.node_id.as_str(),
+                d.labels.as_slice(),
+                d.requested_reviewers.as_slice()
+            ),
+            ("PR_x", &["bug".to_string()][..], &["bo".to_string()][..])
+        );
+        let c = parse_conversation(
+            &json!([]),
+            &json!([]),
+            &json!([
+                {"id": 10, "body": "a", "created_at": "1", "path": "x", "line": 2},
+                {"id": 11, "in_reply_to_id": 10, "body": "b", "created_at": "2", "path": "x", "line": 2}
+            ]),
+        );
+        assert_eq!(
+            (c[0].id, c[0].reply_to, c[1].reply_to),
+            (10, None, Some(10))
+        );
     }
 
     #[test]

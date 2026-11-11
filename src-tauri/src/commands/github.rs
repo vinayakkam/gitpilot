@@ -363,3 +363,84 @@ pub async fn github_issue_create(
 ) -> AppResult<github_pr::Issue> {
     github_pr::create_issue(&token()?, &owner, &name, &title, &body).await
 }
+
+// ---------- working on a pull request with others ----------
+
+/// Comments on one line of the diff; `sha` is the head the user is looking at.
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn github_pull_line_comment(
+    owner: String,
+    name: String,
+    number: u32,
+    sha: String,
+    path: String,
+    line: u32,
+    side: github_pr::DiffSide,
+    body: String,
+) -> AppResult<()> {
+    github_pr::line_comment(
+        &token()?,
+        &owner,
+        &name,
+        number,
+        &sha,
+        &path,
+        line,
+        side,
+        &body,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn github_pull_reply(
+    owner: String,
+    name: String,
+    number: u32,
+    comment_id: u64,
+    body: String,
+) -> AppResult<()> {
+    github_pr::reply(&token()?, &owner, &name, number, comment_id, &body).await
+}
+
+#[tauri::command]
+pub async fn github_pull_ready(node_id: String) -> AppResult<()> {
+    github_pr::ready_for_review(&token()?, &node_id).await
+}
+
+#[tauri::command]
+pub async fn github_pull_request_reviewers(
+    owner: String,
+    name: String,
+    number: u32,
+    logins: Vec<String>,
+) -> AppResult<()> {
+    github_pr::request_reviewers(&token()?, &owner, &name, number, &logins).await
+}
+
+#[tauri::command]
+pub async fn github_pull_set_labels(
+    owner: String,
+    name: String,
+    number: u32,
+    labels: Vec<String>,
+) -> AppResult<()> {
+    github_pr::set_labels(&token()?, &owner, &name, number, &labels).await
+}
+
+#[tauri::command]
+pub async fn github_labels(owner: String, name: String) -> AppResult<Vec<github_pr::RepoLabel>> {
+    github_pr::repo_labels(&token()?, &owner, &name).await
+}
+
+#[tauri::command]
+pub async fn github_reviewer_candidates(owner: String, name: String) -> AppResult<Vec<String>> {
+    github_pr::reviewer_candidates(&token()?, &owner, &name).await
+}
+
+/// Re-runs the failed GitHub Actions jobs on `sha`; returns how many runs restarted.
+#[tauri::command]
+pub async fn github_pull_rerun_failed(owner: String, name: String, sha: String) -> AppResult<u32> {
+    github_pr::rerun_failed(&token()?, &owner, &name, &sha).await
+}

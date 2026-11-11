@@ -267,7 +267,7 @@ export function PullReviewDialog({ target, number, onClose, onChanged }: { targe
 
           {tab === "conversation" && (
             <div className="flex max-h-[52vh] flex-col gap-2 overflow-y-auto">
-              {d.body.trim() ? <Comment c={{ kind: "comment", author: d.author, body: d.body, createdAt: "", reviewState: null, path: null, line: null, side: null, outdated: false, url: d.url }} /> : <p className="text-sm text-faint">No description.</p>}
+              {d.body.trim() ? <Comment c={{ id: 0, replyTo: null, kind: "comment", author: d.author, body: d.body, createdAt: "", reviewState: null, path: null, line: null, side: null, outdated: false, url: d.url }} /> : <p className="text-sm text-faint">No description.</p>}
               {talk.loading && !talk.data && <Spinner label="Loading the conversation" />}
               {talk.error && <ErrorNotice error={talk.error} />}
               {talk.data?.map((c, i) => <Comment key={`${c.url}-${i}`} c={c} />)}

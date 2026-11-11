@@ -35,8 +35,8 @@ vi.mock("@/features/diff/DiffViewer", () => ({
 }));
 
 const target = { owner: "me", name: "app", fullName: "me/app", htmlUrl: "https://github.com/me/app", defaultBranch: "main", remote: "origin" };
-const detail = { number: 7, title: "Add login", body: "Adds **login**.", url: "https://github.com/me/app/pull/7", author: "ann", state: "open", draft: false, headRef: "login", headSha: "abc1234", baseRef: "main", crossRepository: false, mergeable: true, mergeableState: "clean", additions: 2, deletions: 1, changedFiles: 1 };
-const fileDiff = { oldPath: "a.ts", newPath: "a.ts", binary: false, newFile: false, deletedFile: false, renamed: false, similarity: null, oldMode: null, newMode: null, additions: 1, deletions: 1, truncated: false, conflictView: false, hunkActions: false, image: null, hunks: [{ header: "@@ -1 +1 @@", oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: [{ kind: "del", content: "old line", oldNo: 1, newNo: null, crlf: false }, { kind: "add", content: "new line", oldNo: null, newNo: 1, crlf: false }] }] };
+const detail = { number: 7, title: "Add login", body: "Adds **login**.", url: "https://github.com/me/app/pull/7", author: "ann", state: "open", draft: false, headRef: "login", headSha: "abc1234", baseRef: "main", crossRepository: false, mergeable: true, mergeableState: "clean", additions: 2, deletions: 1, changedFiles: 1, nodeId: "PR_7", labels: [], requestedReviewers: [] };
+const fileDiff = { oldPath: "a.ts", newPath: "a.ts", binary: false, newFile: false, deletedFile: false, renamed: false, similarity: null, oldMode: null, newMode: null, additions: 1, deletions: 1, truncated: false, conflictView: false, hunkActions: false, image: null, hunks: [{ header: "@@ -1 +1 @@", oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: [{ id: 1, replyTo: null, kind: "del", content: "old line", oldNo: 1, newNo: null, crlf: false }, { id: 1, replyTo: null, kind: "add", content: "new line", oldNo: null, newNo: 1, crlf: false }] }] };
 
 beforeEach(() => {
   Object.values(api).forEach((f) => f.mockReset());
@@ -47,7 +47,7 @@ beforeEach(() => {
   api.status.mockResolvedValue(status([]));
   api.githubPullDetail.mockResolvedValue(detail);
   api.githubPullFiles.mockResolvedValue([{ path: "a.ts", previousPath: null, status: "modified", additions: 1, deletions: 1, diff: fileDiff }]);
-  api.githubPullConversation.mockResolvedValue([{ kind: "review", author: "bob", body: "Looks good", createdAt: "2026-10-20T00:00:00Z", reviewState: "APPROVED", path: null, line: null, url: "u" }]);
+  api.githubPullConversation.mockResolvedValue([{ id: 1, replyTo: null, kind: "review", author: "bob", body: "Looks good", createdAt: "2026-10-20T00:00:00Z", reviewState: "APPROVED", path: null, line: null, url: "u" }]);
   api.githubPullChecks.mockResolvedValue([{ name: "build", result: "failure", url: "https://github.com/x" }]);
   api.githubPullReview.mockResolvedValue(undefined);
   api.githubPullMerge.mockResolvedValue(undefined);
@@ -89,8 +89,8 @@ describe("PullReviewDialog", () => {
 
   it("shows line comments under their lines in the Files tab", async () => {
     api.githubPullConversation.mockResolvedValue([
-      { kind: "reviewComment", author: "bob", body: "Use a const", createdAt: "t", reviewState: null, path: "a.ts", line: 1, side: "RIGHT", outdated: false, url: "u" },
-      { kind: "reviewComment", author: "bob", body: "Old note", createdAt: "t", reviewState: null, path: "a.ts", line: 3, side: "RIGHT", outdated: true, url: "u" },
+      { id: 1, replyTo: null, kind: "reviewComment", author: "bob", body: "Use a const", createdAt: "t", reviewState: null, path: "a.ts", line: 1, side: "RIGHT", outdated: false, url: "u" },
+      { id: 1, replyTo: null, kind: "reviewComment", author: "bob", body: "Old note", createdAt: "t", reviewState: null, path: "a.ts", line: 3, side: "RIGHT", outdated: true, url: "u" },
     ]);
     setup();
     expect(await screen.findByText("line 1: Use a const")).toBeInTheDocument();
@@ -134,7 +134,7 @@ describe("PullReviewDialog", () => {
 
 describe("lineNotes", () => {
   it("keeps current line comments on the file, with the side mapped", () => {
-    const c = (path: string, side: string, outdated = false) => ({ kind: "reviewComment", author: "a", body: "b", createdAt: "", reviewState: null, path, line: 4, side, outdated, url: "" });
+    const c = (path: string, side: string, outdated = false) => ({ id: 1, replyTo: null, kind: "reviewComment", author: "a", body: "b", createdAt: "", reviewState: null, path, line: 4, side, outdated, url: "" });
     expect(lineNotes([c("a.ts", "LEFT"), c("b.ts", "RIGHT"), c("a.ts", "RIGHT", true)], "a.ts")).toEqual([{ side: "old", line: 4, author: "a", body: "b" }]);
     expect(lineNotes([c("a.ts", "RIGHT")], undefined)).toEqual([]);
   });
