@@ -243,13 +243,16 @@ export function RepoToolbar() {
   const behind = (hasUpstream ? b?.behind : twin?.behind) ?? 0;
   const aheadCount = (hasUpstream ? b?.ahead : twin?.ahead) ?? 0;
 
-  const fetch = () =>
-    run(
+  /** Resolves to whether the fetch worked (fun mode plays its failure otherwise). */
+  const fetch = async () => {
+    let ok = false;
+    await run(
       "Fetch",
       async () => {
         try {
           await api.fetch(id, null);
           setFetchError(null);
+          ok = true;
         } catch (e) {
           setFetchError(toAppError(e));
           throw e;
@@ -257,6 +260,8 @@ export function RepoToolbar() {
       },
       { success: "Fetched from all remotes" },
     );
+    return ok;
+  };
   const push = async (remote?: string) => {
     try {
       await run("Push", () => api.push(id, { remote: remote ?? twin?.remote ?? null, setUpstream: !hasUpstream }), {
@@ -264,15 +269,17 @@ export function RepoToolbar() {
         quiet: true,
         success: hasUpstream ? "Pushed" : twin ? `Pushed and linked ${b?.head} to ${twin.name}` : `Published ${b?.head ?? "branch"}`,
       });
+      return true;
     } catch (e) {
       const err = toAppError(e);
-      if (err.kind === "cancelled") return;
+      if (err.kind === "cancelled") return false;
       notify({
         tone: "error",
         title: "Push failed",
         error: err,
         action: err.kind === "pushRejected" && (hasUpstream || twin) ? { label: "Pull now", run: () => void pull() } : undefined,
       });
+      return false;
     }
   };
 
@@ -295,7 +302,7 @@ export function RepoToolbar() {
                 ? `Push to ${twin.name} and link ${b.head} to it`
               : `Publish ${b.head} to ${remotes[0]?.name ?? "a remote"} and track it`;
 
-  const pushItems: MenuItem[] = remotes.map((r) => ({ label: `Publish to ${r.name}`, onSelect: () => gate("push", () => void push(r.name)) }));
+  const pushItems: MenuItem[] = remotes.map((r) => ({ label: `Publish to ${r.name}`, onSelect: () => gate("push", () => push(r.name)) }));
 
   return (
     <div className="relative shrink-0 border-b border-border bg-surface">
@@ -336,7 +343,7 @@ export function RepoToolbar() {
           <span className="mx-1 h-5 w-px bg-border" aria-hidden />
           <Tooltip content={remotes.length ? "Download new commits from all remotes without changing your files" : "No remotes configured"}>
             <span>
-              <Button size="md" icon={<RefreshCw size={13} />} onClick={() => gate("fetch", () => void fetch())} disabled={!!busy || remotes.length === 0} loading={busy === "Fetch"}>
+              <Button size="md" icon={<RefreshCw size={13} />} onClick={() => gate("fetch", () => fetch())} disabled={!!busy || remotes.length === 0} loading={busy === "Fetch"}>
                 Fetch
               </Button>
             </span>
@@ -351,7 +358,7 @@ export function RepoToolbar() {
             }
           >
             <span>
-              <Button size="md" variant={behind > 0 ? "primary" : "secondary"} icon={<ArrowDownToLine size={13} />} onClick={() => gate("pull", () => void pull())} disabled={!!busy || !canPull || midOperation} loading={busy === "Pull"}>
+              <Button size="md" variant={behind > 0 ? "primary" : "secondary"} icon={<ArrowDownToLine size={13} />} onClick={() => gate("pull", () => pull(), { count: behind || undefined })} disabled={!!busy || !canPull || midOperation} loading={busy === "Pull"}>
                 Pull{behind ? ` ${behind}` : ""}
               </Button>
             </span>
@@ -368,7 +375,7 @@ export function RepoToolbar() {
                   if (!hasUpstream && !twin && remotes.length > 1) {
                     const r = e.currentTarget.getBoundingClientRect();
                     setPushMenu({ x: r.right - 200, y: r.bottom + 4 });
-                  } else gate("push", () => void push());
+                  } else gate("push", () => push(), { count: aheadCount || undefined });
                 }}
               >
                 {pushLabel}

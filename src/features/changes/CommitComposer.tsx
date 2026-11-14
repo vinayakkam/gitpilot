@@ -130,14 +130,15 @@ export function CommitComposer({ stagedCount }: { stagedCount: number }) {
   const conventional = settings?.commitConvention === "conventional";
   const convOk = !conventional || !summary.trim() || CONVENTIONAL.test(summary.trim());
 
-  const commit = async (confirmedPushed = false) => {
-    if (!id || !canCommit) return;
+  /** Resolves to false when the commit failed (fun mode plays its failure), true when it was made. */
+  const commit = async (confirmedPushed = false): Promise<boolean | undefined> => {
+    if (!id || !canCommit) return undefined;
     setCommitError(null);
     const message = body.trim() ? `${summary.trim()}\n\n${body.trim()}` : summary.trim();
     if (amend) {
       if (amend.pushed && !confirmedPushed) {
         setConfirmAmend(true);
-        return;
+        return undefined;
       }
       try {
         const hash = await run("Amend commit", () => api.commitAmend(id, message, confirmedPushed), { rethrow: true, quiet: true });
@@ -148,10 +149,11 @@ export function CommitComposer({ stagedCount }: { stagedCount: number }) {
           setBody(d?.body ?? "");
           if (settings?.successNotifications !== false) notify({ tone: "success", title: `Amended ${hash.slice(0, 7)}`, body: amend.pushed ? "Push with force (with lease) to update the remote." : undefined });
         }
+        return !!hash;
       } catch (e) {
         setCommitError(toAppError(e));
+        return false;
       }
-      return;
     }
     try {
       const hash = await run("Commit", () => api.commit(id, message), { rethrow: true, quiet: true });
@@ -172,10 +174,12 @@ export function CommitComposer({ stagedCount }: { stagedCount: number }) {
           },
         });
       }
+      return !!hash;
     } catch (e) {
       const err = toAppError(e);
       setCommitError(err);
       if (err.kind === "missingIdentity") setIdentityOpen(true);
+      return false;
     }
   };
 
@@ -210,7 +214,7 @@ export function CommitComposer({ stagedCount }: { stagedCount: number }) {
       onKeyDown={(e) => {
         if (e.key === "Enter" && hasMod(e)) {
           e.preventDefault();
-          if (canCommit) gate("commit", () => void commit());
+          if (canCommit) gate("commit", () => commit(), { label: summary });
           else void commit();
         }
       }}
@@ -323,7 +327,7 @@ export function CommitComposer({ stagedCount }: { stagedCount: number }) {
       {commitError && <ErrorNotice compact className="mt-2" error={commitError} />}
       <Tooltip content={canCommit ? `${modKey}+Enter` : !summary.trim() ? "Write a summary first" : "Stage the changes you want to commit"}>
         <span className="mt-2 block">
-          <Button variant="primary" className="w-full" disabled={!canCommit} loading={busy === "Commit" || busy === "Amend commit"} onClick={() => gate("commit", () => void commit())}>
+          <Button variant="primary" className="w-full" disabled={!canCommit} loading={busy === "Commit" || busy === "Amend commit"} onClick={() => gate("commit", () => commit(), { label: summary })}>
             {amend
               ? "Amend last commit"
               : merging
