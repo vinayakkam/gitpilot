@@ -291,6 +291,13 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 - D11. Accessibility pass (axe in tests, aria-live), sidebar auto-collapse at narrow widths, app-styled tooltips for `title`. Done (no manual keyboard walkthrough).
 - E. Release: version bump, docs, changelog, release notes. Done.
 
+**0.7.0 — Remote control from the phone** (design agreed 2026-11-14, not started; full design in `docs/REMOTE_CONTROL.md`)
+- Phone ↔ computer through GitHub (an end-to-end encrypted secret gist as the mailbox), so it works anywhere with no server of our own.
+- Web app first (PWA on GitHub Pages, `remote/`), then a native Android app with Tauri mobile (0.7.x).
+- The phone can see status, fetch / pull / push (never force), stage and commit, and get notifications.
+- Off by default; pair with a QR code; same GitHub account on both sides; the token needs the `gist` scope.
+- Build starts when the user says so; open questions are listed at the end of the design.
+
 ## Next-session handoff
 
 **0.6.0 (session 13):** branch `release/0.6.0` is committed, not pushed. Before releasing:
