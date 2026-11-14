@@ -6,3 +6,4 @@ src-tauri/gen/schemas
 .DS_Store
 .env
 .env.*
+/packaging/windows/art-src/make-art.sh
