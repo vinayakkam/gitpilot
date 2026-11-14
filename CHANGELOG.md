@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.1 — 2026-11-14
+
+### Fun mode, rebuilt
+Turn it on in Settings → General → Fun. Every scene is now a small animated world that follows your theme, and it **shows what really happened**: the Git operation runs when you finish the task, and the scene waits for the result.
+
+- **Pull:** haul the rope and the crate of new commits rises out of the remote; the commits drop onto your branch. If the pull fails, **the rope snaps**, the crate falls back and you land on your back.
+- **Push:** the car is heavy. It **creeps up the hill** after your hand, wheels turning, while you walk behind it. Let go early and it rolls back down and knocks you over. If the remote rejects the push, the car rolls all the way back.
+- **Fetch:** pull the ball back (you see where it will land) and **let go to throw it**. The dog chases it; reach the kennel and it comes back with the news, fall short and it just brings the ball back. If the fetch fails, the dog trips and the news blows away.
+- **Commit:** the page shows your commit summary. Bring the stamp down for **COMMITTED**; if the commit fails it smudges **FAILED** and the stamp tips over.
+- Shows how many commits you're pulling or pushing, counts your scenes ("your 5th push in fun mode"), and respects reduced motion. **Just pull** / **Just push** / … still skips the scene.
+
 ## 0.6.0 — 2026-11-12
 
 ### Pull requests: working with others
