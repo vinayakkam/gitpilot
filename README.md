@@ -26,7 +26,7 @@ Available now:
 - **Conflict resolver** — Keep mine / Keep theirs / Keep both per conflict or per file.
 - **Understand code** — blame, a commit graph, file-by-file compare of any two branches/tags/commits, and before/after image previews.
 - **Tags, stash selected files, discard single hunks or lines, and auto-refresh** when files change, plus **background fetch** (as often as every 15 seconds) that tells you when there's something to pull and when your pull request's checks or reviews change, optionally as desktop notifications.
-- **Fun mode (optional)** — haul a rope to pull, push a car uphill to push, throw a ball to fetch and stamp to commit.
+- **Fun mode (optional)** — haul a rope to pull, push a heavy car uphill to push, throw a ball for the dog to fetch and stamp to commit. The scene plays out the real result: the rope snaps when a pull fails, the car rolls back when a push is rejected. [See it in action](docs/media/fun-mode/).
 - **Recover lost work** — Branches → Recover shows where the repository has been (resets, rebases, switches) and GitPilot's backups in one list, and marks commits no branch keeps; create a branch at any point or restore a backup. Force-deleted branches are backed up.
 - **Search history by content** — find commits that added or removed some text or match a regular expression, within a date range and a file or folder.
 - **Your editor, terminal and merge tool** — open the repository, a file or a Blame line in VS Code, Zed, JetBrains IDEs and others; open a terminal there; resolve conflicts in meld, kdiff3 or any `git mergetool`.
