@@ -137,6 +137,9 @@ jobs:
           cd arch
           # The .deb was just built, so its pinned checksum can't match; replace the whole list.
           perl -0pi -e "s/sha256sums=\([^)]*\)/sha256sums=('SKIP' 'SKIP')/s" PKGBUILD
+          # Build the version that was just built, even if the PKGBUILD wasn't bumped yet.
+          VERSION=$(node -p "require('../src-tauri/tauri.conf.json').version")
+          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
           PKGEXT='.pkg.tar.zst' makepkg --nodeps --noconfirm -f
       - name: Sign the Arch package for in-app updates
         env:
