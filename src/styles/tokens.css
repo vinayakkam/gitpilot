@@ -36,6 +36,22 @@
   --row-h: 28px;
   --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", "Cascadia Mono", "DejaVu Sans Mono", monospace;
+  /* Fun mode illustrations (features/fun). */
+  --fun-sky: #e8eefb;
+  --fun-sun: #f6c453;
+  --fun-cloud: #ffffff;
+  --fun-hill-far: #d5deef;
+  --fun-hill: #c4d9c3;
+  --fun-ground: #9cc39a;
+  --fun-wood: #b98552;
+  --fun-wood-dark: #8a5d33;
+  --fun-skin: #e9b48c;
+  --fun-shirt: #3a8f9c;
+  --fun-pants: #3b4357;
+  --fun-paper: #ffffff;
+  --fun-ink: #1f2430;
+  --fun-shade: rgb(16 20 30 / 0.16);
+  --fun-shine: rgb(255 255 255 / 0.45);
   color-scheme: light;
 }
 
@@ -72,6 +88,21 @@
   --focus: #7b93f5;
   --selection: #2a3456;
   --shadow-overlay: 0 16px 40px -8px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(255 255 255 / 0.06);
+  --fun-sky: #141a2a;
+  --fun-sun: #e8d9a8;
+  --fun-cloud: #252c3d;
+  --fun-hill-far: #1b2233;
+  --fun-hill: #1f3027;
+  --fun-ground: #2c4a35;
+  --fun-wood: #9a6b40;
+  --fun-wood-dark: #6e4a2a;
+  --fun-skin: #d9a47e;
+  --fun-shirt: #3f9fae;
+  --fun-pants: #4a536b;
+  --fun-paper: #ece8dd;
+  --fun-ink: #1f2430;
+  --fun-shade: rgb(0 0 0 / 0.32);
+  --fun-shine: rgb(255 255 255 / 0.16);
   color-scheme: dark;
 }
 
