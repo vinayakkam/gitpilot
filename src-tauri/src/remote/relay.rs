@@ -35,6 +35,9 @@ pub struct Channel {
     pub id: String,
     pub secret: String,
     pub peer_secret: String,
+    /// True when the relay had to create it rather than already having it.
+    #[serde(default)]
+    pub restored: bool,
 }
 
 /// One sealed message waiting in a mailbox.
@@ -47,11 +50,15 @@ pub struct Message {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Polled {
     #[serde(default)]
     pub messages: Vec<Message>,
     #[serde(default)]
     pub last: u64,
+    /// Seconds since the phone last looked for an answer, if it ever has.
+    #[serde(default)]
+    pub peer_seen: Option<f64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -172,26 +179,38 @@ impl RelayClient {
         Err(AppError::new(ErrorKind::NetworkFailed, message).with_detail(scrub(detail, secrets)))
     }
 
-    /// Opens a channel. Called once per phone, when the user starts pairing.
-    pub async fn register(&self) -> AppResult<Channel> {
+    /// Claims the channel a pairing key derives, creating it if the relay doesn't have it.
+    ///
+    /// This is how a pairing outlives the relay. Channels are kept in memory and dropped when
+    /// nobody polls for an hour, so one is almost always gone after the computer has been off --
+    /// but both ends can work out the same id and secrets from the key they share, and simply put
+    /// it back. Nobody else can: without the key the three values are unguessable, and the relay
+    /// refuses a claim whose secrets don't match an existing channel's.
+    pub async fn claim(&self, id: &str, secret: &str, peer_secret: &str) -> AppResult<Channel> {
         let res = self
             .http
             .post(self.url("register"))
+            .json(&serde_json::json!({ "id": id, "secret": secret, "peerSecret": peer_secret }))
             .send()
             .await
-            .map_err(|e| network_error("start pairing", e, &[]))?;
-        let body = self.check(res, "start pairing", &[]).await?;
+            .map_err(|e| network_error("set up the connection", e, &[secret, peer_secret]))?;
+        let body = self
+            .check(res, "set up the connection", &[secret, peer_secret])
+            .await?;
         serde_json::from_str(&body).map_err(|e| {
             AppError::new(
                 ErrorKind::NetworkFailed,
                 "The relay's answer wasn't understood.",
             )
-            .with_detail(e.to_string())
+            .with_detail(scrub(e.to_string(), &[secret, peer_secret]))
         })
     }
 
     /// Puts one sealed envelope in the phone's mailbox.
-    pub async fn send(&self, id: &str, secret: &str, body: &str) -> AppResult<()> {
+    ///
+    /// `Ok(false)` means the relay no longer has this channel. That is ordinary rather than an
+    /// error -- it forgets them on restart -- and the caller claims it again and retries.
+    pub async fn send(&self, id: &str, secret: &str, body: &str) -> AppResult<bool> {
         let res = self
             .http
             .post(self.url("send"))
@@ -199,12 +218,15 @@ impl RelayClient {
             .send()
             .await
             .map_err(|e| network_error("answer the phone", e, &[secret]))?;
+        if res.status().as_u16() == 404 {
+            return Ok(false);
+        }
         self.check(res, "answer the phone", &[secret]).await?;
-        Ok(())
+        Ok(true)
     }
 
-    /// Takes everything waiting for this computer. `since` is the last relay sequence number seen.
-    pub async fn poll(&self, id: &str, secret: &str, since: u64) -> AppResult<Polled> {
+    /// Takes everything waiting for this computer, or `None` if the channel is gone.
+    pub async fn poll(&self, id: &str, secret: &str, since: u64) -> AppResult<Option<Polled>> {
         let res = self
             .http
             .get(self.url("poll"))
@@ -216,8 +238,11 @@ impl RelayClient {
             .send()
             .await
             .map_err(|e| network_error("check for commands", e, &[secret]))?;
+        if res.status().as_u16() == 404 {
+            return Ok(None);
+        }
         let body = self.check(res, "check for commands", &[secret]).await?;
-        serde_json::from_str(&body).map_err(|e| {
+        serde_json::from_str(&body).map(Some).map_err(|e| {
             AppError::new(
                 ErrorKind::NetworkFailed,
                 "The relay's answer wasn't understood.",
@@ -314,19 +339,57 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn register_reads_both_secrets() {
+    async fn claiming_sends_the_derived_values_and_reads_them_back() {
         let s = stub(vec![(
             200,
-            r#"{"ok":true,"id":"chan1","secret":"pc-secret","peerSecret":"phone-secret"}"#,
+            r#"{"ok":true,"id":"chan1","secret":"pc-secret","peerSecret":"phone-secret","restored":true}"#,
         )])
         .await;
 
-        let ch = s.client().register().await.unwrap();
+        let ch = s
+            .client()
+            .claim("chan1", "pc-secret", "phone-secret")
+            .await
+            .unwrap();
 
         assert_eq!(ch.id, "chan1");
         assert_eq!(ch.secret, "pc-secret");
-        assert_eq!(ch.peer_secret, "phone-secret");
-        assert!(s.requests()[0].starts_with("POST /remote/register"));
+        assert!(ch.restored);
+        let req = &s.requests()[0];
+        assert!(req.starts_with("POST /remote/register"));
+        assert!(req.contains(r#""peerSecret":"phone-secret""#), "{req}");
+    }
+
+    #[tokio::test]
+    async fn a_forgotten_channel_is_reported_rather_than_thrown() {
+        // What a relay restart looks like: the caller claims the channel again and retries,
+        // instead of telling the user their phone is no longer paired.
+        let s = stub(vec![
+            (404, r#"{"ok":false,"error":"unknown id"}"#),
+            (404, r#"{"ok":false,"error":"unknown id"}"#),
+        ])
+        .await;
+
+        assert!(s
+            .client()
+            .poll("chan1", "pc-secret", 0)
+            .await
+            .unwrap()
+            .is_none());
+        assert!(!s.client().send("chan1", "pc-secret", "x").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn polling_reports_whether_the_phone_is_there() {
+        let s = stub(vec![(
+            200,
+            r#"{"ok":true,"last":0,"messages":[],"peerSeen":4.2}"#,
+        )])
+        .await;
+
+        let got = s.client().poll("chan1", "pc", 0).await.unwrap().unwrap();
+
+        assert_eq!(got.peer_seen, Some(4.2));
     }
 
     #[tokio::test]
@@ -337,7 +400,12 @@ mod tests {
         )])
         .await;
 
-        let got = s.client().poll("chan1", "pc-secret", 2).await.unwrap();
+        let got = s
+            .client()
+            .poll("chan1", "pc-secret", 2)
+            .await
+            .unwrap()
+            .unwrap();
 
         assert_eq!(got.last, 4);
         assert_eq!(got.messages.len(), 2);
@@ -351,7 +419,12 @@ mod tests {
     async fn an_empty_mailbox_is_not_an_error() {
         let s = stub(vec![(200, r#"{"ok":true,"last":0,"messages":[]}"#)]).await;
 
-        let got = s.client().poll("chan1", "pc-secret", 0).await.unwrap();
+        let got = s
+            .client()
+            .poll("chan1", "pc-secret", 0)
+            .await
+            .unwrap()
+            .unwrap();
 
         assert!(got.messages.is_empty());
     }
@@ -381,20 +454,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_missing_channel_says_to_pair_again() {
+    async fn a_missing_channel_is_not_an_error() {
         let s = stub(vec![(404, r#"{"ok":false,"error":"unknown id"}"#)]).await;
 
-        let err = s
-            .client()
-            .send("chan1", "pc-secret", "x")
-            .await
-            .unwrap_err();
-
-        assert!(
-            err.message.contains("Pair the phone again"),
-            "{}",
-            err.message
-        );
+        // 404 now means "the relay forgot this channel; claim it again", not a failure.
+        assert!(!s.client().send("chan1", "pc-secret", "x").await.unwrap());
     }
 
     #[tokio::test]
@@ -410,7 +474,11 @@ mod tests {
     async fn a_switched_off_relay_is_explained() {
         let s = stub(vec![(503, r#"{"ok":false,"error":"disabled"}"#)]).await;
 
-        let err = s.client().register().await.unwrap_err();
+        let err = s
+            .client()
+            .claim("c-aaaaaaaaaaaaaa", "pc-secret-xxxxxxx", "ph-secret-xxxxxxx")
+            .await
+            .unwrap_err();
 
         assert!(err.message.contains("switched off"), "{}", err.message);
     }

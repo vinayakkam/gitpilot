@@ -82,8 +82,9 @@ async fn the_phone_sees_the_repositories_and_their_branch() {
 
     let reply = dispatch(&state, Command::List).await;
 
-    let list = data(&reply);
-    let first = &list.as_array().unwrap()[0];
+    let overview = data(&reply);
+    assert!(!overview["computer"].as_str().unwrap_or_default().is_empty());
+    let first = &overview["repos"].as_array().unwrap()[0];
     assert_eq!(first["id"].as_i64(), Some(id));
     assert_eq!(first["name"].as_str(), Some("test-repo"));
     assert_eq!(first["branch"].as_str(), Some("main"));

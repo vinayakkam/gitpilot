@@ -31,7 +31,10 @@ account, no token, and nothing readable passing through the relay in the middle.
 - Phone app at `olittechnologies.co.in/remote/`; the relay lives inside the existing Flask app.
 - The phone can list repositories, open one, read a file's changes, stage, unstage, commit, fetch,
   pull and push (after a confirmation tap). Never a force push.
-- 0.7.x: an Android app built with Tauri mobile, with background notifications.
+- 0.7.1: pairing survives a restart (the channel is derived from the key), several computers in one
+  phone app, a green dot for whether GitPilot is running, and a calmer, livelier phone UI.
+- 0.7.x: seeing a file's changes on the phone, and an Android app built with Tauri mobile with
+  background notifications.
 
 ## 0.8.0: safety and understanding
 

@@ -1621,10 +1621,11 @@ dependencies = [
 
 [[package]]
 name = "gitpilot"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
+ "hmac",
  "ignore",
  "keyring",
  "libc",
@@ -1636,6 +1637,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-clipboard-manager",

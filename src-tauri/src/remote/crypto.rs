@@ -22,8 +22,10 @@
 use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Nonce};
 use base64::Engine;
+use hmac::{Hmac, Mac};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 
 use crate::error::{AppError, ErrorKind};
 
@@ -133,6 +135,40 @@ impl PairingKey {
 
     fn cipher(&self) -> Aes256Gcm {
         Aes256Gcm::new(&self.0.into())
+    }
+
+    /// A value derived from this key and nothing else, for `purpose`.
+    ///
+    /// Both ends compute these from the key they already share, so neither has to be told them and
+    /// they can always be worked out again -- which is what makes a pairing survive the relay
+    /// forgetting everything. Each purpose gives an unrelated value, and none of them reveals the
+    /// key: HMAC is one-way.
+    fn derive(&self, purpose: &str, bytes: usize) -> String {
+        let mut mac =
+            <Hmac<Sha256> as Mac>::new_from_slice(&self.0).expect("HMAC takes any key length");
+        mac.update(purpose.as_bytes());
+        b64().encode(&mac.finalize().into_bytes()[..bytes.min(32)])
+    }
+
+    /// The relay channel this pairing uses. 128 bits: not guessable, and short enough for a URL.
+    pub fn channel_id(&self) -> String {
+        self.derive("gitpilot/relay/channel", 16)
+    }
+
+    /// This computer's secret for that channel.
+    pub fn pc_secret(&self) -> String {
+        self.derive("gitpilot/relay/secret/pc", 18)
+    }
+
+    /// The phone's secret for that channel. Different from the computer's, so neither side can
+    /// drain the mailbox it writes into.
+    pub fn phone_secret(&self) -> String {
+        self.derive("gitpilot/relay/secret/phone", 18)
+    }
+
+    /// The phone's device id, as it appears in every envelope it sends.
+    pub fn device_id(&self) -> String {
+        format!("d{}", self.derive("gitpilot/device", 9))
     }
 }
 
@@ -458,6 +494,70 @@ mod tests {
         let reply = r#"{"ok":true,"message":"2 repositories","kind":null,"detail":null,"data":[]}"#;
         let env = seal(&key, "phone~pc", 3, 1_763_300_000, reply.as_bytes());
         println!("VECTOR {}", serde_json::to_string(&env).unwrap());
+    }
+
+    #[test]
+    fn everything_about_a_channel_comes_from_the_key() {
+        let key = PairingKey::generate();
+
+        // Same key, same values -- that is what lets a pairing be rebuilt from nothing.
+        let same = PairingKey::from_b64(&key.to_b64()).unwrap();
+        assert_eq!(key.channel_id(), same.channel_id());
+        assert_eq!(key.pc_secret(), same.pc_secret());
+        assert_eq!(key.device_id(), same.device_id());
+
+        // Another key shares none of them.
+        let other = PairingKey::generate();
+        assert_ne!(key.channel_id(), other.channel_id());
+        assert_ne!(key.pc_secret(), other.pc_secret());
+    }
+
+    #[test]
+    fn the_two_secrets_are_different_and_dont_give_away_the_key() {
+        let key = PairingKey::generate();
+
+        assert_ne!(key.pc_secret(), key.phone_secret());
+        assert_ne!(key.channel_id(), key.pc_secret());
+        for value in [
+            key.channel_id(),
+            key.pc_secret(),
+            key.phone_secret(),
+            key.device_id(),
+        ] {
+            assert!(!key.to_b64().contains(&value));
+            assert!(!value.contains(&key.to_b64()));
+        }
+    }
+
+    #[test]
+    fn derived_values_fit_what_the_relay_accepts() {
+        // The relay wants 16-64 characters of letters, digits, - and _.
+        let key = PairingKey::generate();
+        for value in [key.channel_id(), key.pc_secret(), key.phone_secret()] {
+            assert!(
+                (16..=64).contains(&value.len()),
+                "{value} is {} long",
+                value.len()
+            );
+            assert!(
+                value
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'),
+                "{value}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_known_key_derives_known_values() {
+        // Pins the derivation: the phone app computes these with WebCrypto and must agree, or a
+        // paired phone would quietly rebuild a different channel and never be heard from again.
+        let key = PairingKey::from_b64("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8").unwrap();
+
+        assert_eq!(key.channel_id(), "hjoZLkFtPEWsTJb6iHtLhg");
+        assert_eq!(key.pc_secret(), "h1EYZeUoYGC_hJ1Gp0lSQ6zI");
+        assert_eq!(key.phone_secret(), "FCWHXj2LrPJ7_q0i1qX5ppW_");
+        assert_eq!(key.device_id(), "d3Dhez5C6LKhp");
     }
 
     #[test]

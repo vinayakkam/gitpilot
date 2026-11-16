@@ -98,16 +98,16 @@ pub async fn pair_start(state: &AppState, name: &str) -> AppResult<Pairing> {
             "Give the phone a short name, like Pixel.",
         ));
     }
-    let channel = client(state)?.register().await?;
     let key = PairingKey::generate();
-    let device = format!("d{}", channel.id);
+    let device = key.device_id();
+    claim_channel(state, &key).await?;
 
     // The keychain first: if it can't hold the key, nothing else should happen.
     secrets::remote_set(
         &device,
         &RemotePairing {
             key: key.to_b64(),
-            channel_secret: channel.secret.clone(),
+            channel_secret: key.pc_secret(),
         },
     )?;
 
@@ -117,7 +117,7 @@ pub async fn pair_start(state: &AppState, name: &str) -> AppResult<Pairing> {
         s.remote.devices.push(RemoteDevice {
             id: device.clone(),
             name: name.to_string(),
-            channel_id: channel.id.clone(),
+            channel_id: key.channel_id(),
             paired_at: now(),
             last_seen: None,
             seq_in: 0,
@@ -128,14 +128,22 @@ pub async fn pair_start(state: &AppState, name: &str) -> AppResult<Pairing> {
     Ok(Pairing {
         device: device.clone(),
         name: name.to_string(),
-        url: format!(
-            "{PHONE_APP}#i={}&s={}&k={}&d={}",
-            channel.id,
-            channel.peer_secret,
-            key.to_b64(),
-            device
-        ),
+        // Only the key. The phone derives the channel and both secrets from it, exactly as this
+        // computer does, and the fragment never leaves the browser -- so the key reaches the
+        // phone app without passing through any server.
+        url: format!("{PHONE_APP}#k={}", key.to_b64()),
     })
+}
+
+/// Puts this pairing's channel on the relay, whether or not it is already there.
+///
+/// Safe to call at any time: claiming a channel that already exists with the same secrets changes
+/// nothing, and the relay refuses a claim from anyone who cannot produce them.
+async fn claim_channel(state: &AppState, key: &PairingKey) -> AppResult<()> {
+    client(state)?
+        .claim(&key.channel_id(), &key.pc_secret(), &key.phone_secret())
+        .await?;
+    Ok(())
 }
 
 /// Forgets a phone: its key, its settings entry, and its channel on the relay.
@@ -144,13 +152,15 @@ pub async fn pair_start(state: &AppState, name: &str) -> AppResult<Pairing> {
 /// user asked for it to be gone -- and without the key the channel is useless to anyone.
 pub async fn remove_device(state: &AppState, device: &str) -> AppResult<()> {
     let found = device_of(state, device).ok();
-    let secret = secrets::remote_get(device).map(|p| p.channel_secret);
+    let channel = secrets::remote_get(device)
+        .and_then(|p| PairingKey::from_b64(&p.key).ok())
+        .map(|k| (k.channel_id(), k.pc_secret()));
     secrets::remote_clear(device)?;
     state.update_settings(|s| {
         s.remote.devices.retain(|d| d.id != device);
     })?;
-    if let (Some(d), Some(secret)) = (found, secret) {
-        let _ = client(state)?.unregister(&d.channel_id, &secret).await;
+    if let (Some(_), Some((id, secret))) = (found, channel) {
+        let _ = client(state)?.unregister(&id, &secret).await;
     }
     Ok(())
 }
@@ -214,22 +224,38 @@ pub async fn poll_once(state: &AppState) -> Pass {
         let Some(pairing) = secrets::remote_get(&device.id) else {
             continue; // Key gone: the phone is effectively unpaired; Settings shows it.
         };
-        let Ok(polled) = client
-            .poll(&device.channel_id, &pairing.channel_secret, 0)
-            .await
-        else {
-            // Offline, rate-limited, or the channel expired. Try again, less often.
-            pass.failed = true;
+        let Ok(key) = PairingKey::from_b64(&pairing.key) else {
             continue;
         };
+        let (channel, secret) = (key.channel_id(), key.pc_secret());
+
+        let polled = match client.poll(&channel, &secret, 0).await {
+            Ok(Some(polled)) => polled,
+            // The relay has forgotten this channel: it restarted, or nobody polled it for an hour
+            // while the computer was off. Put it back and collect messages next pass. The phone
+            // does the same from its side, so neither of them has to be paired again.
+            Ok(None) => {
+                if claim_channel(state, &key).await.is_err() {
+                    pass.failed = true;
+                }
+                continue;
+            }
+            Err(_) => {
+                pass.failed = true; // Offline or rate-limited; try again, less often.
+                continue;
+            }
+        };
+
         for message in polled.messages {
             if let Some(reply) = handle_envelope(state, &device.id, &message.body).await {
-                if client
-                    .send(&device.channel_id, &pairing.channel_secret, &reply)
-                    .await
-                    .is_err()
-                {
-                    pass.failed = true;
+                match client.send(&channel, &secret, &reply).await {
+                    Ok(true) => {}
+                    // Gone between the poll and the answer: put it back and let the phone retry.
+                    Ok(false) => {
+                        let _ = claim_channel(state, &key).await;
+                        pass.failed = true;
+                    }
+                    Err(_) => pass.failed = true,
                 }
                 pass.handled += 1;
             }
