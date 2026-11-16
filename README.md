@@ -34,7 +34,7 @@ Available now:
 - **.gitignore made easy** — right-click a file to ignore it, its extension or its folder; files committed before they were ignored are flagged with a one-click Stop tracking.
 - **Line-ending guard** — warns before you commit Windows (CRLF) line endings into an LF repository, which makes GitHub show every line as changed and breaks pull request suggestions ("context doesn't match"). One click converts the files.
 - **Coding assistant** — opens Claude Code or OpenCode in a terminal in the repository, with prompt templates filled from real repository context (branch, counts, file names, recent commits).
-- **Remote control from your phone (optional, off by default)** — pair a phone with a QR code and see your repositories, stage, commit, fetch, pull and push from anywhere. No account, token or password: messages are sealed with a key only your two devices have, and the relay that carries them can't read them. See [docs/REMOTE_CONTROL.md](docs/REMOTE_CONTROL.md).
+- **Remote control from your phone (optional, off by default)** — pair a phone with a QR code and see your repositories, stage, commit, fetch, pull and push from anywhere. No account, token or password: messages are sealed with a key only your two devices have, and the relay that carries them can't read them. Pair once and it stays paired; one phone can hold several computers and shows which of them is running. See [docs/REMOTE_CONTROL.md](docs/REMOTE_CONTROL.md).
 - **Multiple windows** — open any repository in its own window; settings apply to all windows at once.
 - **Worktrees** — check out another branch in its own folder, open it, remove it safely, clean up deleted ones.
 - **Submodules** — see each submodule's state, download or update them with progress.

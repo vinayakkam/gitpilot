@@ -78,6 +78,18 @@ pub struct RemoteRepo {
     pub state: RepoState,
 }
 
+/// The answer to `list`: which computer this is, and what is on it.
+///
+/// The name matters because a phone can be paired with several computers at once, and "Repositories"
+/// on its own tells you nothing about which one you are looking at.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RemoteOverview {
+    pub computer: String,
+    pub repos: Vec<RemoteRepo>,
+}
+
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -223,6 +235,26 @@ async fn brief(state: &AppState, id: i64, name: String) -> AppResult<RemoteRepo>
     })
 }
 
+/// What this computer is called, for the phone's list of computers.
+///
+/// Whatever the operating system already calls it: nothing is invented, nothing is asked of the
+/// user, and if it can't be found the phone just says "This computer".
+pub fn computer_name() -> String {
+    for var in ["COMPUTERNAME", "HOSTNAME"] {
+        if let Ok(name) = std::env::var(var) {
+            let name = name.trim();
+            if !name.is_empty() {
+                return name.to_string();
+            }
+        }
+    }
+    std::fs::read_to_string("/etc/hostname")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "This computer".to_string())
+}
+
 async fn list(state: &AppState) -> AppResult<Reply> {
     let records = state.db(crate::db::list)?;
     let mut out = Vec::new();
@@ -233,7 +265,12 @@ async fn list(state: &AppState) -> AppResult<Reply> {
         }
     }
     let n = out.len();
-    Ok(Reply::ok(plural(n, "repository", "repositories")).with(out))
+    Ok(
+        Reply::ok(plural(n, "repository", "repositories")).with(RemoteOverview {
+            computer: computer_name(),
+            repos: out,
+        }),
+    )
 }
 
 async fn open(state: &AppState, id: i64) -> AppResult<Reply> {
@@ -417,6 +454,13 @@ mod tests {
         assert!(!reply.ok);
         assert_eq!(reply.kind, Some(ErrorKind::MissingIdentity));
         assert!(reply.message.contains("name and email"));
+    }
+
+    #[test]
+    fn the_computer_has_a_name_whatever_happens() {
+        // Falls back rather than returning something empty for the phone to show.
+        let name = computer_name();
+        assert!(!name.trim().is_empty());
     }
 
     #[test]

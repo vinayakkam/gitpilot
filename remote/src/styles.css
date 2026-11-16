@@ -120,14 +120,67 @@ body {
 }
 
 .topbar h1 {
-  flex: 1;
-  min-width: 0;
   margin: 0;
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 600;
+  letter-spacing: -0.01em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.titles {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The computer this phone is showing: tap it to switch to another. */
+.computer {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  margin-left: -8px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.computer-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Is GitPilot running over there? Shape as well as colour: filled, hollow, faint. */
+.dot {
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-faint);
+  background: transparent;
+}
+
+.dot-yes {
+  background: var(--added);
+  border-color: var(--added);
+  box-shadow: 0 0 0 3px var(--added-bg);
+}
+
+.dot-no {
+  border-color: var(--text-faint);
+}
+
+.dot-unknown,
+.dot-idle {
+  border-color: var(--border-strong);
 }
 
 .subtitle {
@@ -138,10 +191,16 @@ body {
 }
 
 .screen {
-  padding: 14px;
+  padding: 16px 16px 28px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
+}
+
+.screen > section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .centred {
@@ -150,12 +209,107 @@ body {
 }
 
 h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-faint);
+}
+
+.count {
+  background: var(--surface-3);
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 0 7px;
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.steps {
+  margin: 0;
+  padding: 16px 16px 16px 34px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--text-muted);
+}
+
+.steps strong {
+  color: var(--text);
+}
+
+/* Something worth reading before you tap anything, e.g. the computer being off. */
+.notice {
+  padding: 12px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: 14px;
+}
+
+/* A row that is mostly tappable, with a second control beside it. */
+.row-tap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  min-height: auto;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.confirm-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 14px 14px;
+  color: var(--text-muted);
+}
+
+button.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+/* Placeholder lines while the first answer is on its way. */
+.bone {
+  height: 11px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.bone-sub {
+  height: 9px;
+  margin-top: 6px;
+  opacity: 0.6;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bone {
+    animation: none;
+  }
 }
 
 p {
@@ -182,6 +336,10 @@ p {
   border: 1px solid var(--border);
   border-radius: 6px;
   overflow: hidden;
+}
+
+.row:disabled {
+  opacity: 1; /* a row that can't be tapped yet shouldn't look broken */
 }
 
 .list {
@@ -399,7 +557,7 @@ textarea:focus-visible {
   color: var(--added);
 }
 
-.banner-sticky {
+.banner {
   position: sticky;
   top: 0;
   z-index: 4;

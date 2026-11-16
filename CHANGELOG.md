@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.7.1 — 2026-11-17
+
+### Remote control: pairing that lasts, and several computers
+- **Pair once.** A pairing used to stop working whenever the computer had been off for an hour, because
+  the relay keeps its channels in memory and forgets them. Both ends now work out their channel from
+  the pairing key itself, so either can put it back and the phone never has to scan a new code.
+- **Several computers in one app.** Scan a code from another computer and it joins the list instead of
+  replacing the first. The phone's toolbar switches between them, each with its own name.
+- **A green dot** next to the computer's name shows whether GitPilot is actually running there, so you
+  know before you tap rather than waiting for a command to time out.
+- **The phone app feels alive.** Roomier layout, real headings, placeholder rows while the first answer
+  is on its way, and a quiet refresh every twenty seconds so what you're looking at keeps up.
+
+Phones paired with 0.7.0 keep working and move over by themselves — nothing to do.
+
 ## 0.7.0 — 2026-11-17
 
 ### Remote control from your phone

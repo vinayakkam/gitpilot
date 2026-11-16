@@ -24,9 +24,8 @@ a few minutes and routes them between two devices. It cannot read, forge or repl
 
 ### Pairing
 
-1. **Settings → Remote control → Pair a phone.** GitPilot opens a channel on the relay, generates a
-   256-bit key, and shows a QR code for
-   `https://olittechnologies.co.in/remote/#i=<channel>&s=<phone secret>&k=<key>&d=<device>`.
+1. **Settings → Remote control → Pair a phone.** GitPilot generates a 256-bit key, opens the channel
+   that key derives, and shows a QR code for `https://olittechnologies.co.in/remote/#k=<key>`.
 2. The phone's camera app opens that link. Everything after the `#` is a **URL fragment**, which
    browsers never send to a server — so the key reaches the page's JavaScript without GitHub Pages,
    the relay, or anything in between ever seeing it.
@@ -35,6 +34,25 @@ a few minutes and routes them between two devices. It cannot read, forge or repl
 
 The key lives in the OS keychain on the computer and in the browser's storage on the phone. It is
 never in `settings.json`, never logged, never copied to the clipboard.
+
+### Everything else comes from the key
+
+The channel id, each side's secret and the phone's device id are all HMAC-SHA256 of the key with a
+different label. That matters because the relay keeps channels **in memory**: it forgets them when
+it restarts, and drops any that nobody polls for an hour. Without this, a computer that was off
+overnight came back to a channel that no longer existed, and the phone had to be paired again.
+
+Now either end can put the channel back exactly as it was, because both can work out the same
+three values. Nobody else can: without the key they are unguessable, and the relay refuses a claim
+whose secrets don't match an existing channel's. **A pairing is permanent** — it ends when you
+remove the phone, and not before.
+
+### Several computers
+
+A phone holds a list of pairings, one per computer, and switches between them in its toolbar.
+Scanning another computer's code adds to that list. Each computer reports its own name (whatever
+the operating system calls it), and a dot beside the name shows whether GitPilot is running there,
+from how recently it asked the relay for commands.
 
 ### Sealing
 
@@ -84,10 +102,11 @@ database, no disk writes, no WebSocket and no long-poll.
 
 | Endpoint | Does |
 |---|---|
-| `POST /remote/register` | Opens a channel; returns its id and the two secrets |
+| `POST /remote/register` | Opens a channel, or puts a known one back from `{id, secret, peerSecret}` |
 | `POST /remote/send` | Puts one sealed envelope in the other side's mailbox |
 | `GET /remote/poll` | Takes everything waiting in the caller's own mailbox |
 | `POST /remote/unregister` | Drops a channel and its queues |
+| `GET /remote/presence` | How long ago the other side looked for messages (the green dot) |
 | `GET /remote/health` | Counts only — no ids, no bodies |
 
 One registration is one channel with two mailboxes (`pc` and `phone`). Each side has its own
@@ -131,6 +150,7 @@ key the channel is useless to anyone.
 ## What this still doesn't do
 
 - No notifications on the phone yet: the app shows news while it is open.
+- No diff on the phone: the backend will send one file's changes, but the app doesn't show them yet.
 - No Android app yet (0.7.x, with Tauri mobile and background notifications).
 - GitPilot has to be running on the computer. Nothing is queued while it is closed, and messages
   older than five minutes are dropped by the relay.
