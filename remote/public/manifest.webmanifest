@@ -1,9 +1,18 @@
 {
+  "id": "/remote/",
   "name": "GitPilot remote",
   "short_name": "GitPilot",
-  "start_url": ".",
+  "description": "Control GitPilot on your computer from your phone: repositories, changes, commits, fetch, pull and push.",
+  "start_url": "/remote/",
+  "scope": "/remote/",
   "display": "standalone",
-  "background_color": "#111318",
-  "theme_color": "#111318",
-  "description": "Control GitPilot on your computer from your phone."
+  "orientation": "portrait",
+  "background_color": "#f3f4f7",
+  "theme_color": "#3550c8",
+  "categories": ["developer", "productivity", "utilities"],
+  "icons": [
+    { "src": "icons/icon-256.png", "sizes": "256x256", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
 }

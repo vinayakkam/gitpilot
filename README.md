@@ -34,6 +34,7 @@ Available now:
 - **.gitignore made easy** — right-click a file to ignore it, its extension or its folder; files committed before they were ignored are flagged with a one-click Stop tracking.
 - **Line-ending guard** — warns before you commit Windows (CRLF) line endings into an LF repository, which makes GitHub show every line as changed and breaks pull request suggestions ("context doesn't match"). One click converts the files.
 - **Coding assistant** — opens Claude Code or OpenCode in a terminal in the repository, with prompt templates filled from real repository context (branch, counts, file names, recent commits).
+- **Remote control from your phone (optional, off by default)** — pair a phone with a QR code and see your repositories, stage, commit, fetch, pull and push from anywhere. No account, token or password: messages are sealed with a key only your two devices have, and the relay that carries them can't read them. See [docs/REMOTE_CONTROL.md](docs/REMOTE_CONTROL.md).
 - **Multiple windows** — open any repository in its own window; settings apply to all windows at once.
 - **Worktrees** — check out another branch in its own folder, open it, remove it safely, clean up deleted ones.
 - **Submodules** — see each submodule's state, download or update them with progress.
@@ -150,6 +151,7 @@ Choose the assistant in Settings → Coding assistant. GitPilot finds `claude` o
 - AI keys and the GitHub token live in the OS keychain, never in the settings file. The GitHub token is sent only to api.github.com.
 - AI suggestions never change anything by themselves: conflict suggestions are applied only when you choose one, and only if the conflict still matches what the AI saw.
 - Destructive operations require confirmation in the UI *and* an explicit flag in the backend command.
+- Remote control is off until you turn it on. Its pairing key is made on your computer, travels only in the QR code, and lives in the OS keychain; the relay only ever sees ciphertext. A paired phone can run nine specific commands and nothing else — never a force push, never a discard, never a settings change — and files that look like keys or `.env` are never sent to it.
 - Tauri capabilities are limited to the folder picker and confirmation dialogs, clipboard writes, opening `https://` links, and the updater (download, install, restart).
 
 ## Contributing

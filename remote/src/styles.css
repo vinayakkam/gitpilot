@@ -1,78 +1,169 @@
-/* Mobile-first, one column, large touch targets. Same palette as the desktop app, written out
-   here rather than imported: this page ships on its own and must not depend on the app's build. */
+/* The phone app wears the desktop app's clothes.
+ *
+ * The values below are copied from `src/styles/tokens.css` rather than imported: this page is
+ * built separately and published to a different site, so it must not depend on the desktop
+ * bundle. Keep them in step by hand -- they change about once a release.
+ *
+ * The same rules apply here as there: semantic colours only, 4px on controls and 6px on cards,
+ * no gradients, no decorative shadows, status shown by a letter *and* a colour, sentence case.
+ * What differs is the sizing: everything you tap is at least 44px, and text starts at 16px so
+ * phones don't zoom when you focus a field.
+ */
 
 :root {
-  --bg: #fbfbfd;
+  --bg: #f3f4f7;
   --surface: #ffffff;
-  --surface-2: #f2f3f7;
-  --border: #d8dae2;
-  --text: #16181d;
-  --muted: #5b6070;
-  --faint: #878d9e;
+  --surface-2: #f4f5f8;
+  --surface-3: #e9ecf1;
+  --border: #dfe3e9;
+  --border-strong: #c8ced8;
+  --text: #171a20;
+  --text-muted: #525a67;
+  --text-faint: #68707c;
   --accent: #3550c8;
-  --added: #1f7a3d;
-  --removed: #b3261e;
-  --modified: #9a6400;
-  color-scheme: light dark;
+  --accent-hover: #2b43ad;
+  --accent-text: #2f49bd;
+  --accent-soft: #e9edfb;
+  --on-accent: #ffffff;
+  --added: #1d7a4b;
+  --added-bg: #e9f6ee;
+  --removed: #b3373d;
+  --removed-bg: #fcedee;
+  --modified: #976400;
+  --renamed: #1c7582;
+  --conflict: #c2410c;
+  --conflict-bg: #fdf0e7;
+  --warning: #965a00;
+  --warning-bg: #fdf5e4;
+  --danger: #be353b;
+  --selection: #dfe5fa;
+  --font-ui: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  --font-mono: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #111318;
-    --surface: #171a21;
-    --surface-2: #1e222b;
-    --border: #2b303b;
-    --text: #e8eaf0;
-    --muted: #9aa1b2;
-    --faint: #717888;
-    --accent: #7e95ff;
-    --added: #4ec97a;
-    --removed: #ff6b61;
-    --modified: #e0a63a;
+    --bg: #0f1115;
+    --surface: #16191f;
+    --surface-2: #1d2128;
+    --surface-3: #262b33;
+    --border: #252a32;
+    --border-strong: #363d48;
+    --text: #e6e8ec;
+    --text-muted: #a6adb8;
+    --text-faint: #8a929e;
+    --accent: #4862d9;
+    --accent-hover: #5872e6;
+    --accent-text: #93a6f6;
+    --accent-soft: #212a48;
+    --added: #5cc28b;
+    --added-bg: rgb(52 168 98 / 0.1);
+    --removed: #ef7b7e;
+    --removed-bg: rgb(229 72 77 / 0.1);
+    --modified: #ddb05a;
+    --renamed: #62c2cf;
+    --conflict: #f08a4b;
+    --conflict-bg: rgb(240 138 75 / 0.12);
+    --warning: #ddb05a;
+    --warning-bg: rgb(221 176 90 / 0.12);
+    --danger: #e5484d;
+    --selection: #26314f;
+    color-scheme: dark;
   }
 }
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
 }
 
 body {
-  margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  padding-bottom: env(safe-area-inset-bottom);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.45;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── Layout ───────────────────────────────────────────────────────────── */
+
+.app {
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+/* The toolbar, like the desktop's repository bar: title on the left, actions on the right. */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  padding-top: calc(10px + env(safe-area-inset-top));
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar h1 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-faint);
+  font-weight: 400;
 }
 
 .screen {
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 16px 16px 24px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .centred {
-  text-align: left;
-  padding-top: 15vh;
-}
-
-h1 {
-  font-size: 20px;
-  margin: 0;
+  padding-top: 12vh;
+  gap: 10px;
 }
 
 h2 {
-  font-size: 15px;
-  margin: 20px 0 8px;
-  color: var(--muted);
+  margin: 0;
+  font-size: 13px;
   font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-faint);
 }
 
 p {
-  margin: 8px 0;
+  margin: 0;
 }
 
 .muted {
-  color: var(--muted);
+  color: var(--text-muted);
 }
 
 .small {
@@ -80,31 +171,27 @@ p {
 }
 
 .mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
 }
 
-.bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-bottom: 4px;
-}
+/* ── Cards and rows ───────────────────────────────────────────────────── */
 
-.bar h1 {
-  flex: 1;
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .list {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+}
+
+.list > li + li {
+  border-top: 1px solid var(--border);
 }
 
 .row {
@@ -112,23 +199,22 @@ p {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px;
-  min-height: 56px; /* comfortable with a thumb */
+  padding: 12px 14px;
+  min-height: 56px;
   text-align: left;
-  background: var(--surface);
+  background: transparent;
   color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border: 0;
   font: inherit;
   cursor: pointer;
 }
 
-.row.static {
-  cursor: default;
-}
-
 .row:active {
   background: var(--surface-2);
+}
+
+.row.static {
+  cursor: default;
 }
 
 .row-main {
@@ -136,6 +222,7 @@ p {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: 1px;
 }
 
 .row-title {
@@ -145,120 +232,221 @@ p {
 }
 
 .row-sub {
-  color: var(--faint);
   font-size: 13px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+.chevron {
+  color: var(--text-faint);
+  font-size: 18px;
+}
+
+/* Counts and branch names, as on the desktop's toolbar. */
 .pill {
-  background: var(--surface-2);
+  flex-shrink: 0;
+  background: var(--surface-3);
+  color: var(--text-muted);
   border-radius: 999px;
-  padding: 2px 9px;
+  padding: 1px 9px;
   font-size: 13px;
-  color: var(--muted);
 }
 
+.pill-accent {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+/* Status is a letter *and* a colour, never colour alone. */
 .glyph {
-  width: 22px;
-  height: 22px;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
   display: grid;
   place-items: center;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  background: var(--surface-2);
-  color: var(--muted);
+  font-family: var(--font-mono);
+  background: var(--surface-3);
+  color: var(--text-muted);
 }
 
 .glyph-added {
+  background: var(--added-bg);
   color: var(--added);
 }
 .glyph-modified {
+  background: var(--warning-bg);
   color: var(--modified);
 }
 .glyph-deleted {
+  background: var(--removed-bg);
   color: var(--removed);
 }
+.glyph-renamed {
+  background: var(--accent-soft);
+  color: var(--renamed);
+}
+.glyph-conflict {
+  background: var(--conflict-bg);
+  color: var(--conflict);
+}
+
+/* ── Controls ─────────────────────────────────────────────────────────── */
 
 button {
   font: inherit;
+  font-size: 15px;
   padding: 11px 14px;
   min-height: 44px;
   border-radius: 4px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   background: var(--surface);
   color: var(--text);
   cursor: pointer;
 }
 
+button:active:not(:disabled) {
+  background: var(--surface-2);
+}
+
 button:disabled {
-  opacity: 0.5;
+  opacity: 0.55;
+  cursor: default;
 }
 
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
+  font-weight: 500;
+}
+
+button.primary:active:not(:disabled) {
+  background: var(--accent-hover);
 }
 
 button.ghost {
   background: transparent;
   border-color: transparent;
-  color: var(--muted);
+  color: var(--text-muted);
+  padding: 10px;
+}
+
+button.icon {
+  min-width: 44px;
+  padding: 10px;
+  font-size: 18px;
+  line-height: 1;
 }
 
 .actions {
   display: flex;
   gap: 8px;
-  margin: 12px 0;
 }
 
 .actions button {
   flex: 1;
 }
 
-.confirm {
-  border: 1px solid var(--border);
-  background: var(--surface);
-  border-radius: 6px;
-  padding: 12px;
-}
-
-.commit {
-  margin-top: 16px;
-}
-
 textarea {
   width: 100%;
   font: inherit;
-  padding: 10px;
+  font-size: 16px; /* 16px or iOS zooms in when it gets focus */
+  padding: 10px 12px;
   border-radius: 4px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   background: var(--surface);
   color: var(--text);
   resize: vertical;
 }
 
-.commit button {
-  margin-top: 8px;
-  width: 100%;
+textarea:focus-visible {
+  border-color: var(--accent);
 }
 
-.status {
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+}
+
+/* ── Banners ──────────────────────────────────────────────────────────── */
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
+.banner-error {
+  background: var(--removed-bg);
+  color: var(--removed);
+  border-bottom-color: var(--removed);
+}
+
+.banner-success {
+  background: var(--added-bg);
+  color: var(--added);
+}
+
+.banner-sticky {
   position: sticky;
   top: 0;
-  z-index: 2;
-  padding: 10px 16px;
-  background: var(--surface-2);
-  color: var(--muted);
-  border-bottom: 1px solid var(--border);
+  z-index: 4;
+}
+
+/* The install prompt: an offer, not a demand. Dismissible, and never shown twice. */
+.install {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.install .install-text {
+  flex: 1;
+  min-width: 0;
   font-size: 14px;
 }
 
-.status-error {
-  color: var(--removed);
+.empty {
+  padding: 24px 14px;
+  text-align: center;
+  color: var(--text-muted);
 }
 
-.foot {
-  padding: 8px 16px 24px;
-  text-align: center;
+.spin {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation-duration: 2s;
+  }
 }
