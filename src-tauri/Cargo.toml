@@ -1,6 +1,6 @@
 [package]
 name = "gitpilot"
-version = "0.6.1"
+version = "0.7.0"
 description = "GitPilot — a desktop Git manager"
 authors = ["OLIT Technologies"]
 license = "MIT"
@@ -35,6 +35,9 @@ once_cell = "1"
 notify = "8"
 ignore = "0.4"
 base64 = "0.22"
+# Remote control: sealing the phone <-> desktop messages (AES-256-GCM, WebCrypto on the phone).
+aes-gcm = "0.10"
+rand = "0.8"
 tempfile = "3"
 
 [target.'cfg(unix)'.dependencies]

@@ -11,6 +11,7 @@ pub mod git;
 pub mod github;
 pub mod github_pr;
 pub mod opencode;
+pub mod remote;
 pub mod secrets;
 pub mod settings;
 pub mod signing_keys;
@@ -35,6 +36,8 @@ pub fn run() {
             let st = state::AppState::new(data, config)
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
             app.manage(st);
+            // Only if the user already turned remote control on; it stops itself when turned off.
+            commands::remote::start_if_enabled(&app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -115,6 +118,11 @@ pub fn run() {
             commands::history::rebase_interactive,
             commands::history::branch_reset,
             commands::history::reflog_list,
+            commands::remote::remote_status,
+            commands::remote::remote_enable,
+            commands::remote::remote_pair_start,
+            commands::remote::remote_device_remove,
+            commands::remote::remote_poll_now,
             commands::tools::editor_list,
             commands::tools::editor_open,
             commands::tools::terminal_open,

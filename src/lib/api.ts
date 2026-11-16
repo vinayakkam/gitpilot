@@ -6,6 +6,8 @@ import type { AiProviderKind } from "@/bindings/AiProviderKind";
 import type { AiSuggestions } from "@/bindings/AiSuggestions";
 import type { AiText } from "@/bindings/AiText";
 import type { AppInfo } from "@/bindings/AppInfo";
+import type { Pairing } from "@/bindings/Pairing";
+import type { RemoteStatus } from "@/bindings/RemoteStatus";
 import type { Area } from "@/bindings/Area";
 import type { Branch } from "@/bindings/Branch";
 import type { BranchComparison } from "@/bindings/BranchComparison";
@@ -238,6 +240,14 @@ export const api = {
     invoke<SigningConfig>("signing_enable", { id, scope, format, key }),
   signingDisable: (id: number | null, scope: SigningScope) => invoke<SigningConfig>("signing_disable", { id, scope }),
   commitSignature: (id: number, hash: string) => invoke<Signature>("commit_signature", { id, hash }),
+
+  // Remote control (a paired phone)
+  remoteStatus: () => invoke<RemoteStatus>("remote_status"),
+  remoteEnable: (enabled: boolean) => invoke<RemoteStatus>("remote_enable", { enabled }),
+  remotePairStart: (name: string) => invoke<Pairing>("remote_pair_start", { name }),
+  remoteDeviceRemove: (device: string) => invoke<RemoteStatus>("remote_device_remove", { device }),
+  /** Checks for waiting commands now instead of at the next pass; returns how many were handled. */
+  remotePollNow: () => invoke<number>("remote_poll_now"),
 
   // GitHub
   githubAccount: () => invoke<GitHubAccount>("github_account"),

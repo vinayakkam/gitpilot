@@ -22,7 +22,20 @@
 
 **Docs:** remove the outdated known issues.
 
-## 0.7.0: safety and understanding
+## 0.7.0: remote control from your phone
+
+Done, and used end to end. Pair a phone with a QR code and drive GitPilot from anywhere: no
+account, no token, and nothing readable passing through the relay in the middle. The design is in
+`docs/REMOTE_CONTROL.md`.
+
+- Phone app at `olittechnologies.co.in/remote/`; the relay lives inside the existing Flask app.
+- The phone can list repositories, open one, read a file's changes, stage, unstage, commit, fetch,
+  pull and push (after a confirmation tap). Never a force push.
+- 0.7.x: an Android app built with Tauri mobile, with background notifications.
+
+## 0.8.0: safety and understanding
+
+Moved here from 0.7.0, which became remote control.
 
 - Undo the last operation (pull, merge, rebase, reset, cherry-pick) from a toast, with a confirmation first.
 - Bisect, guided: mark commits "good" or "bad" to find the one that broke something, with plain explanations and Stop.
@@ -30,7 +43,7 @@
 - Conflict resolver: a three-way view (base, yours, theirs).
 - Stashes: see what a stash contains, and apply a single file from it.
 
-## 0.8.0: big repositories and speed
+Also, big repositories and speed:
 
 - Lay out only the visible part of the history graph.
 - Show huge untracked folders as one row.

@@ -18,6 +18,7 @@ export const settings: Settings = {
   assistantTool: "claudeCode",
   opencode: { path: "" },
   github: { clientId: "", useForHttps: true },
+  remote: { enabled: false, relayBase: "https://api.olittechnologies.co.in", devices: [] },
   tools: { editor: "", editorPath: "", mergeTool: "" },
   reopenLastRepo: true,
   autoRefresh: true,

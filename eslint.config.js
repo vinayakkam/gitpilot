@@ -6,7 +6,7 @@ import globals from "globals";
 export default tseslint.config(
   { ignores: ["dist", "src-tauri", "src/bindings"] },
   {
-    files: ["src/**/*.{ts,tsx}"],
+    files: ["src/**/*.{ts,tsx}", "remote/src/**/*.{ts,tsx}"],
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     languageOptions: { globals: globals.browser },
     plugins: { "react-hooks": reactHooks },

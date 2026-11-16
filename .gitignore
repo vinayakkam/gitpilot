@@ -7,3 +7,6 @@ src-tauri/gen/schemas
 .env
 .env.*
 /packaging/windows/art-src/make-art.sh
+
+# Build output of the phone app (published to the website repository instead)
+dist-remote

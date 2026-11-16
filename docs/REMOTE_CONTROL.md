@@ -1,120 +1,136 @@
-# Remote control (planned for 0.7.0)
+# Remote control (0.7.0)
 
-Control GitPilot on your computer from your phone: see what's going on in your repositories,
-fetch, pull, push and commit, and get told when something needs you. Works from anywhere, with
-no server of our own: **GitHub is the mailbox** between the phone and the computer.
+Control GitPilot on your computer from your phone: see your repositories, stage and commit, and
+fetch, pull or push — from anywhere, with your phone on mobile data and your computer at home.
 
-Status: **design agreed with the user on 2026-11-14, not started.** Build starts when the user says so.
+There is **no account, no token and no password anywhere in this feature**. Pairing is a QR code
+shown on the computer and read by the phone's own camera, and that code carries a key the two
+devices share and nobody else ever sees.
 
-## Decisions (agreed 2026-11-14)
-
-| Question | Decision |
-|---|---|
-| How the phone reaches the computer | Through GitHub, so it works anywhere (no relay server, no open port at home) |
-| The phone app | Both: a web app first (0.7.0), a native Android app built with Tauri mobile next (0.7.x) |
-| What the phone can do | See status, sync (fetch / pull / push), commit, notifications |
+Status: **built and used end to end** (0.7.0). Off by default.
 
 ## How it works
 
 ```
-Phone (web app or Android app)                 GitHub                       Computer (GitPilot)
-  signed in to GitHub          ── writes ──▶  secret gist "GitPilot remote"  ◀── polls (ETag) ──  signed in to GitHub
-  holds the pairing key                        commands.json  (phone → PC)                        holds the pairing key
-                               ◀── reads ───   state.json     (PC → phone)   ── writes ──▶
-                                               results.json   (PC → phone)
+Phone (anywhere)                api.olittechnologies.co.in            GitPilot (at home)
+olittechnologies.co.in/remote/   POST /remote/send  (sealed command) →  GET  /remote/poll
+   holds the pairing key         GET  /remote/poll  (sealed result)  ←  POST /remote/send
+                                   the relay sees only ciphertext        holds the pairing key
 ```
 
-- The desktop creates one **secret gist** per pairing. A secret gist is unlisted, not private, so
-  **everything in it is end-to-end encrypted** with a key that never goes to GitHub.
-- **Pairing:** Settings → Remote control → Pair a phone shows a QR code with the gist id, a
-  device id and a random 256-bit key. The phone scans it (or types a short code). The key lives in
-  the OS keychain on the computer and in the app's storage on the phone.
-- **Both sides must be signed in to the same GitHub account.** The desktop checks the gist owner
-  and the phone's login match the desktop's account before it accepts a command.
-- **Encryption:** each message is an envelope `{v, device, seq, ts, nonce, ciphertext}` sealed with
-  XChaCha20-Poly1305 (Rust `chacha20poly1305`; the web app uses libsodium.js or WebCrypto AES-GCM —
-  pick one cipher for both). The device id and `seq` are in the associated data.
-- **Replay protection:** `seq` must go up per device, and `ts` must be within 5 minutes of now.
-- **Polling:** the desktop polls the gist every 5 s while remote control is on, with `If-None-Match`
-  (unchanged answers are 304s and don't count against GitHub's 5,000 requests an hour). The phone
-  polls `state.json` while it's open. Expect 2–10 s from tap to result.
-- **Off by default.** Turning it on, pairing and every paired phone are visible in Settings, and a
-  phone can be removed (the gist is deleted and the key forgotten) at any time.
+Both sides only ever make **outbound** HTTPS calls, so there is no port to forward, no public IP
+and no change to a home router. The relay in the middle is a post box: it holds sealed blobs for
+a few minutes and routes them between two devices. It cannot read, forge or replay anything.
 
-## What the phone can ask for
+### Pairing
 
-Only these commands, each validated by the desktop exactly like a click in the app. Repositories are
-addressed by repo id, never by path. Nothing else runs; there's no "run a command".
+1. **Settings → Remote control → Pair a phone.** GitPilot opens a channel on the relay, generates a
+   256-bit key, and shows a QR code for
+   `https://olittechnologies.co.in/remote/#i=<channel>&s=<phone secret>&k=<key>&d=<device>`.
+2. The phone's camera app opens that link. Everything after the `#` is a **URL fragment**, which
+   browsers never send to a server — so the key reaches the page's JavaScript without GitHub Pages,
+   the relay, or anything in between ever seeing it.
+3. The page saves the pairing, wipes the fragment from the address bar, and says hello.
+4. The computer shows "paired", and the phone appears in Settings with its name and last use.
 
-| Command | What the desktop does |
+The key lives in the OS keychain on the computer and in the browser's storage on the phone. It is
+never in `settings.json`, never logged, never copied to the clipboard.
+
+### Sealing
+
+Every message is one envelope:
+
+```json
+{ "v": 1, "id": "<device>", "seq": 12, "ts": 1763300000, "nonce": "<b64url>", "ct": "<b64url>" }
+```
+
+- **AES-256-GCM**, chosen because the phone has it natively in WebCrypto — the phone app ships no
+  crypto library at all. The desktop uses the `aes-gcm` crate.
+- `v`, `id`, `seq` and `ts` are the **associated data**, so the tag covers them: a message cannot be
+  renumbered, backdated, or moved to another device.
+- **Replays** are refused: `seq` must be higher than the last one accepted from that device, and the
+  counter survives a restart.
+- **Stale messages** are refused: `ts` must be within five minutes of the receiver's clock.
+- The computer answers under a different device id (`<device>~pc`), so an answer can never be posted
+  back as if it were a command.
+
+Both implementations are tested against envelopes the *other* one produced, in both directions, so
+they cannot drift apart silently.
+
+## What a phone can ask for
+
+Only these. There is no "run a command", no path, and no way to reach a repository that isn't
+registered in GitPilot — repositories are addressed by their id in the registry.
+
+| Command | What the computer does |
 |---|---|
-| `status` | Refreshes `state.json`: repositories, branch, ahead/behind, changed files (names and kinds, no contents), last 20 commits, the branch's pull request checks and review state |
-| `diff` (one file) | Sends that file's diff, size-capped, secrets-pattern files refused (same rules as AI) |
-| `fetch`, `pull` | Same as the toolbar: pull is fast-forward only unless the user's setting says otherwise |
-| `push` | Normal push only. **Never force push** from the phone. |
-| `stage`, `unstage` | Paths validated as today (relative, no `..`, after `--`) |
-| `commit` | Message from the phone; never stages on its own; the identity check applies. AI suggestion if AI is on. |
+| `list` | Every registered repository: branch, ahead/behind, how many files changed |
+| `open` | One repository: its changed files and its last 20 commits |
+| `diff` | One file's changes, size-capped. Files that look like keys or `.env` are refused, exactly as for AI |
+| `stage`, `unstage` | Paths validated as always: relative, no `..`, passed after `--` |
+| `commit` | Commits what is staged. Never stages for you; the identity check applies |
+| `fetch`, `pull` | As the toolbar does — pull follows your own setting, fast-forward only by default |
+| `push` | A normal push, and only after a confirmation tap on the phone. **Never a force push** |
 
-Results go to `results.json` (`ok`, plain message, redacted details) so the phone can show the same
-errors the app shows. Fun mode scenes play on the phone too.
+Everything runs through the same functions the app's own buttons use, under the same per-repository
+lock, and every answer is redacted the way the UI is. A phone can never force push, discard work,
+change settings, or read a file outside a diff.
 
-## Notifications
+## The relay
 
-- **Android app:** local notifications from a background poll (WorkManager, every 15 minutes, the
-  shortest Android allows), plus immediately while the app is open.
-- **Web app:** notifications while it's open. Background push (Web Push) needs a push service
-  subscription; the desktop could send it directly with VAPID keys, but that is **optional, later**.
-- What triggers one: new commits to pull, a push or pull finished or failed, the branch's pull
-  request checks failed or a review asked for changes (the same events auto-fetch already detects).
+A ~340-line Flask blueprint in `vinayakkam/my-discord-bot` (`remote_relay.py`), public source,
+running on a 720 MiB host — so it is deliberately tiny: Flask and the standard library only, no
+database, no disk writes, no WebSocket and no long-poll.
 
-## The phone apps
+| Endpoint | Does |
+|---|---|
+| `POST /remote/register` | Opens a channel; returns its id and the two secrets |
+| `POST /remote/send` | Puts one sealed envelope in the other side's mailbox |
+| `GET /remote/poll` | Takes everything waiting in the caller's own mailbox |
+| `POST /remote/unregister` | Drops a channel and its queues |
+| `GET /remote/health` | Counts only — no ids, no bodies |
 
-**Web app (0.7.0).** A static PWA in `remote/` (React + TypeScript, built with Vite into
-`dist-remote/`), published with GitHub Pages so it is served over HTTPS (needed for the camera and
-notifications). It talks only to `api.github.com`. Sign-in: GitHub's device flow can't be called
-from a browser (no CORS), so the web app asks for a **personal access token with only the `gist`
-scope** once, with step-by-step help, and keeps it in the browser's storage.
+One registration is one channel with two mailboxes (`pc` and `phone`). Each side has its own
+secret, always sends into the other's mailbox and polls its own, so one secret can never drain the
+queue it writes to.
 
-**Android app (0.7.x).** Tauri 2 mobile, same `remote/` UI. It can use the device flow (no CORS
-outside the browser), the system keystore for the token and key, and background notifications.
-Built in CI as an APK attached to releases; Play Store later.
+Caps, because the host is small: 64 KiB per message, 16 messages per mailbox, **2 MiB queued in
+total**, 256 channels, messages expire after 5 minutes, channels after an hour without a poll, and
+per-IP and per-channel rate limits answer 429 rather than queueing. `REMOTE_RELAY_ENABLED=0` turns
+the feature off without touching the bot. No id, secret or payload is ever logged.
 
-## Desktop changes
+**Why public source is safe:** security rests on the pairing key, which is made on the computer and
+reaches only the phone. Knowing the message format and seeing sealed blobs gets an attacker
+nothing; the worst case for the endpoint is wasted bandwidth, which is what the caps are for.
 
-- `src-tauri/src/remote.rs`: gist create/read/write with ETags, envelope encrypt/decrypt, replay
-  checks, command dispatch to the existing `Repo` functions (no new git code paths).
-- `settings.remote`: on/off, poll interval, paired devices `{id, name, gistId, pairedAt, lastSeen}`.
-  Keys in the keychain (`secrets.rs`), never in `settings.json`.
-- Settings → Remote control: turn on, Pair a phone (QR), paired phones with Remove, last activity log.
-- The GitHub token needs the **`gist` scope** in addition to today's scopes; sign-in asks again when
-  it's missing.
+## Polling and battery
 
-## Security notes
+The computer polls every **3 seconds** while a phone has been active in the last five minutes, and
+every **15 seconds** otherwise, backing off by doubling up to a minute when the relay is unreachable.
+Expect about 2–4 seconds from tap to result.
 
-- Nothing readable is stored on GitHub: the gist only holds encrypted envelopes.
-- A stolen GitHub token alone can't control the computer (no key); a stolen key alone can't reach it
-  (no token). Removing a phone deletes its gist and key.
-- The phone can't run arbitrary commands, read arbitrary files, force push or change settings.
-- Command handling goes through the per-repo lock like any other operation.
-- Everything that reaches the phone is redacted the same way the UI is (`redact.rs`).
+## The phone app
 
-## Plan
+A static page (React + TypeScript, built with Vite) published to `olittechnologies.co.in/remote/`
+from the `vinayakkam/OLIT.github.io` repository. It talks only to the relay, and holds nothing but
+the pairing. "Forget this computer" erases it.
 
-**0.7.0**
-1. Envelope format, crypto and replay checks in Rust, with unit tests (tampered, replayed, old, wrong device).
-2. Gist mailbox client with ETag polling; integration test against a mocked GitHub API.
-3. Command dispatch and `state.json` snapshot, tested on temporary repositories.
-4. Settings → Remote control: on/off, pairing QR, devices, activity log; `gist` scope check.
-5. Web app `remote/`: token setup, scan QR, repositories, status, file list and diff, fetch/pull/push, stage and commit, results, notifications while open.
-6. GitHub Pages workflow for the web app; docs (this file, README, INSTALL).
-7. Real test: pair a phone, run every command, kill the network mid-command, remove the phone.
+```bash
+npm run build:remote                       # builds into dist-remote/
+npm run publish:remote -- ../OLIT.github.io  # copies it in; you commit and push
+```
 
-**0.7.x**
-8. Tauri Android app from `remote/`: device flow sign-in, keystore, background notifications, APK in CI.
-9. Optional: Web Push from the desktop for the web app.
+The publish script never commits, never pushes and holds no token on purpose.
 
-## Open questions for the build session
+## Removing a phone
 
-- Web app address: `vinayakkam.github.io/gitpilot/remote/` or under olittechnologies.co.in.
-- Should a commit or push from the phone need a confirmation on the phone? (Proposed: yes for push.)
-- The GitHub OAuth app's client ID is needed for the Android device flow (the same one as the desktop).
+Settings → Remote control → Remove. The key is forgotten, the entry goes, and the channel is dropped
+from the relay. If the relay can't be reached the phone is still forgotten here — and without the
+key the channel is useless to anyone.
+
+## What this still doesn't do
+
+- No notifications on the phone yet: the app shows news while it is open.
+- No Android app yet (0.7.x, with Tauri mobile and background notifications).
+- GitPilot has to be running on the computer. Nothing is queued while it is closed, and messages
+  older than five minutes are dropped by the relay.
