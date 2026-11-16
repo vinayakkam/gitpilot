@@ -181,7 +181,7 @@ impl Default for GitHubSettings {
 ///
 /// The keys are not here: the pairing key and the relay secret live in the OS keychain, because
 /// `settings.json` is an ordinary readable file that people copy between machines.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 #[ts(export)]
 pub struct RemoteDevice {
@@ -201,20 +201,6 @@ pub struct RemoteDevice {
     pub seq_in: u64,
     /// Next sequence number this computer will use when answering it.
     pub seq_out: u64,
-}
-
-impl Default for RemoteDevice {
-    fn default() -> Self {
-        Self {
-            id: String::new(),
-            name: String::new(),
-            channel_id: String::new(),
-            paired_at: 0,
-            last_seen: None,
-            seq_in: 0,
-            seq_out: 0,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -370,13 +356,17 @@ impl Settings {
 
     pub fn validate(&self) -> AppResult<()> {
         let relay = self.remote.relay_base.trim();
-        if relay.is_empty() || !(relay.starts_with("https://") || relay.starts_with("http://127.0.0.1")) {
+        if relay.is_empty()
+            || !(relay.starts_with("https://") || relay.starts_with("http://127.0.0.1"))
+        {
             return Err(AppError::invalid(
                 "The remote-control relay address has to start with https:// .",
             ));
         }
         if self.remote.devices.len() > 20 {
-            return Err(AppError::invalid("That's more paired phones than GitPilot keeps."));
+            return Err(AppError::invalid(
+                "That's more paired phones than GitPilot keeps.",
+            ));
         }
         if self
             .remote

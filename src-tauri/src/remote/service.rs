@@ -94,11 +94,13 @@ fn pairing_of(device: &str) -> AppResult<RemotePairing> {
 pub async fn pair_start(state: &AppState, name: &str) -> AppResult<Pairing> {
     let name = name.trim();
     if name.is_empty() || name.len() > 60 {
-        return Err(AppError::invalid("Give the phone a short name, like Pixel."));
+        return Err(AppError::invalid(
+            "Give the phone a short name, like Pixel.",
+        ));
     }
     let channel = client(state)?.register().await?;
     let key = PairingKey::generate();
-    let device = format!("d{}", &channel.id);
+    let device = format!("d{}", channel.id);
 
     // The keychain first: if it can't hold the key, nothing else should happen.
     secrets::remote_set(

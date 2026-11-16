@@ -129,8 +129,11 @@ impl RelayClient {
             .timeout(HTTP_TIMEOUT)
             .build()
             .map_err(|e| {
-                AppError::new(ErrorKind::Internal, "Couldn't start the remote-control client.")
-                    .with_detail(e.to_string())
+                AppError::new(
+                    ErrorKind::Internal,
+                    "Couldn't start the remote-control client.",
+                )
+                .with_detail(e.to_string())
             })?;
         Ok(Self {
             base: base.trim_end_matches('/').to_string(),
@@ -143,7 +146,12 @@ impl RelayClient {
     }
 
     /// Turns a non-2xx answer into a sentence the user can act on.
-    async fn check(&self, res: reqwest::Response, what: &str, secrets: &[&str]) -> AppResult<String> {
+    async fn check(
+        &self,
+        res: reqwest::Response,
+        what: &str,
+        secrets: &[&str],
+    ) -> AppResult<String> {
         let status = res.status();
         let body = res.text().await.unwrap_or_default();
         if status.is_success() {
@@ -174,8 +182,11 @@ impl RelayClient {
             .map_err(|e| network_error("start pairing", e, &[]))?;
         let body = self.check(res, "start pairing", &[]).await?;
         serde_json::from_str(&body).map_err(|e| {
-            AppError::new(ErrorKind::NetworkFailed, "The relay's answer wasn't understood.")
-                .with_detail(e.to_string())
+            AppError::new(
+                ErrorKind::NetworkFailed,
+                "The relay's answer wasn't understood.",
+            )
+            .with_detail(e.to_string())
         })
     }
 
@@ -197,14 +208,21 @@ impl RelayClient {
         let res = self
             .http
             .get(self.url("poll"))
-            .query(&[("id", id), ("secret", secret), ("since", &since.to_string())])
+            .query(&[
+                ("id", id),
+                ("secret", secret),
+                ("since", &since.to_string()),
+            ])
             .send()
             .await
             .map_err(|e| network_error("check for commands", e, &[secret]))?;
         let body = self.check(res, "check for commands", &[secret]).await?;
         serde_json::from_str(&body).map_err(|e| {
-            AppError::new(ErrorKind::NetworkFailed, "The relay's answer wasn't understood.")
-                .with_detail(scrub(e.to_string(), &[secret]))
+            AppError::new(
+                ErrorKind::NetworkFailed,
+                "The relay's answer wasn't understood.",
+            )
+            .with_detail(scrub(e.to_string(), &[secret]))
         })
     }
 
@@ -234,8 +252,11 @@ impl RelayClient {
             .map_err(|e| network_error("check the relay", e, &[]))?;
         let body = self.check(res, "check the relay", &[]).await?;
         serde_json::from_str(&body).map_err(|e| {
-            AppError::new(ErrorKind::NetworkFailed, "The relay's answer wasn't understood.")
-                .with_detail(e.to_string())
+            AppError::new(
+                ErrorKind::NetworkFailed,
+                "The relay's answer wasn't understood.",
+            )
+            .with_detail(e.to_string())
         })
     }
 }
@@ -339,7 +360,10 @@ mod tests {
     async fn send_puts_the_envelope_in_the_body() {
         let s = stub(vec![(200, r#"{"ok":true,"n":1}"#)]).await;
 
-        s.client().send("chan1", "pc-secret", "sealed").await.unwrap();
+        s.client()
+            .send("chan1", "pc-secret", "sealed")
+            .await
+            .unwrap();
 
         let req = &s.requests()[0];
         assert!(req.starts_with("POST /remote/send"));
@@ -360,9 +384,17 @@ mod tests {
     async fn a_missing_channel_says_to_pair_again() {
         let s = stub(vec![(404, r#"{"ok":false,"error":"unknown id"}"#)]).await;
 
-        let err = s.client().send("chan1", "pc-secret", "x").await.unwrap_err();
+        let err = s
+            .client()
+            .send("chan1", "pc-secret", "x")
+            .await
+            .unwrap_err();
 
-        assert!(err.message.contains("Pair the phone again"), "{}", err.message);
+        assert!(
+            err.message.contains("Pair the phone again"),
+            "{}",
+            err.message
+        );
     }
 
     #[tokio::test]
@@ -410,8 +442,15 @@ mod tests {
 
         let err = client.health().await.unwrap_err();
 
-        assert!(matches!(err.kind, ErrorKind::NetworkFailed | ErrorKind::Timeout));
-        assert!(err.message.contains("internet connection"), "{}", err.message);
+        assert!(matches!(
+            err.kind,
+            ErrorKind::NetworkFailed | ErrorKind::Timeout
+        ));
+        assert!(
+            err.message.contains("internet connection"),
+            "{}",
+            err.message
+        );
     }
 
     #[tokio::test]
@@ -428,7 +467,10 @@ mod tests {
     fn polling_is_quick_while_a_phone_is_in_use_and_slow_otherwise() {
         assert_eq!(poll_interval(Duration::from_secs(1)), ACTIVE_POLL);
         assert_eq!(poll_interval(ACTIVE_FOR), ACTIVE_POLL);
-        assert_eq!(poll_interval(ACTIVE_FOR + Duration::from_secs(1)), IDLE_POLL);
+        assert_eq!(
+            poll_interval(ACTIVE_FOR + Duration::from_secs(1)),
+            IDLE_POLL
+        );
     }
 
     #[test]
@@ -446,6 +488,9 @@ mod tests {
     fn scrubbing_leaves_short_strings_alone() {
         // A two-character "secret" would otherwise blank out half the message.
         assert_eq!(scrub("an error at id ab", &["ab"]), "an error at id ab");
-        assert_eq!(scrub("token abcdef here", &["abcdef"]), "token <removed> here");
+        assert_eq!(
+            scrub("token abcdef here", &["abcdef"]),
+            "token <removed> here"
+        );
     }
 }

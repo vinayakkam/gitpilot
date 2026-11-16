@@ -61,11 +61,7 @@ async fn app() -> (TempDir, TempDir, AppState, i64, PathBuf) {
     r.commit("Add a readme").await.unwrap();
 
     let home = tempfile::tempdir().unwrap();
-    let state = AppState::new(
-        home.path().join("data"),
-        home.path().join("config"),
-    )
-    .unwrap();
+    let state = AppState::new(home.path().join("data"), home.path().join("config")).unwrap();
     let id = state
         .db(|c| gitpilot_lib::db::add(c, &root.to_string_lossy(), "test-repo"))
         .unwrap()
@@ -103,7 +99,10 @@ async fn opening_a_repository_shows_files_and_recent_commits() {
 
     let detail = data(&reply);
     assert_eq!(detail["files"][0]["path"].as_str(), Some("notes.txt"));
-    assert_eq!(detail["commits"][0]["subject"].as_str(), Some("Add a readme"));
+    assert_eq!(
+        detail["commits"][0]["subject"].as_str(),
+        Some("Add a readme")
+    );
     assert_eq!(detail["branch"].as_str(), Some("main"));
 }
 
@@ -212,7 +211,11 @@ async fn a_push_without_the_confirmation_tap_is_refused() {
     .await;
 
     assert!(!reply.ok);
-    assert!(reply.message.contains("confirmed on the phone"), "{}", reply.message);
+    assert!(
+        reply.message.contains("confirmed on the phone"),
+        "{}",
+        reply.message
+    );
 }
 
 #[tokio::test]
@@ -302,7 +305,13 @@ async fn a_command_survives_the_round_trip_the_phone_actually_makes() {
     let cmd: Command = serde_json::from_slice(&plain).unwrap();
     let reply = dispatch(&state, cmd).await;
 
-    let answer = crypto::seal(&key, "phone~pc", 1, now, &serde_json::to_vec(&reply).unwrap());
+    let answer = crypto::seal(
+        &key,
+        "phone~pc",
+        1,
+        now,
+        &serde_json::to_vec(&reply).unwrap(),
+    );
     let back = crypto::open(&key, &answer, "phone~pc", 0, now).unwrap();
     let parsed: serde_json::Value = serde_json::from_slice(&back).unwrap();
 

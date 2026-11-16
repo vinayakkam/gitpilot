@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.7.0 — 2026-11-17
+
+### Remote control from your phone
+Pair your phone with a QR code and use GitPilot from anywhere — from college, on the bus, with your
+computer sitting at home. Turn it on in **Settings → Remote control**; it is off until you do.
+
+- **Pairing is a QR code.** GitPilot shows one, you point your phone's normal camera at it, and
+  that's the whole setup. **No account, no token, no password anywhere in the feature.**
+- **From the phone:** your repositories with their branch and what's waiting to pull or push; one
+  repository's changed files and recent commits; stage and unstage; commit; fetch; pull; and push
+  after a confirmation tap.
+- **It cannot** force push, discard your work, change settings, or touch a repository you haven't
+  opened in GitPilot. Files that look like keys or `.env` are never sent.
+- **Nothing readable leaves your devices.** Messages are sealed with a key made on your computer
+  that only travels in the QR code. The small relay that carries them sees ciphertext and routing
+  numbers, nothing else — and replays and stale messages are refused.
+- **Install it as an app.** The phone app offers to install itself to your home screen, and opens
+  without a connection.
+- Works from any network, with no port forwarding and nothing opened on your router: both sides
+  only make outgoing connections.
+
+See [docs/REMOTE_CONTROL.md](docs/REMOTE_CONTROL.md) for how it works and what it refuses to do.
+
+### Fixed
+- **Switching repository no longer breaks History.** Opening another repository while a commit was
+  selected asked the new repository for the old one's commit, showing `fatal: bad object …`, and the
+  error stayed on screen afterwards.
+
 ## 0.6.1 — 2026-11-14
 
 ### Fun mode, rebuilt

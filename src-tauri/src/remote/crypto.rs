@@ -86,7 +86,10 @@ impl From<OpenError> for AppError {
     fn from(e: OpenError) -> Self {
         AppError::new(
             ErrorKind::AuthFailed,
-            format!("A remote-control message was ignored because {}.", e.reason()),
+            format!(
+                "A remote-control message was ignored because {}.",
+                e.reason()
+            ),
         )
     }
 }
@@ -254,8 +257,14 @@ mod tests {
 
     #[test]
     fn a_short_or_invalid_key_is_refused() {
-        assert_eq!(PairingKey::from_b64("not base64!!").unwrap_err(), OpenError::Malformed);
-        assert_eq!(PairingKey::from_b64("aGVsbG8").unwrap_err(), OpenError::Malformed);
+        assert_eq!(
+            PairingKey::from_b64("not base64!!").unwrap_err(),
+            OpenError::Malformed
+        );
+        assert_eq!(
+            PairingKey::from_b64("aGVsbG8").unwrap_err(),
+            OpenError::Malformed
+        );
     }
 
     #[test]
@@ -275,7 +284,10 @@ mod tests {
         raw[0] ^= 0x01;
         env.ct = b64().encode(raw);
 
-        assert_eq!(open(&key, &env, DEVICE, 0, NOW).unwrap_err(), OpenError::Tampered);
+        assert_eq!(
+            open(&key, &env, DEVICE, 0, NOW).unwrap_err(),
+            OpenError::Tampered
+        );
     }
 
     #[test]
@@ -286,7 +298,10 @@ mod tests {
         // The relay could renumber a message it kept, to slip it past the replay check.
         env.seq = 99;
 
-        assert_eq!(open(&key, &env, DEVICE, 0, NOW).unwrap_err(), OpenError::Tampered);
+        assert_eq!(
+            open(&key, &env, DEVICE, 0, NOW).unwrap_err(),
+            OpenError::Tampered
+        );
     }
 
     #[test]
@@ -297,7 +312,10 @@ mod tests {
         // Freshening an old message to get it past the clock check.
         env.ts = NOW;
 
-        assert_eq!(open(&key, &env, DEVICE, 0, NOW).unwrap_err(), OpenError::Tampered);
+        assert_eq!(
+            open(&key, &env, DEVICE, 0, NOW).unwrap_err(),
+            OpenError::Tampered
+        );
     }
 
     #[test]
@@ -306,7 +324,10 @@ mod tests {
         let mut env = sealed(&key, "push");
         env.id = "phone-2".to_string();
 
-        assert_eq!(open(&key, &env, "phone-2", 0, NOW).unwrap_err(), OpenError::Tampered);
+        assert_eq!(
+            open(&key, &env, "phone-2", 0, NOW).unwrap_err(),
+            OpenError::Tampered
+        );
     }
 
     #[test]
@@ -314,7 +335,10 @@ mod tests {
         let key = PairingKey::generate();
         let env = sealed(&key, "push");
 
-        assert_eq!(open(&key, &env, "phone-2", 0, NOW).unwrap_err(), OpenError::WrongDevice);
+        assert_eq!(
+            open(&key, &env, "phone-2", 0, NOW).unwrap_err(),
+            OpenError::WrongDevice
+        );
     }
 
     #[test]
@@ -324,8 +348,14 @@ mod tests {
 
         assert!(open(&key, &env, DEVICE, 6, NOW).is_ok());
         // Once 7 is accepted it can never be used again, nor anything below it.
-        assert_eq!(open(&key, &env, DEVICE, 7, NOW).unwrap_err(), OpenError::Replay);
-        assert_eq!(open(&key, &env, DEVICE, 99, NOW).unwrap_err(), OpenError::Replay);
+        assert_eq!(
+            open(&key, &env, DEVICE, 7, NOW).unwrap_err(),
+            OpenError::Replay
+        );
+        assert_eq!(
+            open(&key, &env, DEVICE, 99, NOW).unwrap_err(),
+            OpenError::Replay
+        );
     }
 
     #[test]
@@ -333,10 +363,16 @@ mod tests {
         let key = PairingKey::generate();
 
         let old = seal(&key, DEVICE, 1, NOW - MAX_CLOCK_SKEW_SECS - 1, b"push");
-        assert_eq!(open(&key, &old, DEVICE, 0, NOW).unwrap_err(), OpenError::Stale);
+        assert_eq!(
+            open(&key, &old, DEVICE, 0, NOW).unwrap_err(),
+            OpenError::Stale
+        );
 
         let future = seal(&key, DEVICE, 1, NOW + MAX_CLOCK_SKEW_SECS + 1, b"push");
-        assert_eq!(open(&key, &future, DEVICE, 0, NOW).unwrap_err(), OpenError::Stale);
+        assert_eq!(
+            open(&key, &future, DEVICE, 0, NOW).unwrap_err(),
+            OpenError::Stale
+        );
 
         // A phone whose clock is a little off still works.
         let skewed = seal(&key, DEVICE, 1, NOW - MAX_CLOCK_SKEW_SECS + 1, b"push");
@@ -349,7 +385,10 @@ mod tests {
         let mut env = sealed(&key, "push");
         env.v = PROTOCOL_VERSION + 1;
 
-        assert_eq!(open(&key, &env, DEVICE, 0, NOW).unwrap_err(), OpenError::Version);
+        assert_eq!(
+            open(&key, &env, DEVICE, 0, NOW).unwrap_err(),
+            OpenError::Version
+        );
     }
 
     #[test]
@@ -358,15 +397,24 @@ mod tests {
 
         let mut env = sealed(&key, "push");
         env.nonce = "not base64!!".to_string();
-        assert_eq!(open(&key, &env, DEVICE, 0, NOW).unwrap_err(), OpenError::Malformed);
+        assert_eq!(
+            open(&key, &env, DEVICE, 0, NOW).unwrap_err(),
+            OpenError::Malformed
+        );
 
         let mut env = sealed(&key, "push");
         env.nonce = b64().encode([0u8; 4]); // right encoding, wrong length
-        assert_eq!(open(&key, &env, DEVICE, 0, NOW).unwrap_err(), OpenError::Malformed);
+        assert_eq!(
+            open(&key, &env, DEVICE, 0, NOW).unwrap_err(),
+            OpenError::Malformed
+        );
 
         let mut env = sealed(&key, "push");
         env.ct = "not base64!!".to_string();
-        assert_eq!(open(&key, &env, DEVICE, 0, NOW).unwrap_err(), OpenError::Malformed);
+        assert_eq!(
+            open(&key, &env, DEVICE, 0, NOW).unwrap_err(),
+            OpenError::Malformed
+        );
     }
 
     #[test]

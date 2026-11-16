@@ -4,10 +4,10 @@
 
 - **Phase:** 6 — reliability and refinement (implemented on Linux and Windows; Windows verified by the user)
 - **Overall:** core Git workflow, branches, remotes, sync, AI provider integration, Claude Code integration and settings are implemented and verified on Linux against real repositories. Linux packages (deb, AppImage) build and launch.
-- **Current working area:** 0.6.1 — fun mode rebuilt (session 14), merged to main and tagged `v0.6.1` with the user's permission
-- **Most recently completed:** v0.6.1 (session 14) — fun mode rebuilt: animated, themed scenes that wait for the real result and play a failure (rope snaps, car rolls back and the pusher falls, dog trips, stamp smudges FAILED); heavy push car; thrown ball with a dog that runs. Before that: v0.6.0 (session 13, released) — pull request line comments, suggested changes, replies, ready for review, reviewers, labels, re-run failed checks; background fetch password notice and desktop notifications; small UI overhaul; fun mode. Before that: v0.5.1 (session 12, not released) — auto-fetch every minute by default (15 s and 30 s options), pull request check/review notices, line comments on the PR diff, all PR comments (paged), File or folder in advanced search, one Recover list with backups, focus back after dialogs, keyboard tests. Before that: v0.5.0 (session 11, merged to main as PR #5) — Arch in-app updates through pacman, pull request review + merge, issues, GitHub sign-in for HTTPS git, Recover (reflog), history content search, auto-fetch, editors/terminal/merge tool, beginner tips, large-repo speed, accessibility pass. Before that: v0.4.5 (session 10) — multiple windows, worktrees, submodules, Git LFS, commit signing + Verified, OpenCode in the Assistant; checks gate the installer builds. Before that: v0.4.2 (session 9, released as `v0.4.2`) — GitHub sign-in, clone from your repository list, pull requests (list with checks, create, check out), AI explain, AI pull request descriptions, AI conflict help. Before that: v0.4.0 — Batches A–C: everyday Git (amend, undo, tags, stash selected files, discard hunks/lines, auto-refresh), understanding code (blame, commit graph, compare any refs, image previews), conflicts and history (conflict resolver, edit commits, reset with backups) (session 8). Before that: v0.3.1 — readable update notes, Add to .gitignore (session 7)
+- **Current working area:** 0.7.0 — remote control from the phone (session 15), on branch `release/0.7.0`
+- **Most recently completed:** v0.7.0 (session 15) — remote control from a paired phone: sealed envelopes over a relay the user owns, QR pairing with no account or token, nine allowed commands onto the app's own functions, Settings → Remote control, and an installable phone app at olittechnologies.co.in/remote/. **Paired and driven from a real phone by the user.** Before that: v0.6.1 (session 14) — fun mode rebuilt: animated, themed scenes that wait for the real result and play a failure (rope snaps, car rolls back and the pusher falls, dog trips, stamp smudges FAILED); heavy push car; thrown ball with a dog that runs. Before that: v0.6.0 (session 13, released) — pull request line comments, suggested changes, replies, ready for review, reviewers, labels, re-run failed checks; background fetch password notice and desktop notifications; small UI overhaul; fun mode. Before that: v0.5.1 (session 12, not released) — auto-fetch every minute by default (15 s and 30 s options), pull request check/review notices, line comments on the PR diff, all PR comments (paged), File or folder in advanced search, one Recover list with backups, focus back after dialogs, keyboard tests. Before that: v0.5.0 (session 11, merged to main as PR #5) — Arch in-app updates through pacman, pull request review + merge, issues, GitHub sign-in for HTTPS git, Recover (reflog), history content search, auto-fetch, editors/terminal/merge tool, beginner tips, large-repo speed, accessibility pass. Before that: v0.4.5 (session 10) — multiple windows, worktrees, submodules, Git LFS, commit signing + Verified, OpenCode in the Assistant; checks gate the installer builds. Before that: v0.4.2 (session 9, released as `v0.4.2`) — GitHub sign-in, clone from your repository list, pull requests (list with checks, create, check out), AI explain, AI pull request descriptions, AI conflict help. Before that: v0.4.0 — Batches A–C: everyday Git (amend, undo, tags, stash selected files, discard hunks/lines, auto-refresh), understanding code (blame, commit graph, compare any refs, image previews), conflicts and history (conflict resolver, edit commits, reset with backups) (session 8). Before that: v0.3.1 — readable update notes, Add to .gitignore (session 7)
 - **Windows:** verified by the user on a real Windows machine (2026-10-21, all features working); this environment still can't build for Windows
-- **Immediate next task:** check the `v0.6.1` installers from CI, then update the PKGBUILD checksum for the 0.6.1 .deb (`build(arch)` commit). Fun mode has been driven in Chrome (preview harness) and unit-tested, not yet inside the desktop app.
+- **Immediate next task:** push `release/0.7.0`, open the pull request, and let `build-installers.yml` build the 0.7.0 installers; then update the PKGBUILD checksum from the released .deb.
 
 ## Feature tracker
 
@@ -65,9 +65,37 @@ Legend: [x] implemented & verified · [~] implemented, not fully verified · [-]
 - [~] Background fetch notices (0.6.0): one notice when the remote needs a password; optional desktop notifications (`tauri-plugin-notification`). Frontend logic tested; desktop notification not shown on a real desktop yet
 - [x] Small UI overhaul (0.6.0): contrast-tested tokens, grouped sidebar, roomier toolbar, reworked pull request dialog (checked with screenshots of a mocked backend)
 - [x] Fun mode (0.6.0): rope, car, ball and stamp scenes before pull, push, fetch and commit; off by default, always skippable, keyboard operable
+- [x] Remote control from the phone (0.7.0): AES-256-GCM envelopes with replay and clock checks (19 unit tests, including one opened from an envelope the phone app really produced), relay client against a stub server (15 tests), command dispatch on temporary repositories (11 integration tests), QR encoder verified with a real QR decoder (7 tests), Settings → Remote control, phone app with WebCrypto (8 tests, one opening a Rust-sealed envelope). **Paired with a real phone and used end to end (2026-11-17).** The relay runs on the user's own host and was exercised live
 - [~] Documentation and release preparation (README, CLAUDE.md, INSTALL.md, CHANGELOG, this file; CI builds installers and releases on tags; update packages are signed, installers are not — no code-signing certificate)
 
 ## Work log
+
+### Session 15 — 2026-11-16/17 (v0.7.0, branch `release/0.7.0`)
+- User: build 0.7.0. The gist design in `docs/REMOTE_CONTROL.md` was dead (no GitHub token anywhere);
+  `PLAN-0.7.0.md` held the agreed design: a relay the user owns, QR pairing, phone web app. No
+  co-author lines. Later: refine the phone UI to the desktop's style and make it installable.
+- **Relay** (`vinayakkam/my-discord-bot`, `remote_relay.py` + 24 tests): a Flask blueprint that
+  routes sealed blobs between two mailboxes per channel, each side with its own secret. Flask and
+  the standard library only, no DB, no disk, no long-poll; 64 KiB a message, 16 per mailbox, 2 MiB
+  global, 256 channels, 5-minute messages, 1-hour channels, per-IP and per-channel rate limits,
+  `REMOTE_RELAY_ENABLED=0`. Deployed by the user; verified live end to end with curl.
+- **Desktop** (`src-tauri/src/remote/`): `crypto` (AES-256-GCM, routing fields as AAD, replay and
+  clock checks), `relay` (client, 3 s/15 s polling, doubling backoff, secret scrubbed from errors),
+  `dispatch` (nine commands onto `Repo`, per-repo lock, repo ids, sensitive files refused, push
+  needs `confirmed`), `service` (pairing, listening loop, remove). `settings.remote` plus the
+  keychain for each phone's key; five Tauri commands.
+- **Settings → Remote control** with a hand-written QR encoder (`src/lib/qr.ts`), whose tests check
+  the output with a real QR *decoder* (`jsqr`, dev dependency only).
+- **Phone app** (`remote/` → `olittechnologies.co.in/remote/`): WebCrypto, desktop tokens and
+  layout, installable (manifest, icons, service worker that never caches a relay reply).
+  `npm run build:remote` and `scripts/publish-remote.mjs`, which copies but never pushes.
+- **Cross-language crypto tests**: each side opens an envelope the other actually produced.
+- Checks: 244 Rust unit + 41 integration, 192 frontend, typecheck, lint, clippy.
+- **The user paired a real phone and used it** (2026-11-17). Fixed from that session: the repository
+  list no longer claims there are none before the computer has answered.
+- Also fixed here: switching repository asked the new one for the previous one's commit
+  (`fatal: bad object …`) — `commitsRepo` gates the detail and diff effects, and the "HEAD moved"
+  effect no longer fights the automatic selection when the status is cleared on open.
 
 ### Session 14 — 2026-11-14 (v0.6.1, branch `release/0.6.1`)
 - User: fun mode looked lame; make it better and more interactive, with images/GIFs; the car should move slowly with turning tyres, the ball should really be thrown and the dog animate; failures should show (rope snaps, car rolls back and the person falls, same for fetch); GIFs of success and failure for every action. User allowed push, PR, merge and a release this session, with no co-author lines.
@@ -256,6 +284,9 @@ first-run welcome; repositories page incl. missing folder; changes (staged delet
 12. **Pull request comments:** at most 1000 of each kind (comments, reviews, line comments) are read; line comments on lines a later commit changed ("outdated") are listed in the conversation only.
 13. **0.6.0 GitHub actions not used against GitHub yet** (session 13): line comments (`POST pulls/{n}/comments` with `line`/`side`/`commit_id`), replies (`comments/{id}/replies`), `markPullRequestReadyForReview` (GraphQL), `requested_reviewers`, `PUT issues/{n}/labels`, `/labels`, `/assignees` and `actions/runs?head_sha=` + `rerun-failed-jobs` follow the REST docs; parsers unit-tested, UI tested with a mocked backend. Re-running needs write access and only covers GitHub Actions. Suggested changes are written (GitHub's `suggestion` block) but can't be committed from GitPilot.
 14. **Desktop notifications not shown on a real desktop yet** (session 13): `tauri-plugin-notification` is wired (permission asked when the setting is turned on); only the frontend logic is tested.
+
+15. **Remote control, what has not been tried** (session 15): one phone has been paired and used. Not exercised yet: several phones at once, a phone whose clock is badly wrong (the five-minute window is unit-tested only), pairing again after Remove, the relay being restarted mid-command, and the phone app installed to the home screen rather than opened in a tab. The relay forgets everything when it restarts, so a command in flight is lost rather than delivered late.
+16. **No notifications on the phone yet** (session 15): the phone shows news only while it is open. Background push needs the Android app (0.7.x) or Web Push with VAPID keys, neither of which is built.
 
 ## Roadmap (agreed with the user, 2026-10-21)
 

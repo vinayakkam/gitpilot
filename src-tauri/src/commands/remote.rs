@@ -43,7 +43,10 @@ pub async fn remote_pair_start(
 }
 
 #[tauri::command]
-pub async fn remote_device_remove(state: State<'_, AppState>, device: String) -> AppResult<RemoteStatus> {
+pub async fn remote_device_remove(
+    state: State<'_, AppState>,
+    device: String,
+) -> AppResult<RemoteStatus> {
     service::remove_device(&state, &device).await?;
     Ok(service::status(&state).await)
 }

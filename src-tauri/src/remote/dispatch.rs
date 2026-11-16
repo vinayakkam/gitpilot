@@ -29,16 +29,38 @@ pub enum Command {
     /// Every registered repository, briefly: enough for the phone's list.
     List,
     /// One repository: its branch, changed files and recent commits.
-    Open { repo: i64 },
+    Open {
+        repo: i64,
+    },
     /// One file's diff.
-    Diff { repo: i64, path: String, area: Area },
-    Stage { repo: i64, paths: Vec<String> },
-    Unstage { repo: i64, paths: Vec<String> },
-    Commit { repo: i64, message: String },
-    Fetch { repo: i64 },
-    Pull { repo: i64 },
+    Diff {
+        repo: i64,
+        path: String,
+        area: Area,
+    },
+    Stage {
+        repo: i64,
+        paths: Vec<String>,
+    },
+    Unstage {
+        repo: i64,
+        paths: Vec<String>,
+    },
+    Commit {
+        repo: i64,
+        message: String,
+    },
+    Fetch {
+        repo: i64,
+    },
+    Pull {
+        repo: i64,
+    },
     /// Never a force push. `confirmed` is the extra tap on the phone.
-    Push { repo: i64, confirmed: bool },
+    Push {
+        repo: i64,
+        confirmed: bool,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, TS)]
@@ -316,7 +338,10 @@ async fn fetch(state: &AppState, id: i64) -> AppResult<Reply> {
     r.fetch(None, None, |_| {}).await?;
     let st = r.status().await?;
     Ok(Reply::ok(match st.branch.behind {
-        Some(n) if n > 0 => format!("Fetched — {} to pull", plural(n as usize, "commit", "commits")),
+        Some(n) if n > 0 => format!(
+            "Fetched — {} to pull",
+            plural(n as usize, "commit", "commits")
+        ),
         _ => "Fetched — nothing new".to_string(),
     }))
 }
@@ -360,7 +385,8 @@ mod tests {
 
     #[test]
     fn the_wire_format_names_each_command() {
-        let cmd: Command = serde_json::from_str(r#"{"cmd":"push","repo":3,"confirmed":true}"#).unwrap();
+        let cmd: Command =
+            serde_json::from_str(r#"{"cmd":"push","repo":3,"confirmed":true}"#).unwrap();
         assert!(matches!(
             cmd,
             Command::Push {

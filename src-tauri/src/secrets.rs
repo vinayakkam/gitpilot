@@ -211,8 +211,10 @@ fn remote_keychain_err(e: keyring::Error) -> AppError {
 }
 
 pub fn remote_set(device: &str, pairing: &RemotePairing) -> AppResult<()> {
-    let json = serde_json::to_string(pairing)
-        .map_err(|e| AppError::new(ErrorKind::Internal, "Couldn't store this phone's key.").with_detail(e.to_string()))?;
+    let json = serde_json::to_string(pairing).map_err(|e| {
+        AppError::new(ErrorKind::Internal, "Couldn't store this phone's key.")
+            .with_detail(e.to_string())
+    })?;
     remote_entry(device)
         .and_then(|e| e.set_password(&json))
         .map_err(remote_keychain_err)
@@ -230,4 +232,3 @@ pub fn remote_clear(device: &str) -> AppResult<()> {
         Err(e) => Err(remote_keychain_err(e)),
     }
 }
-
