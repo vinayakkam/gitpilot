@@ -13,7 +13,7 @@ import { windowRepoId } from "@/lib/windows";
 
 export type Section = "overview" | "changes" | "history" | "branches" | "remotes" | "assistant" | "pulls";
 export type Page = "repo" | "repositories" | "settings";
-export type SettingsTab = "general" | "appearance" | "git" | "github" | "ai" | "claude" | "updates" | "about";
+export type SettingsTab = "general" | "appearance" | "git" | "github" | "remote" | "ai" | "claude" | "updates" | "about";
 
 export interface Toast {
   id: number;

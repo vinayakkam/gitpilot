@@ -1,0 +1,9 @@
+{
+  "name": "GitPilot remote",
+  "short_name": "GitPilot",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#111318",
+  "theme_color": "#111318",
+  "description": "Control GitPilot on your computer from your phone."
+}

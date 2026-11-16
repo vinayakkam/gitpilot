@@ -177,6 +177,68 @@ impl Default for GitHubSettings {
     }
 }
 
+/// One phone that has been paired with this computer.
+///
+/// The keys are not here: the pairing key and the relay secret live in the OS keychain, because
+/// `settings.json` is an ordinary readable file that people copy between machines.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export)]
+pub struct RemoteDevice {
+    /// Our name for this phone; also the device id inside every sealed envelope.
+    pub id: String,
+    /// What the user calls it, e.g. "Pixel".
+    pub name: String,
+    /// The relay channel this phone talks through.
+    pub channel_id: String,
+    #[ts(type = "number")]
+    pub paired_at: i64,
+    /// Last time anything was heard from it.
+    #[ts(type = "number | null")]
+    pub last_seen: Option<i64>,
+    /// Highest sequence number accepted from this phone; replays are anything at or below it.
+    /// Kept here so it survives a restart -- in memory only, a restart would reopen that window.
+    pub seq_in: u64,
+    /// Next sequence number this computer will use when answering it.
+    pub seq_out: u64,
+}
+
+impl Default for RemoteDevice {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            name: String::new(),
+            channel_id: String::new(),
+            paired_at: 0,
+            last_seen: None,
+            seq_in: 0,
+            seq_out: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export)]
+pub struct RemoteSettings {
+    /// Off until the user turns it on and pairs a phone. Nothing is contacted while this is false.
+    pub enabled: bool,
+    /// The relay to use. Changing it only changes where sealed blobs are posted; it never gets a
+    /// key, so a different relay cannot read or forge anything.
+    pub relay_base: String,
+    pub devices: Vec<RemoteDevice>,
+}
+
+impl Default for RemoteSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            relay_base: crate::remote::relay::DEFAULT_BASE.to_string(),
+            devices: Vec::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 #[ts(export)]
@@ -203,6 +265,8 @@ pub struct Settings {
     pub assistant_tool: AssistantTool,
     pub opencode: OpenCodeSettings,
     pub github: GitHubSettings,
+    /// Remote control from a paired phone (0.7.0). Off by default.
+    pub remote: RemoteSettings,
     /// Code editor and merge tool.
     pub tools: ToolsSettings,
     /// Reopen the last repository on startup.
@@ -247,6 +311,7 @@ impl Default for Settings {
             commit_convention: CommitConvention::None,
             check_line_endings: true,
             ai: AiSettings::default(),
+            remote: RemoteSettings::default(),
             claude_code: ClaudeCodeSettings::default(),
             assistant_tool: AssistantTool::default(),
             opencode: OpenCodeSettings::default(),
@@ -304,6 +369,23 @@ impl Settings {
     }
 
     pub fn validate(&self) -> AppResult<()> {
+        let relay = self.remote.relay_base.trim();
+        if relay.is_empty() || !(relay.starts_with("https://") || relay.starts_with("http://127.0.0.1")) {
+            return Err(AppError::invalid(
+                "The remote-control relay address has to start with https:// .",
+            ));
+        }
+        if self.remote.devices.len() > 20 {
+            return Err(AppError::invalid("That's more paired phones than GitPilot keeps."));
+        }
+        if self
+            .remote
+            .devices
+            .iter()
+            .any(|d| d.id.trim().is_empty() || d.channel_id.trim().is_empty() || d.name.len() > 60)
+        {
+            return Err(AppError::invalid("A paired phone's details aren't valid."));
+        }
         if !is_valid_accent(&self.accent) {
             return Err(AppError::invalid(
                 "Choose one of the accent colours or enter a colour like #3550c8.",

@@ -176,3 +176,58 @@ pub fn github_set(token: &str) -> AppResult<()> {
 pub fn github_clear() -> AppResult<()> {
     clear_in(GITHUB)
 }
+
+// ── Remote control ───────────────────────────────────────────────────────────
+// A paired phone's two secrets. They are the whole of its authority -- with them a phone can
+// drive this computer, without them the relay is just noise -- so they live here and never in
+// `settings.json`, which is a plain file people copy between machines and paste into bug reports.
+// There is no environment-variable fallback on purpose: pairing is a QR code, not configuration.
+
+use serde::Deserialize;
+
+/// Everything secret about one paired phone, stored as one keychain entry.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RemotePairing {
+    /// The 256-bit pairing key, base64url, as it was shown in the QR code.
+    pub key: String,
+    /// This computer's secret for that phone's relay channel.
+    pub channel_secret: String,
+}
+
+fn remote_account(device: &str) -> String {
+    format!("remote-{device}")
+}
+
+fn remote_entry(device: &str) -> Result<keyring::Entry, keyring::Error> {
+    keyring::Entry::new(SERVICE, &remote_account(device))
+}
+
+fn remote_keychain_err(e: keyring::Error) -> AppError {
+    AppError::new(
+        ErrorKind::Keychain,
+        "The system keychain isn't available, so this phone's key can't be stored. Remote control needs it.",
+    )
+    .with_detail(e.to_string())
+}
+
+pub fn remote_set(device: &str, pairing: &RemotePairing) -> AppResult<()> {
+    let json = serde_json::to_string(pairing)
+        .map_err(|e| AppError::new(ErrorKind::Internal, "Couldn't store this phone's key.").with_detail(e.to_string()))?;
+    remote_entry(device)
+        .and_then(|e| e.set_password(&json))
+        .map_err(remote_keychain_err)
+}
+
+/// `None` when the phone was never paired, or the keychain can't be read.
+pub fn remote_get(device: &str) -> Option<RemotePairing> {
+    let json = remote_entry(device).and_then(|e| e.get_password()).ok()?;
+    serde_json::from_str(&json).ok()
+}
+
+pub fn remote_clear(device: &str) -> AppResult<()> {
+    match remote_entry(device).and_then(|e| e.delete_credential()) {
+        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(remote_keychain_err(e)),
+    }
+}
+

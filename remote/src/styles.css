@@ -1,0 +1,264 @@
+/* Mobile-first, one column, large touch targets. Same palette as the desktop app, written out
+   here rather than imported: this page ships on its own and must not depend on the app's build. */
+
+:root {
+  --bg: #fbfbfd;
+  --surface: #ffffff;
+  --surface-2: #f2f3f7;
+  --border: #d8dae2;
+  --text: #16181d;
+  --muted: #5b6070;
+  --faint: #878d9e;
+  --accent: #3550c8;
+  --added: #1f7a3d;
+  --removed: #b3261e;
+  --modified: #9a6400;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111318;
+    --surface: #171a21;
+    --surface-2: #1e222b;
+    --border: #2b303b;
+    --text: #e8eaf0;
+    --muted: #9aa1b2;
+    --faint: #717888;
+    --accent: #7e95ff;
+    --added: #4ec97a;
+    --removed: #ff6b61;
+    --modified: #e0a63a;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.screen {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 16px 16px 24px;
+}
+
+.centred {
+  text-align: left;
+  padding-top: 15vh;
+}
+
+h1 {
+  font-size: 20px;
+  margin: 0;
+}
+
+h2 {
+  font-size: 15px;
+  margin: 20px 0 8px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+p {
+  margin: 8px 0;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 14px;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 4px;
+}
+
+.bar h1 {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  min-height: 56px; /* comfortable with a thumb */
+  text-align: left;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.row.static {
+  cursor: default;
+}
+
+.row:active {
+  background: var(--surface-2);
+}
+
+.row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.row-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-sub {
+  color: var(--faint);
+  font-size: 13px;
+}
+
+.pill {
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.glyph {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.glyph-added {
+  color: var(--added);
+}
+.glyph-modified {
+  color: var(--modified);
+}
+.glyph-deleted {
+  color: var(--removed);
+}
+
+button {
+  font: inherit;
+  padding: 11px 14px;
+  min-height: 44px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+button.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.actions button {
+  flex: 1;
+}
+
+.confirm {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.commit {
+  margin-top: 16px;
+}
+
+textarea {
+  width: 100%;
+  font: inherit;
+  padding: 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  resize: vertical;
+}
+
+.commit button {
+  margin-top: 8px;
+  width: 100%;
+}
+
+.status {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 10px 16px;
+  background: var(--surface-2);
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.status-error {
+  color: var(--removed);
+}
+
+.foot {
+  padding: 8px 16px 24px;
+  text-align: center;
+}

@@ -6,6 +6,7 @@ pub mod branches;
 pub mod changes;
 pub mod github;
 pub mod history;
+pub mod remote;
 pub mod remotes;
 pub mod repos;
 pub mod signing;
