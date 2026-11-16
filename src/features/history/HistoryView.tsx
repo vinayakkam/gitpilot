@@ -156,6 +156,10 @@ export function HistoryView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
   const [sel, setSel] = useState<string | null>(null);
+  // Which repository `commits` was loaded from. Everything that asks git about a commit waits for
+  // this to catch up with the open repository, so a hash from the repository we just left is never
+  // sent to the new one (git answers "bad object <hash>").
+  const [commitsRepo, setCommitsRepo] = useState<number | null>(null);
   const [detail, setDetail] = useState<CommitDetail | null>(null);
   const [explain, setExplain] = useState<ExplainRequest | null>(null);
   const [detailErr, setDetailErr] = useState<AppError | null>(null);
@@ -201,6 +205,7 @@ export function HistoryView() {
         const page = await api.log(id, { rev: null, skip, limit: PAGE, search: q.trim() || null, path, content: content || null, regex, ...dates });
         if (s !== seq.current) return;
         setCommits((prev) => (skip === 0 ? page.commits : [...prev, ...page.commits]));
+        setCommitsRepo(id);
         setHasMore(page.hasMore);
         setError(null);
       } catch (e) {
@@ -219,24 +224,37 @@ export function HistoryView() {
   }, [load, revision, headOid]);
 
   useEffect(() => {
-    if (!sel && commits[0]) setSel(commits[0].hash);
-  }, [commits, sel]);
+    if (commitsRepo === id && !sel && commits[0]) setSel(commits[0].hash);
+  }, [commits, sel, commitsRepo, id]);
   useEffect(() => {
     setSel(null);
   }, [id, q, path, content, regex, dates.since, dates.until]);
-  // When HEAD moves (commit, reset, edited commits), the selected commit may no longer be on
-  // the branch: start again from the newest one.
-  const lastHead = useRef(headOid);
+  // Switching repository: forget the previous repository's commits at once, so no row can be
+  // clicked and nothing is auto-selected until the new history has loaded.
   useEffect(() => {
-    if (lastHead.current !== headOid) {
-      lastHead.current = headOid;
-      setSel(null);
+    setCommits([]);
+    setCommitsRepo(null);
+    setHasMore(false);
+  }, [id]);
+  // When HEAD moves (commit, reset, edited commits), the selected commit may no longer be on
+  // the branch: start again from the newest one. Only within one repository, though -- opening
+  // another repository clears the status first, and clearing the selection for that would undo
+  // the automatic selection above in the same render and leave the details pane empty.
+  const lastHead = useRef({ repo: id, oid: headOid });
+  useEffect(() => {
+    if (headOid === undefined) return;
+    if (lastHead.current.repo !== id || lastHead.current.oid !== headOid) {
+      const moved = lastHead.current.repo === id && lastHead.current.oid !== undefined;
+      lastHead.current = { repo: id, oid: headOid };
+      if (moved) setSel(null);
     }
-  }, [headOid]);
+  }, [headOid, id]);
 
   useEffect(() => {
-    if (id == null || !sel) {
+    if (id == null || !sel || commitsRepo !== id) {
       setDetail(null);
+      setDetailErr(null);
+      setFile(null);
       return;
     }
     let c = false;
@@ -254,11 +272,12 @@ export function HistoryView() {
     return () => {
       c = true;
     };
-  }, [id, sel, path]);
+  }, [id, sel, path, commitsRepo]);
 
   useEffect(() => {
-    if (id == null || !sel || !file) {
+    if (id == null || !sel || !file || commitsRepo !== id) {
       setDiff(null);
+      setDiffErr(null);
       return;
     }
     let c = false;
@@ -271,7 +290,7 @@ export function HistoryView() {
     return () => {
       c = true;
     };
-  }, [id, sel, file]);
+  }, [id, sel, file, commitsRepo]);
 
   const copy = (text: string, what: string) => void writeText(text).then(() => notify({ tone: "success", title: `${what} copied` }));
 
