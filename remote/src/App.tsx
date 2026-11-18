@@ -462,6 +462,9 @@ export function App() {
   const [note, setNote] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const working = useRef(false);
+  /** Commands go out one at a time: they share one mailbox, so two at once could take each
+   *  other's answer. This chains them rather than throwing the second one away. */
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
 
   useEffect(() => {
     void loadPairings().then((list) => {
@@ -472,29 +475,54 @@ export function App() {
   }, []);
 
   const pairing = useMemo(() => pairings?.find((p) => p.device === active) ?? null, [pairings, active]);
-  const relay = useMemo(() => (pairing ? new Relay(RELAY_BASE, pairing) : null), [pairing]);
+
+  // A Relay is defined entirely by the key and device of the computer it talks to. Building it
+  // from those two strings rather than from the pairing object keeps it stable while the rest of
+  // the entry changes -- the computer's name arrives with the first answer, and rebuilding the
+  // Relay for that would reset the screen and fetch again, for ever.
+  const relayKey = pairing?.key ?? null;
+  const relayDevice = pairing?.device ?? null;
+  const relay = useMemo(
+    () =>
+      relayKey && relayDevice
+        ? new Relay(RELAY_BASE, { key: relayKey, device: relayDevice, computer: null, addedAt: 0 })
+        : null,
+    [relayKey, relayDevice],
+  );
 
   const send = useCallback(
     async (command: Command, quiet = false): Promise<Reply | null> => {
-      if (!relay || working.current) return null;
-      working.current = true;
-      if (!quiet) setBusy(true);
-      setError(null);
-      setNote(null);
-      try {
-        const reply = await relay.run(command);
-        if (reply.ok) {
-          if (!quiet) setNote(reply.message);
-          setOnline("yes");
-        } else setError(reply.message);
-        return reply;
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-        return null;
-      } finally {
-        working.current = false;
-        setBusy(false);
-      }
+      if (!relay) return null;
+      // Automatic refreshes give way; anything the user asked for waits its turn instead.
+      if (quiet && working.current) return null;
+
+      const run = async (): Promise<Reply | null> => {
+        working.current = true;
+        if (!quiet) setBusy(true);
+        setError(null);
+        if (!quiet) setNote(null);
+        try {
+          const reply = await relay.run(command);
+          if (reply.ok) {
+            if (!quiet) setNote(reply.message);
+            setOnline("yes");
+          } else setError(reply.message);
+          return reply;
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+          return null;
+        } finally {
+          working.current = false;
+          setBusy(false);
+        }
+      };
+
+      const next = queue.current.then(run, run);
+      queue.current = next.then(
+        () => undefined,
+        () => undefined,
+      );
+      return next;
     },
     [relay],
   );
@@ -506,15 +534,18 @@ export function App() {
         const data = reply.data as RemoteOverview;
         setOverview(data);
         setLoaded(true);
-        if (pairing && data.computer) {
-          noteComputerName(pairing.device, data.computer);
-          setPairings((list) =>
-            list?.map((p) => (p.device === pairing.device ? { ...p, computer: data.computer } : p)) ?? list,
-          );
+        if (relayDevice && data.computer) {
+          noteComputerName(relayDevice, data.computer);
+          setPairings((list) => {
+            const found = list?.find((p) => p.device === relayDevice);
+            // Same name as last time: return the very same array, so nothing re-renders.
+            if (!list || !found || found.computer === data.computer) return list;
+            return list.map((p) => (p.device === relayDevice ? { ...p, computer: data.computer } : p));
+          });
         }
       }
     },
-    [send, pairing],
+    [send, relayDevice],
   );
 
   const openRepo = useCallback(
@@ -606,6 +637,9 @@ export function App() {
             setShowComputers(false);
           }}
           onForget={(device) => {
+            // Tell that computer first, so it drops this phone from its own settings and throws
+            // the key away. If it isn't running we forget it here anyway -- the user asked.
+            if (device === relayDevice) void send({ cmd: "unpair" }, true);
             const left = forget(device);
             setPairings(left);
             if (device === active) setActiveDevice(left[0]?.device ?? null);

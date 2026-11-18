@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.7.2 — 2026-11-17
+
+### Remote control, fixed
+- **The phone app kept refreshing itself.** The repository list flickered, never settled, and the
+  working bar span for ever. Recording the computer's name restarted the whole screen, which fetched
+  again, which recorded the name… Fixed, and taps that land during a background refresh now wait
+  their turn instead of being dropped in silence. *(Already live — just reload the page.)*
+- **The phone stopped reconnecting after a while.** Replays were caught with a counter that both
+  ends had to keep for ever, so clearing the site's data — or reinstalling GitPilot, or restoring its
+  settings — made every later message look like a replay, permanently. Replays are now caught by each
+  message's nonce within the five-minute window it could be accepted in at all, so there is nothing
+  left to lose. *(The phone half is already live.)*
+- **Remote control could stop listening until GitPilot was restarted.** If the listening loop ever
+  ended unexpectedly it left a flag set that stopped any new one from starting.
+- **Forgetting a computer on the phone now tells it so.** The phone disappears from
+  Settings → Remote control on that computer and its key is thrown away, instead of sitting there
+  looking paired. A phone can only ever unpair itself.
+
 ## 0.7.1 — 2026-11-17
 
 ### Remote control: pairing that lasts, and several computers

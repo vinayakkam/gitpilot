@@ -17,7 +17,7 @@ describe("the sealed envelope", () => {
       ct: "C_YPMbMisfJlBo0xO-oxUpmauHAtnBEmji_RiuwfCWPGjK8jQsPZXuDcf0e35UMSHLuof5fp38ir9ioUEHicrBx7y80Qdq6spcZktuLkFbmo8B7-3eeFJTzB",
     };
 
-    const plain = await open(await importKey(KEY_B64), fromRust, "phone~pc", 2, NOW);
+    const plain = await open(await importKey(KEY_B64), fromRust, "phone~pc", NOW);
 
     expect(JSON.parse(plain)).toEqual({
       ok: true,
@@ -32,29 +32,39 @@ describe("the sealed envelope", () => {
     const key = await importKey(KEY_B64);
     const env = await seal(key, "phone", 1, JSON.stringify({ cmd: "list" }));
 
-    expect(await open(key, { ...env, id: "phone" }, "phone", 0)).toBe('{"cmd":"list"}');
+    expect(await open(key, { ...env, id: "phone" }, "phone")).toBe('{"cmd":"list"}');
   });
 
   it("refuses an answer from anything but the paired computer", async () => {
     const key = await importKey(KEY_B64);
     const env = await seal(key, "someone-else", 1, "x");
 
-    await expect(open(key, env, "phone~pc", 0)).rejects.toBeInstanceOf(OpenFailed);
+    await expect(open(key, env, "phone~pc")).rejects.toBeInstanceOf(OpenFailed);
   });
 
-  it("refuses a replayed answer", async () => {
+  it("refuses the same answer twice, however it is numbered", async () => {
     const key = await importKey(KEY_B64);
     const env = await seal(key, "phone~pc", 5, "x");
 
-    expect(await open(key, env, "phone~pc", 4)).toBe("x");
-    await expect(open(key, env, "phone~pc", 5)).rejects.toThrow(/already handled/);
+    expect(await open(key, env, "phone~pc")).toBe("x");
+    await expect(open(key, env, "phone~pc")).rejects.toThrow(/already handled/);
+    await expect(open(key, { ...env, seq: 99 }, "phone~pc")).rejects.toThrow(/already handled/);
+  });
+
+  it("still listens to a computer that lost its counter", async () => {
+    // Why this isn't a counter any more: GitPilot reinstalled, or settings restored from a backup,
+    // used to mean every answer it sent looked like a replay and the pairing was dead for good.
+    const key = await importKey(KEY_B64);
+
+    expect(await open(key, await seal(key, "phone~pc", 900, "a"), "phone~pc")).toBe("a");
+    expect(await open(key, await seal(key, "phone~pc", 1, "b"), "phone~pc")).toBe("b");
   });
 
   it("refuses an answer from far outside the clock window", async () => {
     const key = await importKey(KEY_B64);
     const env = await seal(key, "phone~pc", 1, "x");
 
-    await expect(open(key, env, "phone~pc", 0, NOW + 10_000)).rejects.toThrow(/clock/i);
+    await expect(open(key, env, "phone~pc", NOW + 10_000)).rejects.toThrow(/clock/i);
   });
 
   it("refuses a tampered answer", async () => {
@@ -62,7 +72,7 @@ describe("the sealed envelope", () => {
     const env = await seal(key, "phone~pc", 1, "x");
     const broken = { ...env, ct: toB64Url(fromB64Url(env.ct).map((b, i) => (i === 0 ? b ^ 1 : b))) };
 
-    await expect(open(key, broken, "phone~pc", 0)).rejects.toThrow(/couldn't be unlocked/);
+    await expect(open(key, broken, "phone~pc")).rejects.toThrow(/couldn't be unlocked/);
   });
 
   it("refuses a key that isn't 256 bits", async () => {

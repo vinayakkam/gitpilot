@@ -142,7 +142,8 @@ export function forget(device: string): Pairing[] {
   return left;
 }
 
-/** The next sequence number to send. Must never repeat, or the computer calls it a replay. */
+/** Numbers this phone's messages, so the computer can order them. Replays are caught by the
+ *  message's nonce, not by this, so losing it costs nothing. */
 export function nextSeqOut(device: string): number {
   const key = `gitpilot.remote.seqOut.${device}`;
   const next = Number(read(key) ?? "0") + 1;
@@ -150,11 +151,3 @@ export function nextSeqOut(device: string): number {
   return next;
 }
 
-export function lastSeqIn(device: string): number {
-  return Number(read(`gitpilot.remote.seqIn.${device}`) ?? "0");
-}
-
-export function noteSeqIn(device: string, seq: number) {
-  const key = `gitpilot.remote.seqIn.${device}`;
-  write(key, String(Math.max(seq, lastSeqIn(device))));
-}

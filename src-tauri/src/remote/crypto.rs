@@ -29,6 +29,10 @@ use sha2::Sha256;
 
 use crate::error::{AppError, ErrorKind};
 
+/// How many recent nonces to remember per device. A message every second for five minutes is 300,
+/// so this holds far more than the window can contain while staying tiny.
+const SEEN_LIMIT: usize = 512;
+
 /// Bumped only if the format changes in a way an older phone can't read.
 pub const PROTOCOL_VERSION: u8 = 1;
 
@@ -38,6 +42,43 @@ const NONCE_BYTES: usize = 12;
 /// How far apart the two clocks may be. Generous enough for a phone that never syncs its time,
 /// short enough that a command recorded off the relay is useless later.
 pub const MAX_CLOCK_SKEW_SECS: i64 = 300;
+
+/// Remembers the messages seen lately, so none can be used twice.
+///
+/// This replaces counting. A counter has to be kept by both ends for the life of the pairing, and
+/// if either one loses it -- a phone with its site data cleared, settings restored from a backup --
+/// every later message looks like a replay and the two can never talk again. Nothing recovers from
+/// that but pairing afresh.
+///
+/// A nonce is 96 random bits, chosen anew for every message, so remembering the ones seen inside
+/// the five-minute window catches a replay just as well, and it costs nothing to rebuild: an empty
+/// guard is a correct guard, because anything older than the window is refused by its timestamp.
+#[derive(Debug, Default)]
+pub struct ReplayGuard {
+    seen: std::collections::VecDeque<(String, i64)>,
+}
+
+impl ReplayGuard {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// True if this nonce is new. Forgets anything older than the clock window as it goes.
+    fn accept(&mut self, nonce: &str, now: i64) -> bool {
+        while let Some((_, when)) = self.seen.front() {
+            if (now - when).abs() > MAX_CLOCK_SKEW_SECS || self.seen.len() > SEEN_LIMIT {
+                self.seen.pop_front();
+            } else {
+                break;
+            }
+        }
+        if self.seen.iter().any(|(seen, _)| seen == nonce) {
+            return false;
+        }
+        self.seen.push_back((nonce.to_string(), now));
+        true
+    }
+}
 
 /// One message, as it sits in the relay's queue.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -205,14 +246,14 @@ pub fn seal(key: &PairingKey, device: &str, seq: u64, ts: i64, plaintext: &[u8])
 
 /// Checks and opens one envelope.
 ///
-/// `device` is who we expect to hear from, `last_seq` the highest sequence number already
-/// accepted from it (0 when it has sent nothing yet), and `now` this computer's clock. The cheap
-/// checks run first; the key is only used once the envelope is worth the work.
+/// `device` is who we expect to hear from, `guard` remembers what has already been accepted from
+/// it, and `now` is this computer's clock. The cheap checks run first; the key is only used once
+/// the envelope is worth the work.
 pub fn open(
     key: &PairingKey,
     env: &Envelope,
     device: &str,
-    last_seq: u64,
+    guard: &mut ReplayGuard,
     now: i64,
 ) -> Result<Vec<u8>, OpenError> {
     if env.v != PROTOCOL_VERSION {
@@ -221,11 +262,11 @@ pub fn open(
     if env.id != device {
         return Err(OpenError::WrongDevice);
     }
-    if env.seq <= last_seq {
-        return Err(OpenError::Replay);
-    }
     if (env.ts - now).abs() > MAX_CLOCK_SKEW_SECS {
         return Err(OpenError::Stale);
+    }
+    if !guard.accept(&env.nonce, now) {
+        return Err(OpenError::Replay);
     }
     let nonce = b64().decode(&env.nonce).map_err(|_| OpenError::Malformed)?;
     if nonce.len() != NONCE_BYTES {
@@ -260,7 +301,7 @@ mod tests {
         let key = PairingKey::generate();
         let env = sealed(&key, r#"{"cmd":"status"}"#);
 
-        let out = open(&key, &env, DEVICE, 0, NOW).expect("opens");
+        let out = open(&key, &env, DEVICE, &mut ReplayGuard::new(), NOW).expect("opens");
         assert_eq!(out, br#"{"cmd":"status"}"#);
     }
 
@@ -288,7 +329,10 @@ mod tests {
         let same = PairingKey::from_b64(&key.to_b64()).expect("decodes");
 
         let env = sealed(&key, "hello");
-        assert_eq!(open(&same, &env, DEVICE, 0, NOW).unwrap(), b"hello");
+        assert_eq!(
+            open(&same, &env, DEVICE, &mut ReplayGuard::new(), NOW).unwrap(),
+            b"hello"
+        );
     }
 
     #[test]
@@ -307,7 +351,14 @@ mod tests {
     fn another_key_cannot_open_it() {
         let env = sealed(&PairingKey::generate(), "secret");
 
-        let err = open(&PairingKey::generate(), &env, DEVICE, 0, NOW).unwrap_err();
+        let err = open(
+            &PairingKey::generate(),
+            &env,
+            DEVICE,
+            &mut ReplayGuard::new(),
+            NOW,
+        )
+        .unwrap_err();
         assert_eq!(err, OpenError::Tampered);
     }
 
@@ -321,7 +372,7 @@ mod tests {
         env.ct = b64().encode(raw);
 
         assert_eq!(
-            open(&key, &env, DEVICE, 0, NOW).unwrap_err(),
+            open(&key, &env, DEVICE, &mut ReplayGuard::new(), NOW).unwrap_err(),
             OpenError::Tampered
         );
     }
@@ -335,7 +386,7 @@ mod tests {
         env.seq = 99;
 
         assert_eq!(
-            open(&key, &env, DEVICE, 0, NOW).unwrap_err(),
+            open(&key, &env, DEVICE, &mut ReplayGuard::new(), NOW).unwrap_err(),
             OpenError::Tampered
         );
     }
@@ -349,7 +400,7 @@ mod tests {
         env.ts = NOW;
 
         assert_eq!(
-            open(&key, &env, DEVICE, 0, NOW).unwrap_err(),
+            open(&key, &env, DEVICE, &mut ReplayGuard::new(), NOW).unwrap_err(),
             OpenError::Tampered
         );
     }
@@ -361,7 +412,7 @@ mod tests {
         env.id = "phone-2".to_string();
 
         assert_eq!(
-            open(&key, &env, "phone-2", 0, NOW).unwrap_err(),
+            open(&key, &env, "phone-2", &mut ReplayGuard::new(), NOW).unwrap_err(),
             OpenError::Tampered
         );
     }
@@ -372,7 +423,7 @@ mod tests {
         let env = sealed(&key, "push");
 
         assert_eq!(
-            open(&key, &env, "phone-2", 0, NOW).unwrap_err(),
+            open(&key, &env, "phone-2", &mut ReplayGuard::new(), NOW).unwrap_err(),
             OpenError::WrongDevice
         );
     }
@@ -381,16 +432,74 @@ mod tests {
     fn a_replayed_message_is_refused() {
         let key = PairingKey::generate();
         let env = seal(&key, DEVICE, 7, NOW, b"push");
+        let mut guard = ReplayGuard::new();
 
-        assert!(open(&key, &env, DEVICE, 6, NOW).is_ok());
-        // Once 7 is accepted it can never be used again, nor anything below it.
+        assert!(open(&key, &env, DEVICE, &mut guard, NOW).is_ok());
+        // The same message again, however it is renumbered, is refused.
         assert_eq!(
-            open(&key, &env, DEVICE, 7, NOW).unwrap_err(),
+            open(&key, &env, DEVICE, &mut guard, NOW).unwrap_err(),
             OpenError::Replay
         );
+    }
+
+    #[test]
+    fn a_phone_that_lost_its_counter_can_still_be_heard() {
+        // The reason this isn't a counter any more. A phone with its site data cleared starts
+        // numbering from one again; under the old rule every message it ever sent after that was
+        // "a replay", and the pairing was dead with no way back but scanning a new code.
+        let key = PairingKey::generate();
+        let mut guard = ReplayGuard::new();
+
+        assert!(open(
+            &key,
+            &seal(&key, DEVICE, 900, NOW, b"a"),
+            DEVICE,
+            &mut guard,
+            NOW
+        )
+        .is_ok());
+        assert!(open(
+            &key,
+            &seal(&key, DEVICE, 1, NOW, b"b"),
+            DEVICE,
+            &mut guard,
+            NOW
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn the_guard_forgets_what_the_clock_window_has_passed() {
+        // It only has to remember as far back as a stale message would be refused anyway, so it
+        // cannot keep growing on a computer that is left running for weeks.
+        let key = PairingKey::generate();
+        let mut guard = ReplayGuard::new();
+
+        assert!(open(
+            &key,
+            &seal(&key, DEVICE, 1, NOW, b"a"),
+            DEVICE,
+            &mut guard,
+            NOW
+        )
+        .is_ok());
+        assert_eq!(guard.seen.len(), 1);
+
+        // Long enough later that the first one could no longer be used anyway.
+        let later = NOW + MAX_CLOCK_SKEW_SECS + 1;
+        assert!(open(
+            &key,
+            &seal(&key, DEVICE, 2, later, b"b"),
+            DEVICE,
+            &mut guard,
+            later
+        )
+        .is_ok());
+
         assert_eq!(
-            open(&key, &env, DEVICE, 99, NOW).unwrap_err(),
-            OpenError::Replay
+            guard.seen.len(),
+            1,
+            "the one outside the window should have been dropped"
         );
     }
 
@@ -400,19 +509,19 @@ mod tests {
 
         let old = seal(&key, DEVICE, 1, NOW - MAX_CLOCK_SKEW_SECS - 1, b"push");
         assert_eq!(
-            open(&key, &old, DEVICE, 0, NOW).unwrap_err(),
+            open(&key, &old, DEVICE, &mut ReplayGuard::new(), NOW).unwrap_err(),
             OpenError::Stale
         );
 
         let future = seal(&key, DEVICE, 1, NOW + MAX_CLOCK_SKEW_SECS + 1, b"push");
         assert_eq!(
-            open(&key, &future, DEVICE, 0, NOW).unwrap_err(),
+            open(&key, &future, DEVICE, &mut ReplayGuard::new(), NOW).unwrap_err(),
             OpenError::Stale
         );
 
         // A phone whose clock is a little off still works.
         let skewed = seal(&key, DEVICE, 1, NOW - MAX_CLOCK_SKEW_SECS + 1, b"push");
-        assert!(open(&key, &skewed, DEVICE, 0, NOW).is_ok());
+        assert!(open(&key, &skewed, DEVICE, &mut ReplayGuard::new(), NOW).is_ok());
     }
 
     #[test]
@@ -422,7 +531,7 @@ mod tests {
         env.v = PROTOCOL_VERSION + 1;
 
         assert_eq!(
-            open(&key, &env, DEVICE, 0, NOW).unwrap_err(),
+            open(&key, &env, DEVICE, &mut ReplayGuard::new(), NOW).unwrap_err(),
             OpenError::Version
         );
     }
@@ -434,21 +543,21 @@ mod tests {
         let mut env = sealed(&key, "push");
         env.nonce = "not base64!!".to_string();
         assert_eq!(
-            open(&key, &env, DEVICE, 0, NOW).unwrap_err(),
+            open(&key, &env, DEVICE, &mut ReplayGuard::new(), NOW).unwrap_err(),
             OpenError::Malformed
         );
 
         let mut env = sealed(&key, "push");
         env.nonce = b64().encode([0u8; 4]); // right encoding, wrong length
         assert_eq!(
-            open(&key, &env, DEVICE, 0, NOW).unwrap_err(),
+            open(&key, &env, DEVICE, &mut ReplayGuard::new(), NOW).unwrap_err(),
             OpenError::Malformed
         );
 
         let mut env = sealed(&key, "push");
         env.ct = "not base64!!".to_string();
         assert_eq!(
-            open(&key, &env, DEVICE, 0, NOW).unwrap_err(),
+            open(&key, &env, DEVICE, &mut ReplayGuard::new(), NOW).unwrap_err(),
             OpenError::Malformed
         );
     }
@@ -469,7 +578,10 @@ mod tests {
         let big = "x".repeat(60 * 1024);
 
         let env = seal(&key, DEVICE, 1, NOW, big.as_bytes());
-        assert_eq!(open(&key, &env, DEVICE, 0, NOW).unwrap(), big.as_bytes());
+        assert_eq!(
+            open(&key, &env, DEVICE, &mut ReplayGuard::new(), NOW).unwrap(),
+            big.as_bytes()
+        );
     }
 
     /// A real envelope produced by the phone app's WebCrypto code (`remote/src/crypto.ts`), with
@@ -482,7 +594,7 @@ mod tests {
         let from_webcrypto = r#"{"v":1,"id":"phone","seq":7,"ts":1763300000,"nonce":"ZGVmZ2hpamtsbW5v","ct":"Mzm9Cx3LbLxSCyyc-BgCdRAeH1ETa_v9Fm29NK-f"}"#;
 
         let env: Envelope = serde_json::from_str(from_webcrypto).unwrap();
-        let plain = open(&key, &env, "phone", 6, 1_763_300_000).unwrap();
+        let plain = open(&key, &env, "phone", &mut ReplayGuard::new(), 1_763_300_000).unwrap();
 
         assert_eq!(String::from_utf8(plain).unwrap(), r#"{"cmd":"list"}"#);
     }
