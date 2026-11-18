@@ -18,7 +18,7 @@ provides=('gitpilot')
 conflicts=('gitpilot')
 options=('!strip' '!debug')
 source=("GitPilot_${pkgver}_amd64.deb" "LICENSE")
-sha256sums=('8cfbbf900702d4c121b4317fda3eaa9c80e1e581b9ba2dc43e72d866dc6bd87f'
+sha256sums=('c8b9f653e2ce81e8905888d80e73919f89cbbb9ad6191e323449f40847c3eae9'
             'd1c1376cd0a251e9f38eed5a50df9cd4a7193f321be5161bebe166ff2fd7b49d')
 
 package() {
