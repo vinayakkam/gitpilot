@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.3 — 2026-11-18
+
+### Remote control: faster, and a proper mobile design
+- **The repository list was slow to arrive.** The computer looked for the git executable once per
+  repository and then asked each one in turn; it now resolves git once and asks them all at the same
+  time, so the list costs about as long as the slowest repository instead of all of them added up.
+  Opening a repository asked git for the same status twice; now once.
+- **Your taps are noticed sooner.** The computer checked for commands every three seconds. For a
+  short while after each one it now checks about every half second, which is when you are most
+  likely to tap again.
+- **The phone app has been redesigned.** Icons rather than ASCII arrows, repositories as cards with
+  their branch and what's waiting to pull or push, files grouped into staged and not staged with
+  Stage all / Unstage all, filenames shown above their folder, and the commit box pinned within
+  thumb reach. It also shows the last list the moment it opens instead of a blank wait.
+  *(Already live — reload the page.)*
+
 ## 0.7.2 — 2026-11-17
 
 ### Remote control, fixed

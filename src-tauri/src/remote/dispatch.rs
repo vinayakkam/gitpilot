@@ -227,10 +227,8 @@ macro_rules! with_repo {
     };
 }
 
-async fn brief(state: &AppState, id: i64, name: String) -> AppResult<RemoteRepo> {
-    with_repo!(state, id, git, root, r);
-    let st = r.status().await?;
-    Ok(RemoteRepo {
+fn summarise(id: i64, name: String, st: &crate::git::repo::RepoStatus) -> RemoteRepo {
+    RemoteRepo {
         id,
         name,
         branch: st.branch.head.clone(),
@@ -239,7 +237,7 @@ async fn brief(state: &AppState, id: i64, name: String) -> AppResult<RemoteRepo>
         changed: st.files.len() as u32,
         conflicts: st.files.iter().filter(|f| f.conflict.is_some()).count() as u32,
         state: st.state,
-    })
+    }
 }
 
 /// What this computer is called, for the phone's list of computers.
@@ -264,13 +262,37 @@ pub fn computer_name() -> String {
 
 async fn list(state: &AppState) -> AppResult<Reply> {
     let records = state.db(crate::db::list)?;
-    let mut out = Vec::new();
-    for rec in records {
-        // A repository whose folder was moved shouldn't break the whole list on the phone.
-        if let Ok(r) = brief(state, rec.id, rec.name.clone()).await {
-            out.push(r);
+    // Resolve git once -- finding it searches PATH -- and ask every repository at the same time.
+    // Status is mostly waiting for a child process, so the whole list costs about as long as the
+    // slowest repository rather than all of them added up.
+    let git = state.git()?;
+    let mut jobs = tokio::task::JoinSet::new();
+    for (order, rec) in records.into_iter().enumerate() {
+        let Ok(path) = state.repo_path(rec.id) else {
+            continue; // Moved or deleted: leave it out rather than failing the whole list.
+        };
+        let git = git.clone();
+        jobs.spawn(async move {
+            let repo = Repo {
+                git: &git,
+                path: &path,
+            };
+            repo.status()
+                .await
+                .ok()
+                .map(|st| (order, summarise(rec.id, rec.name, &st)))
+        });
+    }
+
+    let mut found: Vec<(usize, RemoteRepo)> = Vec::new();
+    while let Some(done) = jobs.join_next().await {
+        if let Ok(Some(entry)) = done {
+            found.push(entry);
         }
     }
+    // They finish in whatever order they like; the phone should see the registry's order.
+    found.sort_by_key(|(order, _)| *order);
+    let out: Vec<RemoteRepo> = found.into_iter().map(|(_, repo)| repo).collect();
     let n = out.len();
     Ok(
         Reply::ok(plural(n, "repository", "repositories")).with(RemoteOverview {
@@ -282,9 +304,10 @@ async fn list(state: &AppState) -> AppResult<Reply> {
 
 async fn open(state: &AppState, id: i64) -> AppResult<Reply> {
     let name = state.db(|c| crate::db::get(c, id))?.name;
-    let repo = brief(state, id, name).await?;
     with_repo!(state, id, git, root, r);
+    // One status, used for both the summary and the file list.
     let st = r.status().await?;
+    let repo = summarise(id, name, &st);
     let files = st
         .files
         .iter()

@@ -348,13 +348,18 @@ pub fn spawn_loop(app: &tauri::AppHandle) {
     });
 }
 
+/// Right after a command, the phone is almost certainly about to send another, so for a short
+/// while we look much more often. This is most of what "it feels slow" was.
+const HOT_POLL: Duration = Duration::from_millis(400);
+const HOT_FOR: Duration = Duration::from_secs(15);
+
 /// How long to wait before the next pass, from this pass's result and the devices' last activity.
 pub fn next_delay(state: &AppState, handled: usize, failures: u32) -> Duration {
     if failures > 0 {
         return relay::backoff(failures);
     }
     if handled > 0 {
-        return relay::ACTIVE_POLL;
+        return HOT_POLL;
     }
     let newest = state
         .settings()
@@ -364,7 +369,14 @@ pub fn next_delay(state: &AppState, handled: usize, failures: u32) -> Duration {
         .filter_map(|d| d.last_seen)
         .max();
     match newest {
-        Some(seen) => relay::poll_interval(Duration::from_secs((now() - seen).max(0) as u64)),
+        Some(seen) => {
+            let since = Duration::from_secs((now() - seen).max(0) as u64);
+            if since <= HOT_FOR {
+                HOT_POLL
+            } else {
+                relay::poll_interval(since)
+            }
+        }
         None => relay::IDLE_POLL,
     }
 }
