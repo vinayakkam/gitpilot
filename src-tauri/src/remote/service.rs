@@ -15,7 +15,7 @@ use serde::Serialize;
 use ts_rs::TS;
 
 use crate::error::{AppError, AppResult, ErrorKind};
-use crate::remote::crypto::{self, Envelope, PairingKey};
+use crate::remote::crypto::{self, Envelope, PairingKey, ReplayGuard};
 use crate::remote::dispatch::{self, Command};
 use crate::remote::relay::{self, RelayClient};
 use crate::secrets::{self, RemotePairing};
@@ -146,6 +146,17 @@ async fn claim_channel(state: &AppState, key: &PairingKey) -> AppResult<()> {
     Ok(())
 }
 
+/// Forgets a phone without touching its relay channel, which the phone is still listening on.
+///
+/// Used when the phone itself asks to be forgotten: it has just been told, and dropping the
+/// channel from under it would lose that answer. The channel expires on its own within the hour.
+async fn forget_device(state: &AppState, device: &str) -> AppResult<()> {
+    secrets::remote_clear(device)?;
+    state.update_settings(|s| {
+        s.remote.devices.retain(|d| d.id != device);
+    })
+}
+
 /// Forgets a phone: its key, its settings entry, and its channel on the relay.
 ///
 /// The key goes first. If the relay is unreachable the phone is still forgotten here, because the
@@ -176,7 +187,11 @@ pub async fn handle_envelope(state: &AppState, device: &str, body: &str) -> Opti
     let pairing = pairing_of(device).ok()?;
     let key = PairingKey::from_b64(&pairing.key).ok()?;
 
-    let plain = crypto::open(&key, &env, device, record.seq_in, now()).ok()?;
+    let plain = {
+        let mut seen = SEEN.lock().ok()?;
+        let guard = seen.entry(device.to_string()).or_default();
+        crypto::open(&key, &env, device, guard, now()).ok()?
+    };
 
     // Accepted: remember the sequence number before doing the work, so a command that crashes
     // GitPilot halfway still can't be replayed afterwards.
@@ -190,6 +205,18 @@ pub async fn handle_envelope(state: &AppState, device: &str, body: &str) -> Opti
     });
 
     let reply = match serde_json::from_slice::<Command>(&plain) {
+        // "Forget this computer" on the phone. Answered here rather than in `dispatch`, because
+        // only this knows which device sent it -- so a phone can unpair itself and nothing else.
+        // The answer is sealed before the key is thrown away, so the phone still hears back.
+        Ok(Command::Unpair) => {
+            let answer = dispatch::Reply::ok("This computer has forgotten the phone");
+            let sealed = serde_json::to_vec(&answer)
+                .ok()
+                .map(|json| crypto::seal(&key, &pc_id(device), seq_out, now(), &json))
+                .and_then(|env| serde_json::to_string(&env).ok());
+            let _ = forget_device(state, device).await;
+            return sealed;
+        }
         Ok(cmd) => dispatch::dispatch(state, cmd).await,
         // A phone on a newer version asking for something this build doesn't have.
         Err(e) => dispatch::Reply::unknown_command(&e.to_string()),
@@ -264,8 +291,29 @@ pub async fn poll_once(state: &AppState) -> Pass {
     pass
 }
 
+/// What has already been heard from each phone, so nothing is accepted twice.
+///
+/// In memory only, and deliberately so: an empty guard is a correct guard, because a message old
+/// enough to predate it is refused by its timestamp. Nothing here has to survive a restart, which
+/// is what makes a pairing impossible to break by losing state.
+static SEEN: once_cell::sync::Lazy<
+    std::sync::Mutex<std::collections::HashMap<String, ReplayGuard>>,
+> = once_cell::sync::Lazy::new(Default::default);
+
 /// Only one listening loop runs at a time, however often Settings turns the feature on.
+///
+/// Released by `ListeningGuard` whatever happens to the loop -- including a panic. Leaving this
+/// set would stop any later loop from starting, and remote control would be quietly dead until
+/// GitPilot was restarted.
 static LISTENING: AtomicBool = AtomicBool::new(false);
+
+struct ListeningGuard;
+
+impl Drop for ListeningGuard {
+    fn drop(&mut self) {
+        LISTENING.store(false, Ordering::SeqCst);
+    }
+}
 
 /// Starts the loop if it isn't already running. It stops on its own when the feature is turned
 /// off, so nothing has to be cancelled from outside.
@@ -277,6 +325,7 @@ pub fn spawn_loop(app: &tauri::AppHandle) {
     }
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
+        let _guard = ListeningGuard;
         let mut failures = 0u32;
         loop {
             let delay = {
@@ -296,7 +345,6 @@ pub fn spawn_loop(app: &tauri::AppHandle) {
             };
             tokio::time::sleep(delay).await;
         }
-        LISTENING.store(false, Ordering::SeqCst);
     });
 }
 

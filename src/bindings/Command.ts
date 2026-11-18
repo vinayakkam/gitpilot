@@ -4,4 +4,4 @@ import type { Area } from "./Area";
 /**
  * Everything a phone may ask for.
  */
-export type Command = { "cmd": "list" } | { "cmd": "open", repo: bigint, } | { "cmd": "diff", repo: bigint, path: string, area: Area, } | { "cmd": "stage", repo: bigint, paths: Array<string>, } | { "cmd": "unstage", repo: bigint, paths: Array<string>, } | { "cmd": "commit", repo: bigint, message: string, } | { "cmd": "fetch", repo: bigint, } | { "cmd": "pull", repo: bigint, } | { "cmd": "push", repo: bigint, confirmed: boolean, };
+export type Command = { "cmd": "list" } | { "cmd": "open", repo: bigint, } | { "cmd": "diff", repo: bigint, path: string, area: Area, } | { "cmd": "stage", repo: bigint, paths: Array<string>, } | { "cmd": "unstage", repo: bigint, paths: Array<string>, } | { "cmd": "commit", repo: bigint, message: string, } | { "cmd": "fetch", repo: bigint, } | { "cmd": "pull", repo: bigint, } | { "cmd": "push", repo: bigint, confirmed: boolean, } | { "cmd": "unpair" };

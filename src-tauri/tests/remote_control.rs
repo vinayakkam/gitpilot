@@ -12,7 +12,7 @@ use gitpilot_lib::git::locate::locate_git;
 use gitpilot_lib::git::repo::{self, Repo};
 use gitpilot_lib::git::status::Area;
 use gitpilot_lib::git::Git;
-use gitpilot_lib::remote::crypto::{self, PairingKey};
+use gitpilot_lib::remote::crypto::{self, PairingKey, ReplayGuard};
 use gitpilot_lib::remote::dispatch::{dispatch, Command, Reply};
 use gitpilot_lib::state::AppState;
 use tempfile::TempDir;
@@ -302,7 +302,7 @@ async fn a_command_survives_the_round_trip_the_phone_actually_makes() {
     assert!(!wire.contains("open"));
 
     let received: crypto::Envelope = serde_json::from_str(&wire).unwrap();
-    let plain = crypto::open(&key, &received, "phone", 0, now).unwrap();
+    let plain = crypto::open(&key, &received, "phone", &mut ReplayGuard::new(), now).unwrap();
     let cmd: Command = serde_json::from_slice(&plain).unwrap();
     let reply = dispatch(&state, cmd).await;
 
@@ -313,7 +313,7 @@ async fn a_command_survives_the_round_trip_the_phone_actually_makes() {
         now,
         &serde_json::to_vec(&reply).unwrap(),
     );
-    let back = crypto::open(&key, &answer, "phone~pc", 0, now).unwrap();
+    let back = crypto::open(&key, &answer, "phone~pc", &mut ReplayGuard::new(), now).unwrap();
     let parsed: serde_json::Value = serde_json::from_slice(&back).unwrap();
 
     assert_eq!(parsed["ok"].as_bool(), Some(true));

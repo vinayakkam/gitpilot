@@ -61,6 +61,11 @@ pub enum Command {
         repo: i64,
         confirmed: bool,
     },
+    /// "Forget this computer", from the phone's side.
+    ///
+    /// Handled before dispatch, in `service`, because only that knows which device sent it -- and
+    /// a phone may only ever unpair itself. There is nothing in the command to name another one.
+    Unpair,
 }
 
 #[derive(Debug, Clone, Serialize, TS)]
@@ -139,7 +144,7 @@ pub struct Reply {
 }
 
 impl Reply {
-    fn ok(message: impl Into<String>) -> Self {
+    pub(crate) fn ok(message: impl Into<String>) -> Self {
         Self {
             ok: true,
             message: message.into(),
@@ -205,6 +210,8 @@ async fn run(state: &AppState, cmd: Command) -> AppResult<Reply> {
         Command::Fetch { repo } => fetch(state, repo).await,
         Command::Pull { repo } => pull(state, repo).await,
         Command::Push { repo, confirmed } => push(state, repo, confirmed).await,
+        // `service::handle_envelope` deals with this one; it never reaches here.
+        Command::Unpair => Ok(Reply::ok("Unpaired")),
     }
 }
 
@@ -434,6 +441,18 @@ mod tests {
 
         let cmd: Command = serde_json::from_str(r#"{"cmd":"list"}"#).unwrap();
         assert!(matches!(cmd, Command::List));
+    }
+
+    #[test]
+    fn unpairing_names_no_device() {
+        // A phone can only unpair itself: the device comes from the sealed envelope, so there is
+        // nothing in the command for one phone to point at another.
+        let cmd: Command = serde_json::from_str(r#"{"cmd":"unpair"}"#).unwrap();
+        assert!(matches!(cmd, Command::Unpair));
+        assert_eq!(
+            serde_json::to_string(&Command::Unpair).unwrap(),
+            r#"{"cmd":"unpair"}"#
+        );
     }
 
     #[test]

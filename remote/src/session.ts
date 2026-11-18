@@ -9,7 +9,7 @@
 
 import { importKey, open, seal, type Envelope } from "./crypto";
 import { computerId, derive, type Derived } from "./derive";
-import { lastSeqIn, nextSeqOut, noteSeqIn, type Pairing } from "./link";
+import { nextSeqOut, type Pairing } from "./link";
 
 /** Matches `Command` in the desktop's `remote/dispatch.rs`. */
 export type Command =
@@ -21,7 +21,9 @@ export type Command =
   | { cmd: "commit"; repo: number; message: string }
   | { cmd: "fetch"; repo: number }
   | { cmd: "pull"; repo: number }
-  | { cmd: "push"; repo: number; confirmed: boolean };
+  | { cmd: "push"; repo: number; confirmed: boolean }
+  // Sent when you forget a computer here, so it forgets this phone too.
+  | { cmd: "unpair" };
 
 /** Matches `Reply`. */
 export type Reply = {
@@ -158,8 +160,7 @@ export class Relay {
       await new Promise((r) => setTimeout(r, POLL_EVERY_MS));
       for (const answer of await this.takeAnswers().catch(() => [])) {
         try {
-          const plain = await open(key, answer, computerId(this.pairing.device), lastSeqIn(this.pairing.device));
-          noteSeqIn(this.pairing.device, answer.seq);
+          const plain = await open(key, answer, computerId(this.pairing.device));
           return JSON.parse(plain) as Reply;
         } catch {
           // Someone else's message, a replay, or a stale one: ignore it and keep waiting.

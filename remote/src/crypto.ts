@@ -78,6 +78,28 @@ export async function seal(key: CryptoKey, device: string, seq: number, plaintex
 export class OpenFailed extends Error {}
 
 /**
+ * The messages seen lately, so none can be used twice.
+ *
+ * This replaces counting. A counter has to be kept by both ends for the life of the pairing, and
+ * if either loses it — site data cleared here, settings restored from a backup there — every later
+ * message looks like a replay and the two can never talk again, with nothing to do but pair afresh.
+ *
+ * A nonce is 96 random bits, new for every message, so remembering the ones seen inside the
+ * five-minute window catches a replay just as well. An empty memory is a correct memory: anything
+ * older than the window is refused on its timestamp.
+ */
+const seen = new Map<string, number>();
+
+function alreadySeen(nonce: string, now: number): boolean {
+    for (const [value, when] of seen) {
+      if (Math.abs(now - when) > MAX_CLOCK_SKEW_SECS) seen.delete(value);
+    }
+    if (seen.has(nonce)) return true;
+    seen.set(nonce, now);
+    return false;
+}
+
+/**
  * Checks and opens one envelope from the computer. The checks are the same ones the desktop
  * makes, in the same order: right version, right sender, not a replay, not stale, then the tag.
  */
@@ -85,15 +107,14 @@ export async function open(
   key: CryptoKey,
   env: Envelope,
   expectFrom: string,
-  lastSeq: number,
   now = nowSeconds(),
 ): Promise<string> {
   if (env.v !== PROTOCOL_VERSION) throw new OpenFailed("That answer came from a different version of GitPilot.");
   if (env.id !== expectFrom) throw new OpenFailed("That answer didn't come from the paired computer.");
-  if (env.seq <= lastSeq) throw new OpenFailed("That answer was already handled.");
   if (Math.abs(env.ts - now) > MAX_CLOCK_SKEW_SECS) {
     throw new OpenFailed("Your phone's clock is too far from the computer's. Check the date and time.");
   }
+  if (alreadySeen(env.nonce, now)) throw new OpenFailed("That answer was already handled.");
   try {
     const plain = await crypto.subtle.decrypt(
       {

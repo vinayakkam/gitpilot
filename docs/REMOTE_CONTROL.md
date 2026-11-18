@@ -89,6 +89,7 @@ registered in GitPilot — repositories are addressed by their id in the registr
 | `commit` | Commits what is staged. Never stages for you; the identity check applies |
 | `fetch`, `pull` | As the toolbar does — pull follows your own setting, fast-forward only by default |
 | `push` | A normal push, and only after a confirmation tap on the phone. **Never a force push** |
+| `unpair` | Forgets *that* phone: its key and its entry in Settings. A phone can only unpair itself — the device comes from the sealed envelope, and the command names nobody |
 
 Everything runs through the same functions the app's own buttons use, under the same per-repository
 lock, and every answer is redacted the way the UI is. A phone can never force push, discard work,
