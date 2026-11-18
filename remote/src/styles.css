@@ -1,13 +1,13 @@
-/* The phone app wears the desktop app's clothes.
+/* The phone app's look.
  *
- * The values below are copied from `src/styles/tokens.css` rather than imported: this page is
- * built separately and published to a different site, so it must not depend on the desktop
- * bundle. Keep them in step by hand -- they change about once a release.
+ * The colours are the desktop app's, copied from `src/styles/tokens.css` rather than imported:
+ * this page is built separately and published to another site, so it must not depend on the
+ * desktop bundle. Keep them in step by hand; they change about once a release.
  *
- * The same rules apply here as there: semantic colours only, 4px on controls and 6px on cards,
- * no gradients, no decorative shadows, status shown by a letter *and* a colour, sentence case.
- * What differs is the sizing: everything you tap is at least 44px, and text starts at 16px so
- * phones don't zoom when you focus a field.
+ * What differs from the desktop is the shape of things. A phone is held at arm's length in one
+ * hand, so: cards rather than dense rows, 44px minimum on anything you tap, 16px text (smaller
+ * and iOS zooms when a field takes focus), one column, and the commit box pinned within reach of
+ * a thumb instead of at the bottom of a long scroll.
  */
 
 :root {
@@ -30,13 +30,16 @@
   --removed: #b3373d;
   --removed-bg: #fcedee;
   --modified: #976400;
+  --modified-bg: #fdf5e4;
   --renamed: #1c7582;
+  --renamed-bg: #e6f4f6;
   --conflict: #c2410c;
   --conflict-bg: #fdf0e7;
   --warning: #965a00;
   --warning-bg: #fdf5e4;
   --danger: #be353b;
-  --selection: #dfe5fa;
+  --shadow: 0 1px 2px rgb(16 20 30 / 0.05);
+  --shadow-bar: 0 -6px 20px -8px rgb(16 20 30 / 0.18);
   --font-ui: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
   --font-mono: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   color-scheme: light;
@@ -58,17 +61,20 @@
     --accent-text: #93a6f6;
     --accent-soft: #212a48;
     --added: #5cc28b;
-    --added-bg: rgb(52 168 98 / 0.1);
+    --added-bg: rgb(52 168 98 / 0.14);
     --removed: #ef7b7e;
-    --removed-bg: rgb(229 72 77 / 0.1);
+    --removed-bg: rgb(229 72 77 / 0.14);
     --modified: #ddb05a;
+    --modified-bg: rgb(221 176 90 / 0.14);
     --renamed: #62c2cf;
+    --renamed-bg: rgb(98 194 207 / 0.14);
     --conflict: #f08a4b;
-    --conflict-bg: rgb(240 138 75 / 0.12);
+    --conflict-bg: rgb(240 138 75 / 0.14);
     --warning: #ddb05a;
     --warning-bg: rgb(221 176 90 / 0.12);
     --danger: #e5484d;
-    --selection: #26314f;
+    --shadow: none;
+    --shadow-bar: 0 -6px 20px -8px rgb(0 0 0 / 0.5);
     color-scheme: dark;
   }
 }
@@ -90,7 +96,7 @@ body {
   font-family: var(--font-ui);
   font-size: 16px;
   line-height: 1.45;
-  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  overscroll-behavior-y: contain;
 }
 
 :focus-visible {
@@ -98,32 +104,56 @@ body {
   outline-offset: 2px;
 }
 
-/* ── Layout ───────────────────────────────────────────────────────────── */
-
 .app {
   max-width: 680px;
   margin: 0 auto;
 }
 
-/* The toolbar, like the desktop's repository bar: title on the left, actions on the right. */
+.grow {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+.faint {
+  color: var(--text-faint);
+}
+.small {
+  font-size: 14px;
+}
+.centre {
+  text-align: center;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+/* ── Top bar ──────────────────────────────────────────────────────────── */
+
 .topbar {
   position: sticky;
   top: 0;
   z-index: 3;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  padding-top: calc(10px + env(safe-area-inset-top));
-  background: var(--surface);
+  gap: 4px;
+  padding: 8px 12px;
+  padding-top: calc(8px + env(safe-area-inset-top));
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
 }
 
 .topbar h1 {
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -132,23 +162,34 @@ body {
 .titles {
   flex: 1;
   min-width: 0;
+  padding: 2px 4px;
 }
 
-/* The computer this phone is showing: tap it to switch to another. */
-.computer {
+.subtitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-faint);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.computer-button {
   flex: 1;
   min-width: 0;
   display: flex;
+  justify-content: flex-start;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  margin-left: -8px;
+  gap: 9px;
+  padding: 8px;
   border: 0;
   background: transparent;
   color: var(--text);
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
 }
 
 .computer-name {
@@ -158,14 +199,13 @@ body {
   white-space: nowrap;
 }
 
-/* Is GitPilot running over there? Shape as well as colour: filled, hollow, faint. */
+/* Running or not: shape as well as colour — filled, hollow, faint. */
 .dot {
   flex-shrink: 0;
   width: 9px;
   height: 9px;
   border-radius: 50%;
   border: 1.5px solid var(--text-faint);
-  background: transparent;
 }
 
 .dot-yes {
@@ -174,50 +214,34 @@ body {
   box-shadow: 0 0 0 3px var(--added-bg);
 }
 
-.dot-no {
-  border-color: var(--text-faint);
-}
-
 .dot-unknown,
 .dot-idle {
   border-color: var(--border-strong);
 }
 
-.subtitle {
-  margin: 0;
-  font-size: 13px;
-  color: var(--text-faint);
-  font-weight: 400;
-}
+/* ── Screen and sections ──────────────────────────────────────────────── */
 
 .screen {
-  padding: 16px 16px 28px;
+  padding: 14px 14px calc(28px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 20px;
 }
 
-.screen > section {
+section {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.centred {
-  padding-top: 12vh;
-  gap: 10px;
 }
 
 h2 {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-faint);
+  margin: 0 2px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-muted);
 }
 
 .count {
@@ -225,55 +249,293 @@ h2 {
   color: var(--text-muted);
   border-radius: 999px;
   padding: 0 7px;
-  font-size: 11px;
-  letter-spacing: 0;
+  font-size: 12px;
 }
 
-.steps {
-  margin: 0;
-  padding: 16px 16px 16px 34px;
+.link {
+  margin-left: auto;
+  padding: 4px 2px;
+  min-height: auto;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ── Cards ────────────────────────────────────────────────────────────── */
+
+.cards {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  color: var(--text-muted);
+  gap: 10px;
 }
 
-.steps strong {
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.repo-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch; /* `button` centres its contents; a card must not */
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 14px;
+  text-align: left;
+  font: inherit;
   color: var(--text);
 }
 
-/* Something worth reading before you tap anything, e.g. the computer being off. */
-.notice {
-  padding: 12px 14px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--warning-bg);
-  color: var(--warning);
-  font-size: 14px;
+.tappable:active {
+  background: var(--surface-2);
+  transform: scale(0.995);
 }
 
-/* A row that is mostly tappable, with a second control beside it. */
-.row-tap {
-  flex: 1;
-  min-width: 0;
+.repo-head {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0;
-  min-height: auto;
+  gap: 8px;
+}
+
+.card-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+.repo-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.chips {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chip-conflict {
+  background: var(--conflict-bg);
+  color: var(--conflict);
+}
+
+.badge {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Files ────────────────────────────────────────────────────────────── */
+
+.file {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 13px;
+  min-height: 56px;
   border: 0;
+  border-top: 1px solid var(--border);
   background: transparent;
-  color: inherit;
+  color: var(--text);
   font: inherit;
   text-align: left;
 }
 
-.confirm-row {
+.card > .file:first-child {
+  border-top: 0;
+}
+
+.file:active:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+}
+
+.file-folder {
+  font-size: 12px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl; /* keep the end of a long path, which is the part that identifies it */
+  text-align: left;
+}
+
+/* A letter *and* a colour, never colour alone. */
+.status {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--surface-3);
+  color: var(--text-muted);
+}
+
+.status-added {
+  background: var(--added-bg);
+  color: var(--added);
+}
+.status-modified {
+  background: var(--modified-bg);
+  color: var(--modified);
+}
+.status-deleted {
+  background: var(--removed-bg);
+  color: var(--removed);
+}
+.status-renamed {
+  background: var(--renamed-bg);
+  color: var(--renamed);
+}
+.status-conflict {
+  background: var(--conflict-bg);
+  color: var(--conflict);
+}
+
+.stage-toggle {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  color: var(--accent-text);
+}
+
+.stage-toggle.is-staged {
+  border-color: transparent;
+  background: var(--surface-3);
+  color: var(--text-muted);
+}
+
+/* ── Commits ──────────────────────────────────────────────────────────── */
+
+.commit {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 0 14px 14px;
-  color: var(--text-muted);
+  gap: 2px;
+  padding: 11px 13px;
+  border-top: 1px solid var(--border);
+}
+
+.card > .commit:first-child {
+  border-top: 0;
+}
+
+.commit-subject {
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-meta {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+/* ── Controls ─────────────────────────────────────────────────────────── */
+
+button {
+  font: inherit;
+  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 11px 14px;
+  min-height: 46px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s ease, transform 0.08s ease;
+}
+
+button:active:not(:disabled) {
+  background: var(--surface-2);
+  transform: scale(0.98);
+}
+
+button:disabled {
+  opacity: 0.5;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 550;
+}
+
+button.primary:active:not(:disabled) {
+  background: var(--accent-hover);
 }
 
 button.danger {
@@ -282,18 +544,239 @@ button.danger {
   color: #fff;
 }
 
-/* Placeholder lines while the first answer is on its way. */
-.bone {
-  height: 11px;
-  border-radius: 3px;
+button.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+button.icon {
+  width: 44px;
+  min-width: 44px;
+  padding: 0;
+}
+
+button.small {
+  min-height: 38px;
+  padding: 8px 12px;
+  font-size: 14px;
+  border-radius: 8px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.actions button {
+  flex: 1;
+}
+
+.spinning {
+  animation: spin 0.9s linear infinite;
+}
+
+/* ── Computers ────────────────────────────────────────────────────────── */
+
+.computer-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 6px 6px;
+  flex-wrap: wrap;
+}
+
+.computer-card.is-active {
+  border-color: var(--accent);
+}
+
+.computer-pick {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 11px;
+  padding: 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.computer-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
   background: var(--surface-3);
-  animation: pulse 1.4s ease-in-out infinite;
+  color: var(--text-muted);
+}
+
+.tick {
+  color: var(--accent-text);
+}
+
+.confirm {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  color: var(--text-muted);
+}
+
+.card.confirm {
+  padding: 14px;
+}
+
+/* ── Odds and ends ────────────────────────────────────────────────────── */
+
+.toast {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 14px;
+  font-size: 14px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.toast-text {
+  min-width: 0;
+}
+
+.toast-error {
+  background: var(--removed-bg);
+  color: var(--removed);
+}
+
+.toast-ok {
+  background: var(--added-bg);
+  color: var(--added);
+}
+
+.notice {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: 14px;
+}
+
+.install {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px 10px 14px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.install-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+}
+
+/* Empty states: say what is true, with room to breathe. */
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 36px 16px;
+  text-align: center;
+  color: var(--text-faint);
+}
+
+.hero-title {
+  margin: 6px 0 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.steps {
+  margin: 0;
+  padding: 16px 16px 16px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: var(--text-muted);
+}
+
+.steps strong {
+  color: var(--text);
+}
+
+/* The commit box stays within thumb reach instead of at the end of a long scroll. */
+.commit-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border);
+  box-shadow: var(--shadow-bar);
+}
+
+textarea {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 16px; /* smaller and iOS zooms in on focus */
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  resize: none;
+}
+
+textarea:focus-visible {
+  border-color: var(--accent);
+}
+
+.bone {
+  display: block;
+  height: 12px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  animation: pulse 1.5s ease-in-out infinite;
 }
 
 .bone-sub {
-  height: 9px;
-  margin-top: 6px;
-  opacity: 0.6;
+  height: 10px;
+  opacity: 0.65;
+}
+
+.spin {
+  flex-shrink: 0;
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes pulse {
@@ -307,304 +790,13 @@ button.danger {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .spin,
+  .spinning,
   .bone {
-    animation: none;
+    animation-duration: 2.5s;
   }
-}
-
-p {
-  margin: 0;
-}
-
-.muted {
-  color: var(--text-muted);
-}
-
-.small {
-  font-size: 14px;
-}
-
-.mono {
-  font-family: var(--font-mono);
-  font-size: 13px;
-}
-
-/* ── Cards and rows ───────────────────────────────────────────────────── */
-
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.row:disabled {
-  opacity: 1; /* a row that can't be tapped yet shouldn't look broken */
-}
-
-.list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.list > li + li {
-  border-top: 1px solid var(--border);
-}
-
-.row {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  min-height: 56px;
-  text-align: left;
-  background: transparent;
-  color: var(--text);
-  border: 0;
-  font: inherit;
-  cursor: pointer;
-}
-
-.row:active {
-  background: var(--surface-2);
-}
-
-.row.static {
-  cursor: default;
-}
-
-.row-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.row-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.row-sub {
-  font-size: 13px;
-  color: var(--text-faint);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.chevron {
-  color: var(--text-faint);
-  font-size: 18px;
-}
-
-/* Counts and branch names, as on the desktop's toolbar. */
-.pill {
-  flex-shrink: 0;
-  background: var(--surface-3);
-  color: var(--text-muted);
-  border-radius: 999px;
-  padding: 1px 9px;
-  font-size: 13px;
-}
-
-.pill-accent {
-  background: var(--accent-soft);
-  color: var(--accent-text);
-}
-
-/* Status is a letter *and* a colour, never colour alone. */
-.glyph {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  display: grid;
-  place-items: center;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 700;
-  font-family: var(--font-mono);
-  background: var(--surface-3);
-  color: var(--text-muted);
-}
-
-.glyph-added {
-  background: var(--added-bg);
-  color: var(--added);
-}
-.glyph-modified {
-  background: var(--warning-bg);
-  color: var(--modified);
-}
-.glyph-deleted {
-  background: var(--removed-bg);
-  color: var(--removed);
-}
-.glyph-renamed {
-  background: var(--accent-soft);
-  color: var(--renamed);
-}
-.glyph-conflict {
-  background: var(--conflict-bg);
-  color: var(--conflict);
-}
-
-/* ── Controls ─────────────────────────────────────────────────────────── */
-
-button {
-  font: inherit;
-  font-size: 15px;
-  padding: 11px 14px;
-  min-height: 44px;
-  border-radius: 4px;
-  border: 1px solid var(--border-strong);
-  background: var(--surface);
-  color: var(--text);
-  cursor: pointer;
-}
-
-button:active:not(:disabled) {
-  background: var(--surface-2);
-}
-
-button:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
-button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
-  font-weight: 500;
-}
-
-button.primary:active:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-button.ghost {
-  background: transparent;
-  border-color: transparent;
-  color: var(--text-muted);
-  padding: 10px;
-}
-
-button.icon {
-  min-width: 44px;
-  padding: 10px;
-  font-size: 18px;
-  line-height: 1;
-}
-
-.actions {
-  display: flex;
-  gap: 8px;
-}
-
-.actions button {
-  flex: 1;
-}
-
-textarea {
-  width: 100%;
-  font: inherit;
-  font-size: 16px; /* 16px or iOS zooms in when it gets focus */
-  padding: 10px 12px;
-  border-radius: 4px;
-  border: 1px solid var(--border-strong);
-  background: var(--surface);
-  color: var(--text);
-  resize: vertical;
-}
-
-textarea:focus-visible {
-  border-color: var(--accent);
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 14px;
-}
-
-/* ── Banners ──────────────────────────────────────────────────────────── */
-
-.banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  font-size: 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text-muted);
-}
-
-.banner-error {
-  background: var(--removed-bg);
-  color: var(--removed);
-  border-bottom-color: var(--removed);
-}
-
-.banner-success {
-  background: var(--added-bg);
-  color: var(--added);
-}
-
-.banner {
-  position: sticky;
-  top: 0;
-  z-index: 4;
-}
-
-/* The install prompt: an offer, not a demand. Dismissible, and never shown twice. */
-.install {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-}
-
-.install .install-text {
-  flex: 1;
-  min-width: 0;
-  font-size: 14px;
-}
-
-.empty {
-  padding: 24px 14px;
-  text-align: center;
-  color: var(--text-muted);
-}
-
-.spin {
-  display: inline-block;
-  width: 13px;
-  height: 13px;
-  border: 2px solid currentColor;
-  border-right-color: transparent;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .spin {
-    animation-duration: 2s;
+  button:active:not(:disabled),
+  .tappable:active {
+    transform: none;
   }
 }

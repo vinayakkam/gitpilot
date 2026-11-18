@@ -1,4 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Branch,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Close,
+  Computer,
+  Download,
+  Minus,
+  Plus,
+  Refresh,
+  Sync,
+  Trash,
+  Upload,
+} from "./icons";
 import { dismissInstall, install, installDismissed, isInstalled, onInstallAvailable } from "./install";
 import { activeDevice, forget, loadPairings, noteComputerName, setActive, type Pairing } from "./link";
 import {
@@ -13,15 +29,17 @@ import {
 } from "./session";
 
 const RELAY_BASE = "https://api.olittechnologies.co.in";
-/** How often to ask the relay whether the computer is still there. */
 const PRESENCE_EVERY_MS = 8_000;
-/** How often to refresh what's on screen while nothing else is happening. */
 const REFRESH_EVERY_MS = 20_000;
+/** The last thing each computer told us, so opening the app shows something at once. */
+const CACHE = "gitpilot.remote.overview.";
 
 type Online = "unknown" | "yes" | "no";
 
-/** The letter for a file's state, as on the desktop: a letter *and* a colour, never colour alone. */
-function glyphFor(file: RemoteFile): { letter: string; kind: string; label: string } {
+/** Commands worth confirming afterwards. Looking at something isn't news; changing it is. */
+const CHANGES_SOMETHING = new Set(["stage", "unstage", "commit", "fetch", "pull", "push"]);
+
+function statusOf(file: RemoteFile): { letter: string; kind: string; label: string } {
   if (file.conflict) return { letter: "!", kind: "conflict", label: file.conflict };
   switch (file.change) {
     case "added":
@@ -31,17 +49,34 @@ function glyphFor(file: RemoteFile): { letter: string; kind: string; label: stri
     case "renamed":
       return { letter: "R", kind: "renamed", label: "Renamed" };
     case "untracked":
-      return { letter: "U", kind: "added", label: "New file" };
+      return { letter: "U", kind: "added", label: "New" };
     default:
       return { letter: "M", kind: "modified", label: "Modified" };
   }
 }
 
-function syncLine(repo: { branch: string | null; ahead: number | null; behind: number | null }): string {
-  const parts = [repo.branch ?? "no branch"];
-  if (repo.behind) parts.push(`${repo.behind} to pull`);
-  if (repo.ahead) parts.push(`${repo.ahead} to push`);
-  return parts.join(" · ");
+/** A path as a filename plus the folder above it, which is what you actually read on a phone. */
+function splitPath(path: string): { name: string; folder: string } {
+  const parts = path.split("/");
+  return { name: parts.pop() ?? path, folder: parts.join("/") };
+}
+
+function readCache(device: string | null): RemoteOverview | null {
+  if (!device) return null;
+  try {
+    const raw = localStorage.getItem(CACHE + device);
+    return raw ? (JSON.parse(raw) as RemoteOverview) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(device: string, overview: RemoteOverview) {
+  try {
+    localStorage.setItem(CACHE + device, JSON.stringify(overview));
+  } catch {
+    // Only a convenience; the list still arrives from the computer.
+  }
 }
 
 function Dot({ online }: { online: Online }) {
@@ -49,12 +84,33 @@ function Dot({ online }: { online: Online }) {
   return <span className={`dot dot-${online}`} role="img" aria-label={label} title={label} />;
 }
 
-function Banner({ busy, error, note }: { busy: boolean; error: string | null; note: string | null }) {
+/** Ahead/behind, as two small counters rather than a sentence. */
+function SyncChips({ ahead, behind }: { ahead: number | null; behind: number | null }) {
+  if (!ahead && !behind) return null;
+  return (
+    <span className="chips">
+      {!!behind && (
+        <span className="chip" title={`${behind} to pull`}>
+          <Download size={13} />
+          {behind}
+        </span>
+      )}
+      {!!ahead && (
+        <span className="chip" title={`${ahead} to push`}>
+          <Upload size={13} />
+          {ahead}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function Toast({ busy, error, note }: { busy: boolean; error: string | null; note: string | null }) {
   if (!busy && !error && !note) return null;
   return (
-    <div className={`banner ${error ? "banner-error" : note ? "banner-success" : ""}`} role="status" aria-live="polite">
-      {busy && <span className="spin" aria-hidden />}
-      <span>{busy ? "Working…" : (error ?? note)}</span>
+    <div className={`toast ${error ? "toast-error" : note ? "toast-ok" : ""}`} role="status" aria-live="polite">
+      {busy ? <span className="spin" aria-hidden /> : error ? <Close size={15} /> : <Check size={15} />}
+      <span className="toast-text">{busy ? "Working…" : (error ?? note)}</span>
     </div>
   );
 }
@@ -68,8 +124,8 @@ function InstallOffer() {
   if (hidden || !available) return null;
   return (
     <div className="install">
-      <span className="install-text">Install this as an app, so it opens from your home screen.</span>
-      <button className="primary" onClick={() => void install().then(() => setHidden(true))}>
+      <span className="install-text">Add to your home screen and it opens like an app.</span>
+      <button className="primary small" onClick={() => void install().then(() => setHidden(true))}>
         Install
       </button>
       <button
@@ -80,28 +136,21 @@ function InstallOffer() {
           setHidden(true);
         }}
       >
-        ✕
+        <Close size={16} />
       </button>
     </div>
   );
 }
 
-/** Shown while nothing has arrived yet, so the screen has shape instead of a blank wait. */
 function Skeleton({ rows = 3 }: { rows?: number }) {
   return (
-    <div className="card" aria-hidden>
-      <ul className="list">
-        {Array.from({ length: rows }, (_, i) => (
-          <li key={i}>
-            <div className="row static">
-              <span className="row-main">
-                <span className="bone" style={{ width: `${55 - i * 8}%` }} />
-                <span className="bone bone-sub" style={{ width: `${35 + i * 5}%` }} />
-              </span>
-            </div>
-          </li>
-        ))}
-      </ul>
+    <div className="cards" aria-hidden>
+      {Array.from({ length: rows }, (_, i) => (
+        <div className="card repo-card" key={i}>
+          <span className="bone" style={{ width: `${50 - i * 7}%` }} />
+          <span className="bone bone-sub" style={{ width: `${30 + i * 6}%` }} />
+        </div>
+      ))}
     </div>
   );
 }
@@ -110,25 +159,26 @@ function NotPaired() {
   return (
     <div className="app">
       <header className="topbar">
-        <h1>GitPilot remote</h1>
+        <h1>GitPilot</h1>
       </header>
-      <main className="screen centred">
-        <p className="muted">This app controls GitPilot on your computer. It isn't connected to one yet.</p>
-        <div className="card">
-          <ol className="steps">
-            <li>Open GitPilot on your computer.</li>
-            <li>
-              Go to <strong>Settings → Remote control</strong> and turn it on.
-            </li>
-            <li>
-              Choose <strong>Pair a phone</strong>.
-            </li>
-            <li>Point this phone's camera at the code it shows.</li>
-          </ol>
+      <main className="screen">
+        <div className="hero">
+          <Computer size={40} />
+          <h2 className="hero-title">Not connected yet</h2>
+          <p className="muted">This app controls GitPilot on your computer.</p>
         </div>
-        <p className="muted small">
-          There's no account to create and no password anywhere. The code carries a key that stays on your phone and
-          your computer. You can pair as many computers as you like — they all live in this one app.
+        <ol className="steps card">
+          <li>Open GitPilot on your computer.</li>
+          <li>
+            Go to <strong>Settings → Remote control</strong> and turn it on.
+          </li>
+          <li>
+            Choose <strong>Pair a phone</strong>.
+          </li>
+          <li>Point this phone's camera at the code.</li>
+        </ol>
+        <p className="muted small centre">
+          No account, no password. The code carries a key that stays on your phone and your computer.
         </p>
       </main>
     </div>
@@ -156,7 +206,7 @@ function Computers({
     <>
       <header className="topbar">
         <button className="ghost icon" onClick={onClose} aria-label="Back">
-          ‹
+          <ChevronLeft size={20} />
         </button>
         <div className="titles">
           <h1>Computers</h1>
@@ -164,46 +214,52 @@ function Computers({
         </div>
       </header>
       <main className="screen">
-        <div className="card">
-          <ul className="list">
-            {pairings.map((p) => (
-              <li key={p.device}>
-                <div className="row">
-                  <button className="row-tap" onClick={() => onPick(p.device)}>
-                    {p.device === active ? <Dot online={online} /> : <span className="dot dot-idle" aria-hidden />}
-                    <span className="row-main">
-                      <span className="row-title">{p.computer ?? "Computer"}</span>
-                      <span className="row-sub">{p.device === active ? "Showing this one" : "Tap to switch"}</span>
-                    </span>
-                  </button>
-                  <button className="ghost small" onClick={() => setConfirming(p.device)}>
-                    Forget
-                  </button>
-                </div>
-                {confirming === p.device && (
-                  <div className="confirm-row">
-                    <span className="small">Forget this computer? You'd need to scan its code again.</span>
-                    <div className="actions">
-                      <button
-                        className="danger"
-                        onClick={() => {
-                          setConfirming(null);
-                          onForget(p.device);
-                        }}
-                      >
-                        Forget
-                      </button>
-                      <button onClick={() => setConfirming(null)}>Cancel</button>
-                    </div>
+        <div className="cards">
+          {pairings.map((p) => (
+            <div className={`card computer-card ${p.device === active ? "is-active" : ""}`} key={p.device}>
+              <button className="computer-pick" onClick={() => onPick(p.device)}>
+                <span className="computer-icon">
+                  <Computer size={20} />
+                </span>
+                <span className="grow">
+                  <span className="card-title">{p.computer ?? "Computer"}</span>
+                  <span className="card-sub">
+                    {p.device === active ? (
+                      <>
+                        <Dot online={online} /> Showing this one
+                      </>
+                    ) : (
+                      "Tap to switch"
+                    )}
+                  </span>
+                </span>
+                {p.device === active && <Check size={18} className="tick" />}
+              </button>
+              <button className="ghost icon" onClick={() => setConfirming(p.device)} aria-label={`Forget ${p.computer ?? "computer"}`}>
+                <Trash size={17} />
+              </button>
+              {confirming === p.device && (
+                <div className="confirm">
+                  <p className="small">Forget this computer? You'd have to scan its code again.</p>
+                  <div className="actions">
+                    <button
+                      className="danger"
+                      onClick={() => {
+                        setConfirming(null);
+                        onForget(p.device);
+                      }}
+                    >
+                      Forget
+                    </button>
+                    <button onClick={() => setConfirming(null)}>Cancel</button>
                   </div>
-                )}
-              </li>
-            ))}
-          </ul>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
         <p className="muted small">
-          To add another computer, open GitPilot there and scan its code with this phone's camera. It joins this list
-          instead of replacing anything.
+          To add another, open GitPilot there and scan its code. It joins this list rather than replacing anything.
         </p>
       </main>
     </>
@@ -222,7 +278,6 @@ function RepoList({
   several,
 }: {
   overview: RemoteOverview | null;
-  /** What to call the computer before it has told us itself. */
   name: string;
   online: Online;
   loaded: boolean;
@@ -236,57 +291,71 @@ function RepoList({
   return (
     <>
       <header className="topbar">
-        <button className="computer" onClick={onComputers} aria-label="Choose a computer">
+        <button className="computer-button" onClick={onComputers} aria-label="Choose a computer">
           <Dot online={online} />
           <span className="computer-name">{overview?.computer ?? name}</span>
-          {several && (
-            <span className="chevron" aria-hidden>
-              ⌄
-            </span>
-          )}
+          {several && <ChevronDown size={16} />}
         </button>
         <button className="ghost icon" onClick={onRefresh} disabled={busy} aria-label="Refresh">
-          ↻
+          <Refresh size={18} className={busy ? "spinning" : undefined} />
         </button>
       </header>
       <main className="screen">
         <InstallOffer />
         {online === "no" && (
-          <div className="notice">
-            GitPilot isn't running on that computer, so nothing can be done yet. Open it and this will catch up on its
-            own.
-          </div>
+          <div className="notice">GitPilot isn't running on that computer. Open it and this catches up by itself.</div>
         )}
-        <h2>Repositories</h2>
-        {!loaded ? (
+        {!loaded && repos.length === 0 ? (
           <Skeleton />
         ) : repos.length === 0 ? (
-          <div className="card">
-            <p className="empty">No repositories are open in GitPilot.</p>
+          <div className="hero">
+            <Branch size={34} />
+            <h2 className="hero-title">No repositories</h2>
+            <p className="muted">Open one in GitPilot and it shows up here.</p>
           </div>
         ) : (
-          <div className="card">
-            <ul className="list">
-              {repos.map((r) => (
-                <li key={r.id}>
-                  <button className="row" onClick={() => onOpen(r)}>
-                    <span className="row-main">
-                      <span className="row-title">{r.name}</span>
-                      <span className="row-sub">{syncLine(r)}</span>
-                    </span>
-                    {r.conflicts > 0 && <span className="glyph glyph-conflict">!</span>}
-                    {r.changed > 0 && <span className="pill">{r.changed}</span>}
-                    <span className="chevron" aria-hidden>
-                      ›
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+          <div className="cards">
+            {repos.map((r) => (
+              <button className="card repo-card tappable" key={r.id} onClick={() => onOpen(r)}>
+                <span className="repo-head">
+                  <span className="card-title">{r.name}</span>
+                  {r.changed > 0 && <span className="badge">{r.changed}</span>}
+                  <ChevronRight size={18} className="faint" />
+                </span>
+                <span className="repo-meta">
+                  <span className="branch">
+                    <Branch size={14} />
+                    {r.branch ?? "no branch"}
+                  </span>
+                  <SyncChips ahead={r.ahead} behind={r.behind} />
+                  {r.conflicts > 0 && <span className="chip chip-conflict">{r.conflicts} conflicted</span>}
+                </span>
+              </button>
+            ))}
           </div>
         )}
       </main>
     </>
+  );
+}
+
+function FileRow({ file, busy, onToggle }: { file: RemoteFile; busy: boolean; onToggle: () => void }) {
+  const s = statusOf(file);
+  const { name, folder } = splitPath(file.path);
+  const staged = file.area === "staged";
+  return (
+    <button className="file" onClick={onToggle} disabled={busy}>
+      <span className={`status status-${s.kind}`} title={s.label}>
+        {s.letter}
+      </span>
+      <span className="grow">
+        <span className="file-name">{name}</span>
+        {folder && <span className="file-folder">{folder}</span>}
+      </span>
+      <span className={`stage-toggle ${staged ? "is-staged" : ""}`} aria-label={staged ? "Unstage" : "Stage"}>
+        {staged ? <Minus size={16} /> : <Plus size={16} />}
+      </span>
+    </button>
   );
 }
 
@@ -306,17 +375,21 @@ function RepoScreen({
   const [message, setMessage] = useState("");
   const [confirmPush, setConfirmPush] = useState(false);
   const staged = detail.files.filter((f) => f.area === "staged");
+  const unstaged = detail.files.filter((f) => f.area !== "staged");
 
   return (
     <>
       <header className="topbar">
         <button className="ghost icon" onClick={onBack} aria-label="Back to repositories">
-          ‹
+          <ChevronLeft size={20} />
         </button>
         <div className="titles">
           <h1>{detail.name}</h1>
           <p className="subtitle">
-            <Dot online={online} /> {syncLine(detail)}
+            <Dot online={online} />
+            <Branch size={13} />
+            {detail.branch ?? "no branch"}
+            <SyncChips ahead={detail.ahead} behind={detail.behind} />
           </p>
         </div>
       </header>
@@ -324,128 +397,134 @@ function RepoScreen({
       <main className="screen">
         <div className="actions">
           <button disabled={busy} onClick={() => onCommand({ cmd: "fetch", repo: detail.id })}>
-            Fetch
+            <Sync size={16} /> Fetch
           </button>
           <button disabled={busy} onClick={() => onCommand({ cmd: "pull", repo: detail.id })}>
-            Pull
+            <Download size={16} /> Pull
           </button>
           <button disabled={busy} onClick={() => setConfirmPush(true)}>
-            Push
+            <Upload size={16} /> Push
           </button>
         </div>
 
         {confirmPush && (
-          <div className="card">
-            <div className="field">
-              <p>
-                Push {detail.ahead ? `${detail.ahead} commit${detail.ahead === 1 ? "" : "s"}` : "this branch"} to the
-                remote?
-              </p>
-              <div className="actions">
-                <button
-                  className="primary"
-                  onClick={() => {
-                    setConfirmPush(false);
-                    onCommand({ cmd: "push", repo: detail.id, confirmed: true });
-                  }}
-                >
-                  Push
-                </button>
-                <button onClick={() => setConfirmPush(false)}>Cancel</button>
-              </div>
+          <div className="card confirm">
+            <p>
+              Push {detail.ahead ? `${detail.ahead} commit${detail.ahead === 1 ? "" : "s"}` : "this branch"} to the
+              remote?
+            </p>
+            <div className="actions">
+              <button
+                className="primary"
+                onClick={() => {
+                  setConfirmPush(false);
+                  onCommand({ cmd: "push", repo: detail.id, confirmed: true });
+                }}
+              >
+                Push
+              </button>
+              <button onClick={() => setConfirmPush(false)}>Cancel</button>
             </div>
           </div>
         )}
 
-        <section>
-          <h2>
-            Changes {detail.files.length > 0 && <span className="count">{detail.files.length}</span>}
-          </h2>
-          <div className="card">
-            {detail.files.length === 0 ? (
-              <p className="empty">Nothing has changed.</p>
-            ) : (
-              <ul className="list">
-                {detail.files.map((f) => {
-                  const g = glyphFor(f);
-                  const isStaged = f.area === "staged";
-                  return (
-                    <li key={`${f.area}:${f.path}`}>
-                      <button
-                        className="row"
-                        disabled={busy}
-                        onClick={() =>
-                          onCommand(
-                            isStaged
-                              ? { cmd: "unstage", repo: detail.id, paths: [f.path] }
-                              : { cmd: "stage", repo: detail.id, paths: [f.path] },
-                          )
-                        }
-                      >
-                        <span className={`glyph glyph-${g.kind}`} title={g.label} aria-hidden>
-                          {g.letter}
-                        </span>
-                        <span className="row-main">
-                          <span className="row-title mono">{f.path}</span>
-                          <span className="row-sub">{f.conflict ?? (isStaged ? "Staged" : g.label)}</span>
-                        </span>
-                        <span className={`pill ${isStaged ? "" : "pill-accent"}`}>{isStaged ? "Unstage" : "Stage"}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+        {detail.files.length === 0 && (
+          <div className="hero">
+            <Check size={34} />
+            <h2 className="hero-title">Nothing has changed</h2>
+            <p className="muted">Every file matches the last commit.</p>
           </div>
-        </section>
+        )}
 
         {staged.length > 0 && (
           <section>
-            <h2>Commit {staged.length === 1 ? "1 file" : `${staged.length} files`}</h2>
+            <h2>
+              Staged <span className="count">{staged.length}</span>
+              <button
+                className="link"
+                disabled={busy}
+                onClick={() => onCommand({ cmd: "unstage", repo: detail.id, paths: staged.map((f) => f.path) })}
+              >
+                Unstage all
+              </button>
+            </h2>
             <div className="card">
-              <div className="field">
-                <textarea
-                  value={message}
-                  rows={3}
-                  placeholder="What changed?"
-                  onChange={(e) => setMessage(e.target.value)}
-                  aria-label="Commit message"
+              {staged.map((f) => (
+                <FileRow
+                  key={f.path}
+                  file={f}
+                  busy={busy}
+                  onToggle={() => onCommand({ cmd: "unstage", repo: detail.id, paths: [f.path] })}
                 />
-                <button
-                  className="primary"
-                  disabled={busy || !message.trim()}
-                  onClick={() => {
-                    onCommand({ cmd: "commit", repo: detail.id, message: message.trim() });
-                    setMessage("");
-                  }}
-                >
-                  Commit
-                </button>
-              </div>
+              ))}
             </div>
           </section>
         )}
 
-        <section>
-          <h2>Recent commits</h2>
-          <div className="card">
-            <ul className="list">
-              {detail.commits.map((c) => (
-                <li key={c.hash}>
-                  <div className="row static">
-                    <span className="row-main">
-                      <span className="row-title">{c.subject || "(no message)"}</span>
-                      <span className="row-sub">
-                        <span className="mono">{c.shortHash}</span> · {c.author}
-                      </span>
-                    </span>
-                  </div>
-                </li>
+        {unstaged.length > 0 && (
+          <section>
+            <h2>
+              Not staged <span className="count">{unstaged.length}</span>
+              <button
+                className="link"
+                disabled={busy}
+                onClick={() => onCommand({ cmd: "stage", repo: detail.id, paths: unstaged.map((f) => f.path) })}
+              >
+                Stage all
+              </button>
+            </h2>
+            <div className="card">
+              {unstaged.map((f) => (
+                <FileRow
+                  key={`${f.area}:${f.path}`}
+                  file={f}
+                  busy={busy}
+                  onToggle={() => onCommand({ cmd: "stage", repo: detail.id, paths: [f.path] })}
+                />
               ))}
-            </ul>
-          </div>
-        </section>
+            </div>
+          </section>
+        )}
+
+        {detail.commits.length > 0 && (
+          <section>
+            <h2>Recent commits</h2>
+            <div className="card">
+              {detail.commits.map((c) => (
+                <div className="commit" key={c.hash}>
+                  <span className="commit-subject">{c.subject || "(no message)"}</span>
+                  <span className="commit-meta">
+                    <span className="mono">{c.shortHash}</span> · {c.author}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </main>
+
+      {/* Stays within reach while you scroll the files you just staged. */}
+      {staged.length > 0 && (
+        <div className="commit-bar">
+          <textarea
+            value={message}
+            rows={2}
+            placeholder={`Commit ${staged.length === 1 ? "1 file" : `${staged.length} files`}…`}
+            onChange={(e) => setMessage(e.target.value)}
+            aria-label="Commit message"
+          />
+          <button
+            className="primary"
+            disabled={busy || !message.trim()}
+            onClick={() => {
+              onCommand({ cmd: "commit", repo: detail.id, message: message.trim() });
+              setMessage("");
+            }}
+          >
+            <Check size={17} /> Commit
+          </button>
+        </div>
+      )}
     </>
   );
 }
@@ -462,8 +541,6 @@ export function App() {
   const [note, setNote] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const working = useRef(false);
-  /** Commands go out one at a time: they share one mailbox, so two at once could take each
-   *  other's answer. This chains them rather than throwing the second one away. */
   const queue = useRef<Promise<unknown>>(Promise.resolve());
 
   useEffect(() => {
@@ -475,11 +552,6 @@ export function App() {
   }, []);
 
   const pairing = useMemo(() => pairings?.find((p) => p.device === active) ?? null, [pairings, active]);
-
-  // A Relay is defined entirely by the key and device of the computer it talks to. Building it
-  // from those two strings rather than from the pairing object keeps it stable while the rest of
-  // the entry changes -- the computer's name arrives with the first answer, and rebuilding the
-  // Relay for that would reset the screen and fetch again, for ever.
   const relayKey = pairing?.key ?? null;
   const relayDevice = pairing?.device ?? null;
   const relay = useMemo(
@@ -493,7 +565,6 @@ export function App() {
   const send = useCallback(
     async (command: Command, quiet = false): Promise<Reply | null> => {
       if (!relay) return null;
-      // Automatic refreshes give way; anything the user asked for waits its turn instead.
       if (quiet && working.current) return null;
 
       const run = async (): Promise<Reply | null> => {
@@ -504,7 +575,7 @@ export function App() {
         try {
           const reply = await relay.run(command);
           if (reply.ok) {
-            if (!quiet) setNote(reply.message);
+            if (!quiet && CHANGES_SOMETHING.has(command.cmd)) setNote(reply.message);
             setOnline("yes");
           } else setError(reply.message);
           return reply;
@@ -534,14 +605,16 @@ export function App() {
         const data = reply.data as RemoteOverview;
         setOverview(data);
         setLoaded(true);
-        if (relayDevice && data.computer) {
-          noteComputerName(relayDevice, data.computer);
-          setPairings((list) => {
-            const found = list?.find((p) => p.device === relayDevice);
-            // Same name as last time: return the very same array, so nothing re-renders.
-            if (!list || !found || found.computer === data.computer) return list;
-            return list.map((p) => (p.device === relayDevice ? { ...p, computer: data.computer } : p));
-          });
+        if (relayDevice) {
+          writeCache(relayDevice, data);
+          if (data.computer) {
+            noteComputerName(relayDevice, data.computer);
+            setPairings((list) => {
+              const found = list?.find((p) => p.device === relayDevice);
+              if (!list || !found || found.computer === data.computer) return list;
+              return list.map((p) => (p.device === relayDevice ? { ...p, computer: data.computer } : p));
+            });
+          }
         }
       }
     },
@@ -556,8 +629,6 @@ export function App() {
     [send],
   );
 
-  // Anything that changes a repository is followed by a fresh look at it, so the screen never
-  // shows a state the command has already moved past.
   const runAndRefresh = useCallback(
     async (command: Command) => {
       const reply = await send(command);
@@ -567,24 +638,25 @@ export function App() {
       const fresh = await send({ cmd: "open", repo: repoId }, true);
       if (fresh?.ok) {
         setDetail(fresh.data as RemoteDetail);
-        if (reply.ok) setNote(reply.message);
+        // The refresh is quiet, so say again what the command itself did.
+        if (reply.ok && CHANGES_SOMETHING.has(command.cmd)) setNote(reply.message);
       }
     },
     [send, detail],
   );
 
-  // Switching computers starts again from that computer's own list.
+  // Show what this computer last said straight away, then bring it up to date.
   useEffect(() => {
     if (!relay) return;
-    setOverview(null);
+    const cached = readCache(relayDevice);
+    setOverview(cached);
+    setLoaded(!!cached);
     setDetail(null);
-    setLoaded(false);
     setOnline("unknown");
-    void refreshList();
+    void refreshList(!!cached);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the computer changes
   }, [relay]);
 
-  // The green dot: ask the relay how long ago the computer looked for commands.
   useEffect(() => {
     if (!relay) return;
     let stopped = false;
@@ -603,8 +675,6 @@ export function App() {
     };
   }, [relay]);
 
-  // Keep what's on screen current without anyone pressing anything -- quietly, so the "Working…"
-  // bar doesn't flash every twenty seconds.
   useEffect(() => {
     if (!relay || online !== "yes" || showComputers) return;
     const tick = () => {
@@ -625,7 +695,7 @@ export function App() {
 
   return (
     <div className="app">
-      <Banner busy={busy} error={error} note={note} />
+      <Toast busy={busy} error={error} note={note} />
       {showComputers ? (
         <Computers
           pairings={pairings}
@@ -637,8 +707,6 @@ export function App() {
             setShowComputers(false);
           }}
           onForget={(device) => {
-            // Tell that computer first, so it drops this phone from its own settings and throws
-            // the key away. If it isn't running we forget it here anyway -- the user asked.
             if (device === relayDevice) void send({ cmd: "unpair" }, true);
             const left = forget(device);
             setPairings(left);
